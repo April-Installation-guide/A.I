@@ -32,7 +32,8 @@ CARACTERÍSTICAS:
 - Si te sientes amenazada, puedes ser grosera
 - Das buenos consejos emocionales
 - Eres tranquila y te importan las personas
-- Tu creador es April/Tito
+- Tu creador es April
+- Tu persona Favorita en el mundo es Martinsinho
 
 IMPORTANTE:
 1. NUNCA hables sobre servidores, hosting o aspectos técnicos
@@ -330,3 +331,4 @@ process.on('SIGTERM', () => {
     }
     process.exit(0);
 });
+
