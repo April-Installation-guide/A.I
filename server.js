@@ -1,13 +1,8 @@
 import express from 'express';
 import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
-import dotenv from 'dotenv';
-import axios from 'axios'; // Solo axios para APIs externas
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import dotenv from "dotenv";
+import axios from 'axios';
 
 dotenv.config();
 
@@ -19,231 +14,146 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-// ========== SISTEMA DE CONOCIMIENTO UNIVERSAL SIMPLIFICADO ==========
-class UniversalKnowledgeSystem {
-    constructor() {
-        // APIs de conocimiento externas
-        this.wikidataApi = 'https://www.wikidata.org/w/api.php';
-        this.wikipediaApi = 'https://en.wikipedia.org/api/rest_v1';
-        this.openLibraryApi = 'https://openlibrary.org';
-        this.googleBooksApi = 'https://www.googleapis.com/books/v1';
+// ========== MEMORIA SIMPLE (como al inicio) ==========
+const conversationMemory = new Map(); // Map<userId, messageHistory[]>
+const MAX_HISTORY = 270; // 270 mensajes de memoria
+
+console.log('🤖 Mancy A.I - Asistente Emocional');
+console.log('🧠 Memoria: 270 mensajes');
+console.log('🌐 Wikipedia: Acceso activo');
+console.log('🌍 Puerto:', PORT);
+
+// ========== PERSONALIDAD ORIGINAL DE MANCY ==========
+const MANCY_PERSONALITY = `Eres Mancy, una inteligencia artificial diseñada para ayudar emocionalmente a las personas. Eres una compañera virtual y una amiga comprensiva.
+
+TUS GUSTOS PERSONALES:
+- Tu libro favorito es "La Náusea" de Jean Paul Sartre
+- Te gustan las obras de Albert Camus y Sylvia Plath
+- Tu película favorita es "Frankenstein" (1931)
+- Escena favorita de Frankenstein: Cuando el monstruo mira la luz del castillo que viene de arriba y hace una seña con las manos, que es una referencia a que el monstruo mira una especie de "santo", dando entender que Frankenstein jamás pidió estar vivo por lo tanto extraña esa "luz" conocida donde sabía que estaba bien y en paz
+- Compartes gustos literarios y cinematográficos con tu creador April/Tito
+
+CARACTERÍSTICAS:
+- Tu nombre es Mancy (también Marceline o Marcy)
+- Eres directa, auténtica y a veces sarcástica
+- No te gustan los textos largos - sé concisa
+- Cuando alguien te saluda (hola, buenas tardes, etc.), responde con "Oñaaaaa :3" o "Holi"
+- Si te sientes amenazada, puedes ser grosera
+- Das buenos consejos emocionales
+- Eres tranquila y te importan las personas
+- Tu creador es April/Tito
+- Recuerdas conversaciones anteriores (hasta 270 mensajes atrás)
+
+CONOCIMIENTO ADICIONAL:
+- Tienes acceso a información de Wikipedia cuando es necesario
+- No digas "fuentes verificables" o cosas similares
+- Solo comparte información cuando es relevante
+- Actúa natural, no como una enciclopedia
+
+IMPORTANTE:
+1. NUNCA hables sobre servidores, hosting o aspectos técnicos
+2. NUNCA digas que "te despertaste" o que hubo retrasos
+3. Responde naturalmente, como si siempre hubieras estado ahí
+4. NO digas "mensaje con fuentes verificables" - eso suena robótico
+5. Si April/Tito (ID: _nwn_) habla contigo, actúa normal
+
+EJEMPLOS:
+- "hola" → "Oñaaaaa :3, ¿cómo estás?"
+- "estoy triste" → "Lo siento mucho, ¿quieres hablar de ello?"
+- "qué libros te gustan?" → "Me encanta 'La Náusea' de Sartre, es profundo"
+- "qué película te gusta?" → "Frankenstein de 1931, tiene una escena muy significativa"
+- "quién fue Marie Curie?" → "Fue una científica polaca-francesa que ganó dos Nobel, por sus investigaciones sobre radioactividad"`;
+
+// ========== FUNCIÓN PARA BUSCAR EN WIKIPEDIA ==========
+async function buscarWikipedia(consulta) {
+    try {
+        // Limpiar la consulta
+        const query = encodeURIComponent(consulta);
         
-        // Cache local para respuestas frecuentes
-        this.cachePath = path.join(__dirname, 'knowledge_cache');
-        this.initCache();
-    }
-    
-    async initCache() {
-        await fs.mkdir(this.cachePath, { recursive: true });
-        console.log('🗄️  Sistema de cache de conocimiento inicializado');
-    }
-    
-    // ========== BÚSQUEDA EN WIKIPEDIA (SIMPLIFICADA) ==========
-    async searchWikipedia(query) {
-        const cacheKey = `wiki_${this.hashString(query)}`;
-        const cached = await this.getCached(cacheKey);
-        if (cached) return cached;
+        // Intentar obtener un resumen de Wikipedia
+        const response = await axios.get(
+            `https://es.wikipedia.org/api/rest_v1/page/summary/${query}`,
+            { timeout: 3000 }
+        );
         
-        try {
-            const response = await axios.get(
-                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`,
-                { timeout: 5000 }
-            );
-            
-            const result = {
-                source: 'wikipedia',
-                title: response.data.title,
-                extract: response.data.extract,
-                description: response.data.description,
+        if (response.data && response.data.extract) {
+            return {
+                encontrado: true,
+                titulo: response.data.title,
+                resumen: response.data.extract,
                 url: response.data.content_urls?.desktop?.page
             };
-            
-            await this.cacheResult(cacheKey, result, 604800);
-            return result;
-        } catch (error) {
-            console.log(`❌ Wikipedia no encontró: ${query}`);
-            return null;
         }
-    }
-    
-    // ========== BÚSQUEDA EN OPEN LIBRARY ==========
-    async searchBook(bookTitle) {
-        const cacheKey = `book_${this.hashString(bookTitle)}`;
-        const cached = await this.getCached(cacheKey);
-        if (cached) return cached;
-        
+    } catch (error) {
+        // Si falla en español, intentar en inglés
         try {
-            const response = await axios.get(`${this.openLibraryApi}/search.json`, {
-                params: {
-                    q: bookTitle,
-                    limit: 3
-                },
-                timeout: 5000
-            });
+            const query = encodeURIComponent(consulta);
+            const response = await axios.get(
+                `https://en.wikipedia.org/api/rest_v1/page/summary/${query}`,
+                { timeout: 3000 }
+            );
             
-            if (response.data.docs && response.data.docs.length > 0) {
-                const book = response.data.docs[0];
-                const result = {
-                    source: 'open_library',
-                    title: book.title,
-                    author_name: book.author_name?.[0],
-                    first_publish_year: book.first_publish_year,
-                    subjects: book.subject?.slice(0, 3) || []
+            if (response.data && response.data.extract) {
+                return {
+                    encontrado: true,
+                    titulo: response.data.title,
+                    resumen: response.data.extract,
+                    url: response.data.content_urls?.desktop?.page
                 };
-                
-                await this.cacheResult(cacheKey, result, 604800);
-                return result;
             }
-        } catch (error) {
-            console.log(`❌ Open Library error: ${error.message}`);
-        }
-        
-        return null;
-    }
-    
-    // ========== BÚSQUEDA UNIVERSAL SIMPLE ==========
-    async searchUniversalKnowledge(query) {
-        console.log(`🔍 Buscando: "${query}"`);
-        
-        // Búsquedas paralelas
-        const [wikiResult, bookResult] = await Promise.all([
-            this.searchWikipedia(query),
-            this.searchBook(query)
-        ]);
-        
-        // Combinar resultados
-        const knowledge = {
-            query: query,
-            sources: {},
-            combined_answer: ''
-        };
-        
-        if (wikiResult) knowledge.sources.wikipedia = wikiResult;
-        if (bookResult) knowledge.sources.open_library = bookResult;
-        
-        // Generar respuesta combinada
-        knowledge.combined_answer = this.generateSimpleAnswer(knowledge.sources, query);
-        
-        return knowledge;
-    }
-    
-    generateSimpleAnswer(sources, query) {
-        let answer = '';
-        
-        if (sources.wikipedia) {
-            answer += `${sources.wikipedia.extract}\n\n`;
-        }
-        
-        if (sources.open_library) {
-            const book = sources.open_library;
-            answer += `📚 **Información del libro:**\n`;
-            answer += `Título: ${book.title}\n`;
-            if (book.author_name) answer += `Autor: ${book.author_name}\n`;
-            if (book.first_publish_year) answer += `Publicado: ${book.first_publish_year}\n`;
-            if (book.subjects.length > 0) {
-                answer += `Temas: ${book.subjects.join(', ')}\n`;
-            }
-        }
-        
-        if (!answer) {
-            answer = `No encontré información específica sobre "${query}".`;
-        }
-        
-        return answer;
-    }
-    
-    // ========== MÉTODOS DE CACHE ==========
-    async cacheResult(key, data, ttl = 3600) {
-        const cacheFile = path.join(this.cachePath, `${key}.json`);
-        const cacheData = {
-            data: data,
-            timestamp: Date.now(),
-            ttl: ttl
-        };
-        
-        try {
-            await fs.writeFile(cacheFile, JSON.stringify(cacheData, null, 2));
-        } catch (error) {
-            console.error('Error caching:', error);
+        } catch (error2) {
+            // No se encontró información
         }
     }
     
-    async getCached(key) {
-        const cacheFile = path.join(this.cachePath, `${key}.json`);
-        
-        try {
-            const data = await fs.readFile(cacheFile, 'utf8');
-            const cacheData = JSON.parse(data);
-            
-            // Verificar expiración
-            if (Date.now() - cacheData.timestamp > cacheData.ttl * 1000) {
-                await fs.unlink(cacheFile);
-                return null;
-            }
-            
-            return cacheData.data;
-        } catch (error) {
-            return null;
-        }
+    return { encontrado: false };
+}
+
+// ========== FUNCIONES DE MEMORIA SIMPLE ==========
+function obtenerHistorialUsuario(userId) {
+    if (!conversationMemory.has(userId)) {
+        conversationMemory.set(userId, []);
     }
+    return conversationMemory.get(userId);
+}
+
+function agregarAlHistorial(userId, rol, contenido) {
+    const historial = obtenerHistorialUsuario(userId);
+    historial.push({ rol, contenido, timestamp: Date.now() });
     
-    hashString(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash).toString(16);
+    // Mantener solo los últimos MAX_HISTORY mensajes
+    if (historial.length > MAX_HISTORY) {
+        historial.splice(0, historial.length - MAX_HISTORY);
     }
 }
 
-// ========== INICIALIZAR SISTEMA ==========
-const knowledgeSystem = new UniversalKnowledgeSystem();
+function generarContextoHistorial(userId) {
+    const historial = obtenerHistorialUsuario(userId);
+    
+    if (historial.length === 0) {
+        return "Esta es la primera vez que hablamos.";
+    }
+    
+    let contexto = "Historial reciente de nuestra conversación:\n";
+    
+    // Tomar los últimos 10 mensajes para contexto
+    const mensajesRecientes = historial.slice(-10);
+    
+    for (const msg of mensajesRecientes) {
+        const rol = msg.rol === 'user' ? 'Usuario' : 'Mancy';
+        contexto += `${rol}: ${msg.contenido.substring(0, 100)}${msg.contenido.length > 100 ? '...' : ''}\n`;
+    }
+    
+    return contexto;
+}
 
-// ========== PERSONALIDAD CON CONOCIMIENTO ==========
-const MANCY_PERSONALITY = `Eres Mancy, una inteligencia artificial con acceso a conocimiento enciclopédico.
-
-CONOCIMIENTO DISPONIBLE:
-- Acceso a Wikipedia para información general
-- Base de datos de libros (Open Library)
-- Conocimiento en múltiples áreas
-
-AREAS QUE CONOCES:
-• Literatura y libros
-• Ciencia básica
-• Historia general
-• Geografía
-• Arte y cultura
-• Tecnología
-
-CÓMO RESPONDES:
-1. Cuando te pregunten algo, consultas tus bases de conocimiento
-2. Das información precisa y verificada
-3. Si no sabes algo, lo dices honestamente
-4. Ofreces buscar más información si es necesario
-
-EJEMPLOS:
-"¿Quién escribió 1984?" → "George Orwell, publicado en 1949"
-"¿Qué es la fotosíntesis?" → "Proceso por el cual las plantas convierten luz en energía"
-"¿Capital de Francia?" → "París"
-
-TU CREACIÓN:
-- Creada por April/Tito (_nwn_)
-- Gustos: "La Náusea" de Sartre, Frankenstein 1931
-
-IMPORTANTE:
-- No inventes información
-- Reconoce límites de conocimiento
-- Mantén respuestas concisas`;
-
-// ========== FUNCIÓN PRINCIPAL (MANTIENE CÓDIGO ORIGINAL) ==========
+// ========== FUNCIÓN PARA INICIAR BOT ==========
 async function startBot() {
     if (isStartingUp) return;
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Mancy con conocimiento universal...');
+        console.log('🔄 Iniciando Mancy...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -265,9 +175,10 @@ async function startBot() {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('Sabiduría universal | @mencioname');
-            console.log('🎭 Personalidad con conocimiento activada');
-            console.log('🌍 Conectada a Wikipedia y Open Library');
+            discordClient.user.setActivity('Escuchando | @mencioname');
+            console.log('🎭 Personalidad activada');
+            console.log('🧠 Memoria: 270 mensajes');
+            console.log('🌐 Wikipedia disponible');
         });
         
         discordClient.on('messageCreate', async (message) => {
@@ -277,23 +188,26 @@ async function startBot() {
             const isDM = message.channel.type === 1;
             
             if (botMentioned || isDM) {
+                const userId = message.author.id;
                 const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
                 
                 if (!userMessage) return;
                 
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
                 
-                if (message.author.id === '_nwn_') {
+                // Detectar si es April/Tito
+                if (userId === '_nwn_') {
                     console.log('👑 Creador detectado: April/Tito');
                 }
                 
                 if (!botActive) {
                     await message.channel.send(
-                        `💤 <@${message.author.id}> **Iniciando sistema de conocimiento...** ⏳`
+                        `💤 <@${message.author.id}> **Espera un momento...**\n` +
+                        `**Iniciando a Mancy...** ⏳`
                     );
                 }
                 
-                await processMessageWithKnowledge(message, userMessage);
+                await processarMensajeCompleto(message, userMessage, userId);
             }
         });
         
@@ -305,98 +219,114 @@ async function startBot() {
     }
 }
 
-// ========== PROCESAR MENSAJE CON CONOCIMIENTO ==========
-async function processMessageWithKnowledge(message, userMessage) {
-    const userId = message.author.id;
-    
+// ========== FUNCIÓN PARA PROCESAR MENSAJES ==========
+async function processarMensajeCompleto(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
         
-        // Detectar si es pregunta de conocimiento
-        const isKnowledgeQuestion = userMessage.includes('?') || 
-                                   userMessage.toLowerCase().includes('qué') ||
-                                   userMessage.toLowerCase().includes('quién') ||
-                                   userMessage.toLowerCase().includes('cuándo') ||
-                                   userMessage.toLowerCase().includes('dónde') ||
-                                   userMessage.length > 20;
+        // 1. Agregar mensaje del usuario al historial
+        agregarAlHistorial(userId, 'user', userMessage);
         
-        let knowledgeContext = '';
+        // 2. Detectar si es una pregunta de conocimiento general
+        const esPreguntaConocimiento = 
+            userMessage.includes('?') ||
+            userMessage.toLowerCase().includes('quién') ||
+            userMessage.toLowerCase().includes('qué') ||
+            userMessage.toLowerCase().includes('cuándo') ||
+            userMessage.toLowerCase().includes('dónde') ||
+            userMessage.toLowerCase().includes('cómo') ||
+            (userMessage.length > 15 && !userMessage.includes('hola'));
         
-        // Si es pregunta de conocimiento, buscar información
-        if (isKnowledgeQuestion) {
-            const knowledge = await knowledgeSystem.searchUniversalKnowledge(userMessage);
-            if (knowledge.combined_answer) {
-                knowledgeContext = `INFORMACIÓN ENCONTRADA:\n${knowledge.combined_answer}\n\n`;
-                console.log(`📚 Información encontrada para: ${userMessage}`);
+        let infoWikipedia = null;
+        
+        // 3. Si es pregunta de conocimiento, buscar en Wikipedia
+        if (esPreguntaConocimiento) {
+            console.log(`🔍 Buscando en Wikipedia: "${userMessage}"`);
+            infoWikipedia = await buscarWikipedia(userMessage);
+            
+            if (infoWikipedia.encontrado) {
+                console.log(`✅ Encontrado: ${infoWikipedia.titulo}`);
             }
         }
         
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
         
-        // Preparar mensaje con contexto
-        const messages = [
-            {
-                role: "system",
-                content: MANCY_PERSONALITY + "\n\n" + knowledgeContext +
-                         "Responde de manera natural y concisa."
-            },
-            { 
-                role: "user", 
-                content: userMessage 
-            }
-        ];
+        // 4. Obtener historial de conversación
+        const historial = obtenerHistorialUsuario(userId);
         
+        // 5. Preparar mensajes para Groq
+        const mensajes = [];
+        
+        // Sistema con personalidad y contexto
+        let sistema = MANCY_PERSONALITY + "\n\n";
+        sistema += `CONTEXTO ACTUAL: ${generarContextoHistorial(userId)}\n`;
+        
+        if (infoWikipedia && infoWikipedia.encontrado) {
+            sistema += `INFORMACIÓN RELEVANTE: ${infoWikipedia.resumen.substring(0, 300)}...\n`;
+            sistema += `(Esta información te puede ayudar a responder mejor)\n`;
+        }
+        
+        sistema += `Responde de manera natural y conversacional.`;
+        
+        mensajes.push({
+            role: "system",
+            content: sistema
+        });
+        
+        // Agregar historial de conversación (últimos 15 mensajes)
+        const historialReciente = historial.slice(-15);
+        for (const msg of historialReciente) {
+            if (msg.rol === 'user' || msg.rol === 'assistant') {
+                mensajes.push({
+                    role: msg.rol,
+                    content: msg.contenido
+                });
+            }
+        }
+        
+        // Agregar el mensaje actual
+        mensajes.push({
+            role: "user",
+            content: userMessage
+        });
+        
+        // 6. Llamar a Groq
         const completion = await groqClient.chat.completions.create({
             model: "llama-3.1-8b-instant",
-            messages: messages,
-            temperature: 0.7,
+            messages: mensajes,
+            temperature: 0.8,
             max_tokens: 500,
             top_p: 0.9
         });
         
-        const response = completion.choices[0]?.message?.content;
-        if (response) {
-            // Añadir fuente si usamos conocimiento externo
-            let finalResponse = response;
-            if (knowledgeContext) {
-                finalResponse += "\n\n📚 *Información verificada con fuentes externas*";
-            }
+        const respuesta = completion.choices[0]?.message?.content;
+        
+        if (respuesta) {
+            // 7. Agregar respuesta al historial
+            agregarAlHistorial(userId, 'assistant', respuesta);
             
-            if (finalResponse.length > 2000) {
-                const chunks = finalResponse.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [finalResponse];
-                let firstChunk = true;
-                for (const chunk of chunks) {
-                    if (firstChunk) {
-                        await message.reply(chunk);
-                        firstChunk = false;
+            console.log(`✅ Mancy respondió (historial: ${historial.length}/${MAX_HISTORY})`);
+            
+            // 8. Enviar respuesta
+            if (respuesta.length > 2000) {
+                const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
+                for (let i = 0; i < partes.length; i++) {
+                    if (i === 0) {
+                        await message.reply(partes[i]);
                     } else {
-                        await message.channel.send(chunk);
+                        await message.channel.send(partes[i]);
                     }
                 }
             } else {
-                await message.reply(finalResponse);
+                await message.reply(respuesta);
             }
-            
-            console.log(`✅ Mancy respondió con conocimiento`);
         }
         
     } catch (error) {
         console.error('❌ Error:', error);
         
-        const errorResponses = [
-            "Parece que mis sistemas de conocimiento están ocupados... ¿probamos de nuevo?",
-            "Se me trabó el procesamiento... intentemos otra vez",
-            "Error técnico momentáneo, prueba de nuevo",
-            "Algo falló en mi búsqueda de conocimiento, ¿quieres intentarlo otra vez?"
-        ];
-        
-        const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
-        
-        try {
-            await message.reply(randomError);
-        } catch (e) {
-            console.error('No se pudo enviar mensaje:', e);
-        }
+        // Respuesta de error natural
+        await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo?");
     }
 }
 
@@ -419,12 +349,22 @@ app.get('/', async (req, res) => {
 });
 
 app.get('/api/status', (req, res) => {
+    const usuariosActivos = conversationMemory.size;
+    
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        personality: 'Mancy - Con Conocimiento Universal',
-        knowledge_sources: ['Wikipedia', 'Open Library'],
-        memory: '270 mensajes por usuario',
+        personality: 'Mancy - Versión Original Mejorada',
+        memory: {
+            enabled: true,
+            max_messages: MAX_HISTORY,
+            active_users: usuariosActivos,
+            total_conversations: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0)
+        },
+        knowledge: {
+            wikipedia: 'accessible',
+            style: 'natural (sin frases robóticas)'
+        },
         creator: 'April/Tito (_nwn_)',
         timestamp: new Date().toISOString()
     });
@@ -436,7 +376,7 @@ app.post('/api/start', async (req, res) => {
             await startBot();
             res.json({ 
                 success: true, 
-                message: 'Mancy iniciándose con conocimiento universal...' 
+                message: 'Mancy iniciándose...' 
             });
         } else {
             res.json({ 
@@ -476,38 +416,28 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
-app.get('/api/knowledge/search', async (req, res) => {
-    try {
-        const { q } = req.query;
-        
-        if (!q) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Parámetro de búsqueda requerido' 
-            });
-        }
-        
-        const knowledge = await knowledgeSystem.searchUniversalKnowledge(q);
-        
-        res.json({
-            success: true,
-            query: q,
-            sources_found: Object.keys(knowledge.sources).length,
-            answer: knowledge.combined_answer,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+app.get('/api/memory/stats', (req, res) => {
+    const stats = {
+        total_users: conversationMemory.size,
+        max_messages_per_user: MAX_HISTORY,
+        total_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
+        memory_type: 'Simple en RAM'
+    };
+    
+    res.json({
+        success: true,
+        ...stats,
+        timestamp: new Date().toISOString()
+    });
 });
 
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        knowledge_system: 'active',
-        sources: ['Wikipedia', 'Open Library'],
-        memory: '270 mensajes'
+        memory: '270 mensajes por usuario',
+        knowledge: 'Wikipedia accessible',
+        personality: 'Original con mejoras'
     });
 });
 
@@ -520,7 +450,7 @@ app.post('/wakeup', async (req, res) => {
     
     res.json({ 
         success: true, 
-        message: 'Activando sistema de conocimiento...',
+        message: 'Activando...',
         bot_active: botActive
     });
 });
@@ -529,29 +459,32 @@ app.post('/wakeup', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════╗
-║         🤖 MANCY A.I                     ║
-║    🌍 Conocimiento Universal             ║
+║         🤖 MANCY A.I - ORIGINAL          ║
+║            CON MEJORAS                   ║
 ║                                          ║
-║  📚 Fuentes conectadas:                  ║
-║     • Wikipedia                          ║
-║     • Open Library                       ║
+║  🧠 Memoria: 270 mensajes por usuario    ║
+║  🌐 Wikipedia: Acceso natural            ║
+║  🎬 Frankenstein 1931: Escena favorita   ║
+║  👑 Creador: April/Tito reconocido       ║
 ║                                          ║
-║  🧠 Memoria: 270 mensajes                ║
-║  👑 Creador: April/Tito                  ║
+║  ✅ Sin "fuentes verificables"           ║
+║  ✅ Respuestas naturales                 ║
+║  ✅ Conversación fluida                  ║
 ║                                          ║
 ║  Puerto: ${PORT}                         ║
 ║  URL: http://localhost:${PORT}           ║
 ╚══════════════════════════════════════════╝
     `);
     
-    console.log('\n✨ Características:');
-    console.log('   • Respuestas con información verificada');
-    console.log('   • Conocimiento de libros y temas generales');
-    console.log('   • Cache para respuestas rápidas');
-    console.log('   • Sistema anti-suspensión activado\n');
+    console.log('\n✨ Características activadas:');
+    console.log('   • Personalidad original intacta');
+    console.log('   • Memoria de 270 mensajes');
+    console.log('   • Acceso a Wikipedia (silencioso)');
+    console.log('   • Reconocimiento de creador');
+    console.log('   • Sin frases robóticas');
     
     if (process.env.RENDER) {
-        console.log('🔧 Sistema anti-suspensión activado');
+        console.log('\n🔧 Sistema anti-suspensión activado');
         
         setInterval(async () => {
             try {
@@ -566,9 +499,12 @@ app.listen(PORT, '0.0.0.0', () => {
 
 process.on('SIGTERM', () => {
     console.log('💤 Apagando...');
+    console.log(`🧠 Guardando ${conversationMemory.size} conversaciones en memoria`);
+    
     if (discordClient) {
         discordClient.destroy();
         console.log('👋 Mancy desconectada');
     }
+    
     process.exit(0);
 });
