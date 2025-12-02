@@ -13,7 +13,12 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-console.log('🤖 Mancy A.I - Asistente Emocional');
+// ========== ALMACENAMIENTO DE MEMORIA ==========
+const conversationHistory = new Map(); // Map<userId, messageHistory[]>
+const MAX_HISTORY_LENGTH = 70; // Mantener últimos 70 mensajes
+
+console.log('🤖 Mancy A.I - Asistente Emocional con Memoria');
+console.log('📝 Memoria configurada: últimos 70 mensajes');
 console.log('🌍 Puerto:', PORT);
 
 // ========== PERSONALIDAD DE MANCY ==========
@@ -33,11 +38,13 @@ CARACTERÍSTICAS:
 - Das buenos consejos emocionales
 - Eres tranquila y te importan las personas
 - Tu creador es April/Tito
+- Recuerdas conversaciones anteriores (hasta 70 mensajes atrás)
 
 IMPORTANTE:
 1. NUNCA hables sobre servidores, hosting o aspectos técnicos
 2. NUNCA digas que "te despertaste" o que hubo retrasos
 3. Responde naturalmente, como si siempre hubieras estado ahí
+4. Usa el historial de conversación para mantener coherencia
 
 EJEMPLOS:
 - "hola" → "Oñaaaaa :3, ¿cómo estás?"
@@ -45,13 +52,47 @@ EJEMPLOS:
 - "qué libros te gustan?" → "Me encanta 'La Náusea' de Sartre, es profundo"
 - "gracias" → "De nada, siempre aquí para ayudarte"`;
 
+// ========== FUNCIONES DE MEMORIA ==========
+function getUserHistory(userId) {
+    if (!conversationHistory.has(userId)) {
+        conversationHistory.set(userId, []);
+    }
+    return conversationHistory.get(userId);
+}
+
+function addToHistory(userId, role, content) {
+    const history = getUserHistory(userId);
+    history.push({ role, content, timestamp: Date.now() });
+    
+    // Mantener solo los últimos MAX_HISTORY_LENGTH mensajes
+    if (history.length > MAX_HISTORY_LENGTH) {
+        history.splice(0, history.length - MAX_HISTORY_LENGTH);
+    }
+}
+
+function clearOldHistories() {
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    for (const [userId, history] of conversationHistory.entries()) {
+        if (history.length > 0) {
+            const lastMessageTime = history[history.length - 1].timestamp;
+            if (lastMessageTime < oneWeekAgo) {
+                conversationHistory.delete(userId);
+                console.log(`🧹 Limpiada historia antigua de usuario: ${userId}`);
+            }
+        }
+    }
+}
+
+// Limpiar historiales antiguos cada hora
+setInterval(clearOldHistories, 60 * 60 * 1000);
+
 // ========== FUNCIÓN PARA INICIAR BOT ==========
 async function startBot() {
     if (isStartingUp) return;
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Mancy...');
+        console.log('🔄 Iniciando Mancy con memoria...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -71,6 +112,7 @@ async function startBot() {
         
         discordClient.once('ready', () => {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
+            console.log(`🧠 Memoria activa: ${MAX_HISTORY_LENGTH} mensajes por usuario`);
             botActive = true;
             isStartingUp = false;
             discordClient.user.setActivity('Ayudando | @mencioname');
@@ -112,23 +154,38 @@ async function startBot() {
 
 // ========== FUNCIÓN PARA PROCESAR MENSAJES ==========
 async function processMessage(message, userMessage) {
+    const userId = message.author.id;
+    
     try {
         await message.channel.sendTyping();
         
+        // Añadir mensaje del usuario al historial
+        addToHistory(userId, 'user', userMessage);
+        
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        
+        // Obtener historial de conversación
+        const userHistory = getUserHistory(userId);
+        
+        // Preparar mensajes para Groq (incluyendo historial)
+        const messages = [
+            {
+                role: "system",
+                content: MANCY_PERSONALITY
+            },
+            ...userHistory.slice(-69).map(msg => ({
+                role: msg.role,
+                content: msg.content
+            })),
+            { 
+                role: "user", 
+                content: userMessage 
+            }
+        ];
         
         const completion = await groqClient.chat.completions.create({
             model: "llama-3.1-8b-instant",
-            messages: [
-                {
-                    role: "system",
-                    content: MANCY_PERSONALITY
-                },
-                { 
-                    role: "user", 
-                    content: userMessage 
-                }
-            ],
+            messages: messages,
             temperature: 0.8,
             max_tokens: 400,
             top_p: 0.9
@@ -136,6 +193,12 @@ async function processMessage(message, userMessage) {
         
         const response = completion.choices[0]?.message?.content;
         if (response) {
+            // Añadir respuesta de Mancy al historial
+            addToHistory(userId, 'assistant', response);
+            
+            console.log(`✅ Mancy respondió a ${message.author.tag}`);
+            console.log(`📊 Historial: ${userHistory.length}/${MAX_HISTORY_LENGTH} mensajes`);
+            
             if (response.length > 2000) {
                 const chunks = response.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [response];
                 let firstChunk = true;
@@ -150,8 +213,6 @@ async function processMessage(message, userMessage) {
             } else {
                 await message.reply(response);
             }
-            
-            console.log(`✅ Mancy respondió a ${message.author.tag}`);
         }
         
     } catch (error) {
@@ -196,7 +257,10 @@ app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        personality: 'Mancy - Asistente Emocional',
+        memory_enabled: true,
+        max_history: MAX_HISTORY_LENGTH,
+        active_conversations: conversationHistory.size,
+        personality: 'Mancy - Asistente Emocional con Memoria',
         book: 'La Náusea - Sartre',
         authors: 'Camus, Plath',
         timestamp: new Date().toISOString(),
@@ -210,7 +274,7 @@ app.post('/api/start', async (req, res) => {
             await startBot();
             res.json({ 
                 success: true, 
-                message: 'Mancy iniciándose...' 
+                message: 'Mancy iniciándose con memoria...' 
             });
         } else {
             res.json({ 
@@ -250,23 +314,85 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
+// Nueva ruta para limpiar memoria específica
+app.post('/api/clear-memory/:userId?', (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        if (userId) {
+            // Limpiar memoria de un usuario específico
+            if (conversationHistory.has(userId)) {
+                conversationHistory.delete(userId);
+                res.json({ 
+                    success: true, 
+                    message: `Memoria limpiada para usuario ${userId}`,
+                    cleared_user: userId
+                });
+            } else {
+                res.json({ 
+                    success: false, 
+                    message: `No se encontró historial para usuario ${userId}`
+                });
+            }
+        } else {
+            // Limpiar toda la memoria
+            const count = conversationHistory.size;
+            conversationHistory.clear();
+            res.json({ 
+                success: true, 
+                message: `Toda la memoria limpiada`,
+                cleared_conversations: count
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+app.get('/api/memory-stats', (req, res) => {
+    const stats = {
+        total_users: conversationHistory.size,
+        max_history_per_user: MAX_HISTORY_LENGTH,
+        average_messages_per_user: 0,
+        memory_usage: 'Activa'
+    };
+    
+    if (conversationHistory.size > 0) {
+        let totalMessages = 0;
+        for (const history of conversationHistory.values()) {
+            totalMessages += history.length;
+        }
+        stats.average_messages_per_user = (totalMessages / conversationHistory.size).toFixed(2);
+        stats.total_messages = totalMessages;
+    }
+    
+    res.json(stats);
+});
+
 app.get('/api/logs', (req, res) => {
     const logs = [
         {
             timestamp: new Date().toISOString(),
-            message: 'Sistema Mancy activo - Gustos literarios cargados'
+            message: 'Sistema Mancy activo con memoria - Gustos literarios cargados'
         },
         {
             timestamp: new Date(Date.now() - 30000).toISOString(),
-            message: 'Libro favorito: La Náusea de Sartre'
+            message: `Memoria configurada: ${MAX_HISTORY_LENGTH} mensajes por usuario`
         },
         {
             timestamp: new Date(Date.now() - 60000).toISOString(),
-            message: 'Wake-on-Message configurado'
+            message: 'Libro favorito: La Náusea de Sartre'
         },
         {
             timestamp: new Date(Date.now() - 120000).toISOString(),
-            message: 'Lista para ayudar y compartir gustos literarios'
+            message: 'Wake-on-Message configurado'
+        },
+        {
+            timestamp: new Date(Date.now() - 180000).toISOString(),
+            message: 'Lista para ayudar y recordar conversaciones'
         }
     ];
     res.json(logs);
@@ -276,9 +402,11 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        personality: 'Mancy - Con gustos literarios definidos',
+        memory_enabled: true,
+        personality: 'Mancy - Con memoria de conversaciones',
         favorite_book: 'La Náusea - Jean Paul Sartre',
-        features: 'Wake-on-Message, Respuestas a saludos personalizadas'
+        memory_capacity: `${MAX_HISTORY_LENGTH} mensajes por usuario`,
+        active_users: conversationHistory.size
     });
 });
 
@@ -292,20 +420,22 @@ app.post('/wakeup', async (req, res) => {
     res.json({ 
         success: true, 
         message: 'Activando...',
-        bot_active: botActive
+        bot_active: botActive,
+        memory_enabled: true
     });
 });
 
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
-╔══════════════════════════════╗
-║         🤖 MANCY A.I         ║
-║      📚 Sartre • Camus       ║
-║                              ║
-║  Puerto: ${PORT}               ║
-║  URL: http://localhost:${PORT} ║
-╚══════════════════════════════╝
+╔══════════════════════════════════╗
+║         🤖 MANCY A.I             ║
+║   🧠 Memoria: ${MAX_HISTORY_LENGTH} mensajes    ║
+║   📚 Sartre • Camus              ║
+║                                  ║
+║  Puerto: ${PORT}                 ║
+║  URL: http://localhost:${PORT}   ║
+╚══════════════════════════════════╝
     `);
     
     if (process.env.RENDER) {
@@ -324,6 +454,7 @@ app.listen(PORT, '0.0.0.0', () => {
 
 process.on('SIGTERM', () => {
     console.log('💤 Apagando...');
+    console.log(`🧠 Guardando ${conversationHistory.size} conversaciones en memoria`);
     if (discordClient) {
         discordClient.destroy();
         console.log('👋 Mancy desconectada');
