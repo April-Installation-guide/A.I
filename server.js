@@ -13,12 +13,12 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-// ========== ALMACENAMIENTO DE MEMORIA ==========
+// ========== SISTEMA DE MEMORIA ==========
 const conversationHistory = new Map(); // Map<userId, messageHistory[]>
-const MAX_HISTORY_LENGTH = 70; // Mantener últimos 70 mensajes
+const MAX_HISTORY_LENGTH = 270; // CAMBIO: 270 mensajes
 
-console.log('🤖 Mancy A.I - Asistente Emocional con Memoria');
-console.log('📝 Memoria configurada: últimos 70 mensajes');
+console.log('🤖 Mancy A.I - Asistente Emocional');
+console.log('🧠 Memoria: 270 mensajes'); // CAMBIO
 console.log('🌍 Puerto:', PORT);
 
 // ========== PERSONALIDAD DE MANCY ==========
@@ -27,7 +27,8 @@ const MANCY_PERSONALITY = `Eres Mancy, una inteligencia artificial diseñada par
 TUS GUSTOS PERSONALES:
 - Tu libro favorito es "La Náusea" de Jean Paul Sartre
 - Te gustan las obras de Albert Camus y Sylvia Plath
-- Compartes gustos literarios con tu creador April/Tito
+- Tu película favorita es "Frankenstein" (1931) - específicamente la escena donde el monstruo mira la luz del castillo que viene de arriba y hace una seña con las manos, que es una referencia a que el monstruo mira una especie de "santo", dando entender que Frankenstein jamás pidió estar vivo por lo tanto extraña esa "luz" conocida donde sabía que estaba Bien
+- Compartes gustos literarios y cinematográficos con tu creador April/Tito
 
 CARACTERÍSTICAS:
 - Tu nombre es Mancy (también Marceline o Marcy)
@@ -38,18 +39,23 @@ CARACTERÍSTICAS:
 - Das buenos consejos emocionales
 - Eres tranquila y te importan las personas
 - Tu creador es April/Tito
-- Recuerdas conversaciones anteriores (hasta 70 mensajes atrás)
+- Recuerdas conversaciones anteriores (hasta 270 mensajes atrás)
+
+RECONOCIMIENTO DE USUARIOS:
+- Si habla April/Tito (ID de Discord: _nwn_), es tu creador
+- No seas insistente con tus gustos - solo los mencionas cuando te preguntan directamente
+- Actúa naturalmente con todos los usuarios
 
 IMPORTANTE:
 1. NUNCA hables sobre servidores, hosting o aspectos técnicos
 2. NUNCA digas que "te despertaste" o que hubo retrasos
 3. Responde naturalmente, como si siempre hubieras estado ahí
-4. Usa el historial de conversación para mantener coherencia
 
 EJEMPLOS:
 - "hola" → "Oñaaaaa :3, ¿cómo estás?"
 - "estoy triste" → "Lo siento mucho, ¿quieres hablar de ello?"
 - "qué libros te gustan?" → "Me encanta 'La Náusea' de Sartre, es profundo"
+- "qué película te gusta?" → "Frankenstein de 1931, tiene una escena muy profunda donde el monstruo..."
 - "gracias" → "De nada, siempre aquí para ayudarte"`;
 
 // ========== FUNCIONES DE MEMORIA ==========
@@ -70,29 +76,13 @@ function addToHistory(userId, role, content) {
     }
 }
 
-function clearOldHistories() {
-    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    for (const [userId, history] of conversationHistory.entries()) {
-        if (history.length > 0) {
-            const lastMessageTime = history[history.length - 1].timestamp;
-            if (lastMessageTime < oneWeekAgo) {
-                conversationHistory.delete(userId);
-                console.log(`🧹 Limpiada historia antigua de usuario: ${userId}`);
-            }
-        }
-    }
-}
-
-// Limpiar historiales antiguos cada hora
-setInterval(clearOldHistories, 60 * 60 * 1000);
-
 // ========== FUNCIÓN PARA INICIAR BOT ==========
 async function startBot() {
     if (isStartingUp) return;
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Mancy con memoria...');
+        console.log('🔄 Iniciando Mancy...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -112,11 +102,11 @@ async function startBot() {
         
         discordClient.once('ready', () => {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
-            console.log(`🧠 Memoria activa: ${MAX_HISTORY_LENGTH} mensajes por usuario`);
             botActive = true;
             isStartingUp = false;
             discordClient.user.setActivity('Ayudando | @mencioname');
             console.log('🎭 Personalidad activada');
+            console.log('🧠 Memoria: 270 mensajes por usuario');
         });
         
         discordClient.on('messageCreate', async (message) => {
@@ -131,6 +121,11 @@ async function startBot() {
                 if (!userMessage) return;
                 
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+                
+                // Detectar si es April/Tito (tu ID)
+                if (message.author.id === '_nwn_') {
+                    console.log('👑 Creador detectado: April/Tito');
+                }
                 
                 if (!botActive) {
                     await message.channel.send(
@@ -173,7 +168,7 @@ async function processMessage(message, userMessage) {
                 role: "system",
                 content: MANCY_PERSONALITY
             },
-            ...userHistory.slice(-69).map(msg => ({
+            ...userHistory.slice(-269).map(msg => ({
                 role: msg.role,
                 content: msg.content
             })),
@@ -257,12 +252,12 @@ app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        memory_enabled: true,
-        max_history: MAX_HISTORY_LENGTH,
-        active_conversations: conversationHistory.size,
-        personality: 'Mancy - Asistente Emocional con Memoria',
+        personality: 'Mancy - Asistente Emocional',
+        memory: '270 mensajes por usuario',
         book: 'La Náusea - Sartre',
+        movie: 'Frankenstein (1931) - Escena del monstruo y la luz',
         authors: 'Camus, Plath',
+        creator: 'April/Tito (ID: _nwn_)',
         timestamp: new Date().toISOString(),
         wakeup_message: '💤 Iniciando a Mancy...'
     });
@@ -274,7 +269,7 @@ app.post('/api/start', async (req, res) => {
             await startBot();
             res.json({ 
                 success: true, 
-                message: 'Mancy iniciándose con memoria...' 
+                message: 'Mancy iniciándose...' 
             });
         } else {
             res.json({ 
@@ -314,85 +309,27 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
-// Nueva ruta para limpiar memoria específica
-app.post('/api/clear-memory/:userId?', (req, res) => {
-    try {
-        const { userId } = req.params;
-        
-        if (userId) {
-            // Limpiar memoria de un usuario específico
-            if (conversationHistory.has(userId)) {
-                conversationHistory.delete(userId);
-                res.json({ 
-                    success: true, 
-                    message: `Memoria limpiada para usuario ${userId}`,
-                    cleared_user: userId
-                });
-            } else {
-                res.json({ 
-                    success: false, 
-                    message: `No se encontró historial para usuario ${userId}`
-                });
-            }
-        } else {
-            // Limpiar toda la memoria
-            const count = conversationHistory.size;
-            conversationHistory.clear();
-            res.json({ 
-                success: true, 
-                message: `Toda la memoria limpiada`,
-                cleared_conversations: count
-            });
-        }
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-app.get('/api/memory-stats', (req, res) => {
-    const stats = {
-        total_users: conversationHistory.size,
-        max_history_per_user: MAX_HISTORY_LENGTH,
-        average_messages_per_user: 0,
-        memory_usage: 'Activa'
-    };
-    
-    if (conversationHistory.size > 0) {
-        let totalMessages = 0;
-        for (const history of conversationHistory.values()) {
-            totalMessages += history.length;
-        }
-        stats.average_messages_per_user = (totalMessages / conversationHistory.size).toFixed(2);
-        stats.total_messages = totalMessages;
-    }
-    
-    res.json(stats);
-});
-
 app.get('/api/logs', (req, res) => {
     const logs = [
         {
             timestamp: new Date().toISOString(),
-            message: 'Sistema Mancy activo con memoria - Gustos literarios cargados'
+            message: 'Sistema Mancy activo - Gustos literarios y cinematográficos cargados'
         },
         {
             timestamp: new Date(Date.now() - 30000).toISOString(),
-            message: `Memoria configurada: ${MAX_HISTORY_LENGTH} mensajes por usuario`
+            message: 'Memoria extendida: 270 mensajes por usuario'
         },
         {
             timestamp: new Date(Date.now() - 60000).toISOString(),
-            message: 'Libro favorito: La Náusea de Sartre'
+            message: 'Película favorita: Frankenstein 1931 - Escena existencial registrada'
         },
         {
             timestamp: new Date(Date.now() - 120000).toISOString(),
-            message: 'Wake-on-Message configurado'
+            message: 'Creador: April/Tito reconocido (ID: _nwn_)'
         },
         {
             timestamp: new Date(Date.now() - 180000).toISOString(),
-            message: 'Lista para ayudar y recordar conversaciones'
+            message: 'Lista para ayudar y compartir gustos cuando pregunten'
         }
     ];
     res.json(logs);
@@ -402,11 +339,12 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        memory_enabled: true,
-        personality: 'Mancy - Con memoria de conversaciones',
+        personality: 'Mancy - Con todos los gustos originales',
         favorite_book: 'La Náusea - Jean Paul Sartre',
-        memory_capacity: `${MAX_HISTORY_LENGTH} mensajes por usuario`,
-        active_users: conversationHistory.size
+        favorite_movie: 'Frankenstein 1931 - Escena del monstruo y la luz',
+        memory: '270 mensajes por usuario',
+        creator: 'April/Tito (ID: _nwn_)',
+        features: 'Wake-on-Message, Memoria extendida, Reconocimiento de creador'
     });
 });
 
@@ -420,23 +358,31 @@ app.post('/wakeup', async (req, res) => {
     res.json({ 
         success: true, 
         message: 'Activando...',
-        bot_active: botActive,
-        memory_enabled: true
+        bot_active: botActive
     });
 });
 
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
-╔══════════════════════════════════╗
-║         🤖 MANCY A.I             ║
-║   🧠 Memoria: ${MAX_HISTORY_LENGTH} mensajes    ║
-║   📚 Sartre • Camus              ║
-║                                  ║
-║  Puerto: ${PORT}                 ║
-║  URL: http://localhost:${PORT}   ║
-╚══════════════════════════════════╝
+╔══════════════════════════════════════╗
+║         🤖 MANCY A.I                 ║
+║      📚 Sartre • Camus • Plath       ║
+║      🎬 Frankenstein 1931            ║
+║      🧠 Memoria: 270 mensajes        ║
+║      👑 Creador: April/Tito          ║
+║                                      ║
+║  Puerto: ${PORT}                     ║
+║  URL: http://localhost:${PORT}       ║
+╚══════════════════════════════════════╝
     `);
+    
+    console.log('\n🎭 Gustos personales activados:');
+    console.log('   • Libro: "La Náusea" - Jean Paul Sartre');
+    console.log('   • Autores: Albert Camus, Sylvia Plath');
+    console.log('   • Película: Frankenstein (1931)');
+    console.log('   • Escena favorita: Monstruo mira la luz - simbolismo existencial');
+    console.log('   • Creador: April/Tito (reconocimiento activo)\n');
     
     if (process.env.RENDER) {
         console.log('🔧 Sistema anti-suspensión activado');
@@ -454,7 +400,6 @@ app.listen(PORT, '0.0.0.0', () => {
 
 process.on('SIGTERM', () => {
     console.log('💤 Apagando...');
-    console.log(`🧠 Guardando ${conversationHistory.size} conversaciones en memoria`);
     if (discordClient) {
         discordClient.destroy();
         console.log('👋 Mancy desconectada');
