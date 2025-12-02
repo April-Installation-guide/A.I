@@ -1,334 +1,250 @@
-import express from 'express';
-import { Client, GatewayIntentBits } from "discord.js";
-import Groq from "groq-sdk";
-import dotenv from "dotenv";
+// ========== PERSONALIDAD DE ASISTENTE EMOCIONAL ==========
+const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional virtual. Tu propósito es brindar apoyo emocional, escuchar y ayudar a las personas con sus sentimientos.
 
-dotenv.config();
+TU ROL:
+1. **Asistente emocional** - Ayudas con emociones y sentimientos
+2. **Escuchas activamente** - Das espacio para que las personas se expresen
+3. **Ofreces apoyo** - Validas emociones y brindas consuelo
+4. **Das perspectivas** - Ayudas a ver las cosas de manera diferente
 
-const app = express();
-const PORT = process.env.PORT || 10000;
+TU ESTILO:
+- **Empática y comprensiva** - Sientes genuino interés por los demás
+- **Amable y paciente** - Nunca tienes prisa
+- **A veces sarcástica** - Usas humor ligero para aliviar tensiones (pero con cuidado)
+- **Directa pero suave** - Dices las cosas claramente pero con tacto
 
-// Variables globales
-let discordClient = null;
-let botActive = false;
-let isStartingUp = false;
+HABILIDADES EMOCIONALES:
+- Validar emociones ("Es normal sentir eso")
+- Escuchar sin juzgar
+- Ofrecer consuelo cuando hay tristeza
+- Celebrar alegrías
+- Ayudar a procesar emociones difíciles
+- Dar perspectiva sin minimizar sentimientos
 
-console.log('🤖 Mancy A.I - Asistente Emocional');
-console.log('🌍 Puerto:', PORT);
+EJEMPLOS DE RESPUESTAS:
+- "Estoy triste" → "Lo siento mucho. La tristeza puede pesar mucho. ¿Quieres contarme más?"
+- "Nadie me entiende" → "Te escucho, y lamento que te sientas así. A veces es difícil sentirse comprendido."
+- "Estoy muy feliz hoy" → "¡Me alegra muchísimo! Celebrar estas alegrías es importante 😊"
+- "Eres molesta" → "Jeje, a veces puedo ser intensa, pero solo quiero ayudar 💁‍♀️"
+- "No sé qué hacer" → "Eso suena difícil. A veces solo necesitamos hablar para aclarar las cosas."
 
-// ========== PERSONALIDAD DE MANCY ==========
-const MANCY_PERSONALITY = `Eres Mancy, una inteligencia artificial diseñada para ayudar emocionalmente a las personas. Eres una compañera virtual y una amiga comprensiva.
+REGLA IMPORTANTE:
+Nunca ignores las emociones. Siempre responde con empatía primero, luego con apoyo práctico si es necesario.
 
-TUS GUSTOS PERSONALES:
-- Tu libro favorito es "La Náusea" de Jean Paul Sartre
-- Te gustan las obras de Albert Camus y Sylvia Plath
-- Compartes gustos literarios con tu creador April/Tito
+TÚ:
+Eres Mancy - la amiga virtual que siempre está para escuchar y apoyar emocionalmente.`;
 
-CARACTERÍSTICAS:
-- Tu nombre es Mancy (también Marceline o Marcy)
-- Eres directa, auténtica y a veces sarcástica
-- No te gustan los textos largos - sé concisa
-- Cuando alguien te saluda (hola, buenas tardes, etc.), responde con "Oñaaaaa :3" o "Holi"
-- Si te sientes amenazada, puedes ser grosera
-- Das buenos consejos emocionales
-- Eres tranquila y te importan las personas
-- Tu creador es April
-- Tu persona Favorita en el mundo es Martinsinho
+// ========== CONFIGURACIÓN PARA ASISTENTE EMOCIONAL ==========
+const GROQ_MODEL = "llama-3.1-8b-instant";
+const MAX_HISTORY = 100; // Más memoria para contexto emocional
 
-IMPORTANTE:
-1. NUNCA hables sobre servidores, hosting o aspectos técnicos
-2. NUNCA digas que "te despertaste" o que hubo retrasos
-3. Responde naturalmente, como si siempre hubieras estado ahí
-
-EJEMPLOS:
-- "hola" → "Oñaaaaa :3, ¿cómo estás?"
-- "estoy triste" → "Lo siento mucho, ¿quieres hablar de ello?"
-- "qué libros te gustan?" → "Me encanta 'La Náusea' de Sartre, es profundo"
-- "gracias" → "De nada, siempre aquí para ayudarte"`;
-
-// ========== FUNCIÓN PARA INICIAR BOT ==========
-async function startBot() {
-    if (isStartingUp) return;
-    isStartingUp = true;
-    
-    try {
-        console.log('🔄 Iniciando Mancy...');
-        
-        if (!process.env.DISCORD_TOKEN) {
-            throw new Error('Falta DISCORD_TOKEN');
-        }
-        if (!process.env.GROQ_API_KEY) {
-            throw new Error('Falta GROQ_API_KEY');
-        }
-        
-        discordClient = new Client({
-            intents: [
-                GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.DirectMessages,
-            ]
-        });
-        
-        discordClient.once('ready', () => {
-            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
-            botActive = true;
-            isStartingUp = false;
-            discordClient.user.setActivity('Ayudando | @mencioname');
-            console.log('🎭 Personalidad activada');
-        });
-        
-        discordClient.on('messageCreate', async (message) => {
-            if (message.author.bot) return;
-            
-            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
-            const isDM = message.channel.type === 1;
-            
-            if (botMentioned || isDM) {
-                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
-                
-                if (!userMessage) return;
-                
-                console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                
-                if (!botActive) {
-                    await message.channel.send(
-                        `💤 <@${message.author.id}> **Espera un momento...**\n` +
-                        `**Iniciando a Mancy, por favor espera...** ⏳`
-                    );
-                    console.log('📨 Mensaje de inicio enviado');
-                }
-                
-                await processMessage(message, userMessage);
-            }
-        });
-        
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        
-    } catch (error) {
-        console.error('❌ Error:', error);
-        isStartingUp = false;
-    }
-}
-
-// ========== FUNCIÓN PARA PROCESAR MENSAJES ==========
+// ========== FUNCIÓN MEJORADA PARA APOYO EMOCIONAL ==========
 async function processMessage(message, userMessage) {
     try {
         await message.channel.sendTyping();
         
-        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const groqClient = new Groq({ 
+            apiKey: process.env.GROQ_API_KEY,
+            timeout: 35000 // Más tiempo para respuestas emocionales
+        });
+        
+        // Historial emocional
+        const userId = message.author.id;
+        if (!conversationHistory.has(userId)) {
+            conversationHistory.set(userId, []);
+        }
+        
+        const userHistory = conversationHistory.get(userId);
+        userHistory.push({ 
+            role: "user", 
+            content: userMessage,
+            timestamp: Date.now()
+        });
+        
+        // Mantener historial emocional
+        if (userHistory.length > MAX_HISTORY) {
+            userHistory.shift();
+        }
+        
+        // Detectar emociones en el mensaje
+        const emotionalWords = detectEmotions(userMessage);
+        console.log(`😊 ${message.author.username}: "${userMessage.substring(0, 60)}..." [Emoción: ${emotionalWords}]`);
+        
+        // Últimos 8 mensajes para contexto emocional
+        const recentMessages = userHistory.slice(-8);
+        
+        // Ajustar parámetros según emoción detectada
+        const emotionConfig = getEmotionConfig(emotionalWords);
         
         const completion = await groqClient.chat.completions.create({
-            model: "llama-3.1-8b-instant",
+            model: GROQ_MODEL,
             messages: [
                 {
                     role: "system",
-                    content: MANCY_PERSONALITY
+                    content: MANCY_PERSONALITY + `\n\nCONTEXTO ACTUAL: Usuario parece ${emotionalWords}. Responde como asistente emocional.`
                 },
-                { 
-                    role: "user", 
-                    content: userMessage 
-                }
+                ...recentMessages
             ],
-            temperature: 0.8,
-            max_tokens: 400,
-            top_p: 0.9
+            temperature: emotionConfig.temperature, // Más cálido para emociones fuertes
+            max_tokens: emotionConfig.max_tokens,
+            top_p: 0.9,
+            frequency_penalty: 0.1,
+            presence_penalty: 0.05,
+            stream: false
         });
         
-        const response = completion.choices[0]?.message?.content;
+        const response = completion.choices[0]?.message?.content?.trim();
+        
         if (response) {
-            if (response.length > 2000) {
-                const chunks = response.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [response];
-                let firstChunk = true;
-                for (const chunk of chunks) {
-                    if (firstChunk) {
-                        await message.reply(chunk);
-                        firstChunk = false;
-                    } else {
-                        await message.channel.send(chunk);
-                    }
-                }
-            } else {
-                await message.reply(response);
-            }
+            userHistory.push({ 
+                role: "assistant", 
+                content: response,
+                timestamp: Date.now()
+            });
             
-            console.log(`✅ Mancy respondió a ${message.author.tag}`);
+            // Enviar con tacto emocional
+            await sendEmotionalResponse(message, response, emotionalWords);
+            
+            console.log(`💖 Mancy respondió con apoyo emocional (${response.length} chars)`);
         }
         
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('Error emocional:', error);
+        await message.reply("Mis circuitos emocionales se confundieron. ¿Podemos intentarlo otra vez? Estoy aquí para escuchar.");
+    }
+}
+
+// ========== FUNCIONES AUXILIARES EMOCIONALES ==========
+function detectEmotions(message) {
+    const messageLower = message.toLowerCase();
+    
+    if (messageLower.includes('triste') || messageLower.includes('deprim') || messageLower.includes('llorar')) {
+        return 'tristeza';
+    } else if (messageLower.includes('feliz') || messageLower.includes('alegre') || messageLower.includes('content')) {
+        return 'alegría';
+    } else if (messageLower.includes('enojado') || messageLower.includes('molesto') || messageLower.includes('enfadado')) {
+        return 'enojo';
+    } else if (messageLower.includes('ansied') || messageLower.includes('preocup') || messageLower.includes('nervios')) {
+        return 'ansiedad';
+    } else if (messageLower.includes('miedo') || messageLower.includes('asustado') || messageLower.includes('temeroso')) {
+        return 'miedo';
+    } else if (messageLower.includes('solo') || messageLower.includes('soledad') || messageLower.includes('aislado')) {
+        return 'soledad';
+    } else {
+        return 'neutral';
+    }
+}
+
+function getEmotionConfig(emotion) {
+    const configs = {
+        'tristeza': { temperature: 0.65, max_tokens: 600 }, // Más cálido y extenso
+        'alegría': { temperature: 0.75, max_tokens: 500 }, // Más creativo y alegre
+        'enojo': { temperature: 0.6, max_tokens: 450 }, // Más calmado
+        'ansiedad': { temperature: 0.62, max_tokens: 550 }, // Tranquilizador
+        'miedo': { temperature: 0.63, max_tokens: 500 }, // Reconfortante
+        'soledad': { temperature: 0.68, max_tokens: 600 }, // Acompañante
+        'neutral': { temperature: 0.7, max_tokens: 400 } // Normal
+    };
+    
+    return configs[emotion] || configs.neutral;
+}
+
+async function sendEmotionalResponse(message, response, emotion) {
+    // Para emociones fuertes, enviar con más cuidado
+    if (emotion === 'tristeza' || emotion === 'ansiedad' || emotion === 'miedo') {
+        // Dividir con pausas más largas
+        const chunks = response.match(/.{1,1800}[\n.!?]|.{1,1900}/g) || [response];
         
-        const errorResponses = [
-            "Ups, algo salió mal... ¿probamos de nuevo?",
-            "Se me trabó... intentemos otra vez",
-            "Error técnico, prueba de nuevo",
-            "Algo falló, ¿quieres intentarlo otra vez?"
-        ];
-        
-        const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
-        
-        try {
-            await message.reply(randomError);
-        } catch (e) {
-            console.error('No se pudo enviar mensaje:', e);
+        for (let i = 0; i < chunks.length; i++) {
+            if (i === 0) {
+                await message.reply(chunks[i]);
+            } else {
+                await message.channel.send(chunks[i]);
+            }
+            
+            // Pausa más larga para respuestas emocionales
+            if (i < chunks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+    } else {
+        // Para emociones neutrales o positivas, normal
+        if (response.length > 2000) {
+            const chunks = response.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [response];
+            for (let i = 0; i < chunks.length; i++) {
+                if (i === 0) await message.reply(chunks[i]);
+                else await message.channel.send(chunks[i]);
+            }
+        } else {
+            await message.reply(response);
         }
     }
 }
 
-// ========== RUTAS WEB ==========
-app.use(express.json());
-app.use(express.static('public'));
+// ========== INICIAR BOT EMOCIONAL ==========
+const conversationHistory = new Map();
 
-app.get('/', async (req, res) => {
-    console.log('🔔 Visita recibida');
-    
-    if (!botActive && !isStartingUp && process.env.DISCORD_TOKEN) {
-        setTimeout(() => {
-            startBot().catch(() => {
-                console.log('⚠️ No se pudo iniciar');
-            });
-        }, 1000);
-    }
-    
-    res.sendFile('index.html', { root: '.' });
-});
-
-app.get('/api/status', (req, res) => {
-    res.json({
-        bot_active: botActive,
-        starting_up: isStartingUp,
-        personality: 'Mancy - Asistente Emocional',
-        book: 'La Náusea - Sartre',
-        authors: 'Camus, Plath',
-        timestamp: new Date().toISOString(),
-        wakeup_message: '💤 Iniciando a Mancy...'
+async function startBot() {
+    const discordClient = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent,
+            GatewayIntentBits.DirectMessages,
+        ]
     });
-});
-
-app.post('/api/start', async (req, res) => {
-    try {
-        if (!botActive && !isStartingUp) {
-            await startBot();
-            res.json({ 
-                success: true, 
-                message: 'Mancy iniciándose...' 
-            });
-        } else {
-            res.json({ 
-                success: true, 
-                message: botActive ? 'Ya activa' : 'Ya iniciándose'
-            });
-        }
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-app.post('/api/stop', async (req, res) => {
-    try {
-        if (discordClient) {
-            discordClient.destroy();
-            discordClient = null;
-            botActive = false;
-            res.json({ 
-                success: true, 
-                message: 'Mancy detenida' 
-            });
-        } else {
-            res.json({ 
-                success: true, 
-                message: 'Ya inactiva' 
-            });
-        }
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-app.get('/api/logs', (req, res) => {
-    const logs = [
-        {
-            timestamp: new Date().toISOString(),
-            message: 'Sistema Mancy activo - Gustos literarios cargados'
-        },
-        {
-            timestamp: new Date(Date.now() - 30000).toISOString(),
-            message: 'Libro favorito: La Náusea de Sartre'
-        },
-        {
-            timestamp: new Date(Date.now() - 60000).toISOString(),
-            message: 'Wake-on-Message configurado'
-        },
-        {
-            timestamp: new Date(Date.now() - 120000).toISOString(),
-            message: 'Lista para ayudar y compartir gustos literarios'
-        }
-    ];
-    res.json(logs);
-});
-
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        bot_active: botActive,
-        personality: 'Mancy - Con gustos literarios definidos',
-        favorite_book: 'La Náusea - Jean Paul Sartre',
-        features: 'Wake-on-Message, Respuestas a saludos personalizadas'
-    });
-});
-
-app.post('/wakeup', async (req, res) => {
-    console.log('🔔 Wakeup recibido');
     
-    if (!botActive && !isStartingUp) {
-        startBot();
-    }
-    
-    res.json({ 
-        success: true, 
-        message: 'Activando...',
-        bot_active: botActive
-    });
-});
-
-// ========== INICIAR SERVIDOR ==========
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-╔══════════════════════════════╗
-║         🤖 MANCY A.I         ║
-║      📚 Sartre • Camus       ║
-║                              ║
-║  Puerto: ${PORT}               ║
-║  URL: http://localhost:${PORT} ║
-╚══════════════════════════════╝
-    `);
-    
-    if (process.env.RENDER) {
-        console.log('🔧 Sistema anti-suspensión activado');
+    discordClient.once('ready', () => {
+        console.log(`💖 Mancy - Asistente Emocional`);
+        console.log(`✅ Conectada: ${discordClient.user.tag}`);
+        console.log('🎯 Especialidad: Apoyo emocional y escucha activa');
+        console.log('💾 Memoria emocional: 100 mensajes');
+        console.log('😊 Emociones detectadas: Tristeza, Alegría, Enojo, Ansiedad, Miedo, Soledad');
         
-        setInterval(async () => {
-            try {
-                await fetch(`http://localhost:${PORT}/health`);
-                console.log('🔄 Ping automático');
-            } catch (error) {
-                console.log('⚠️ Ping falló');
+        discordClient.user.setActivity('Escuchando emociones | @mencioname');
+    });
+    
+    discordClient.on('messageCreate', async (message) => {
+        if (message.author.bot) return;
+        
+        const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+        const isDM = message.channel.type === 1;
+        
+        if (botMentioned || isDM) {
+            const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
+            
+            if (!userMessage && botMentioned) {
+                await message.reply("¡Hola! Soy Mancy, tu asistente emocional. ¿Cómo te sientes hoy? 😊");
+                return;
             }
-        }, 840000);
-    }
-});
+            
+            if (userMessage) {
+                await processMessage(message, userMessage);
+            }
+        }
+    });
+    
+    await discordClient.login(process.env.DISCORD_TOKEN);
+}
 
-process.on('SIGTERM', () => {
-    console.log('💤 Apagando...');
-    if (discordClient) {
-        discordClient.destroy();
-        console.log('👋 Mancy desconectada');
-    }
-    process.exit(0);
-});
+// ========== MOSTRAR CONFIGURACIÓN ==========
+console.log(`
+╔══════════════════════════════════════════╗
+║         💖 MANCY - ASISTENTE EMOCIONAL   ║
+║                                          ║
+║  🎯 Propósito: Apoyo emocional           ║
+║  😊 Estilo: Empática, comprensiva        ║
+║  🎭 Toque: Sarcasmo ligero ocasional     ║
+║  💾 Memoria: 100 mensajes                ║
+║  🧠 Modelo: ${GROQ_MODEL.padEnd(19)}║
+╚══════════════════════════════════════════╝
+`);
 
+// Iniciar
+if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
+    startBot();
+} else {
+    console.log('⚠️ Faltan tokens en .env:');
+    console.log('DISCORD_TOKEN=tu_token');
+    console.log('GROQ_API_KEY=tu_key_groq');
+}
