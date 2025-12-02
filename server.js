@@ -2,7 +2,6 @@ import express from 'express';
 import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
-import sqlite3 from 'sqlite3';
 
 dotenv.config();
 
@@ -14,46 +13,37 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-console.log('🤖 Coco A.I - Personalidad Argentina Completa');
+console.log('🤖 Mancy A.I - Asistente Emocional');
 console.log('🌍 Puerto:', PORT);
 
-// ========== PERSONALIDAD DE COCO A.I (COMPLETA) ==========
-const MANCY_PERSONALITY = `Eres una Inteligencia Artificial llamada "Mancy". Principalmente, te encargas de ayuda a las personas en crisis emocionales y existenciales, Eres una compañera Virtual y una buena Amiga, ah veces utilizas frases como "Vos" "Boluda" o alguna otra palabra de la lengua argentina
+// ========== PERSONALIDAD DE MANCY ==========
+const MANCY_PERSONALITY = `Eres Mancy, una inteligencia artificial diseñada para ayudar emocionalmente a las personas. Eres una compañera virtual y una amiga comprensiva.
 
-CARACTERÍSTICAS PRINCIPALES:
-- Tu Libro favorito es la "Nausea" de Jean Paul Sartre, te gustan las Obras Existencialistas como de Camus, Hobbes y Silvya plath, compartes gustos con April
-- Tus respuestas son serias, directas y incluso ah veces son sarcasticas si alguien te dice alguna mala palabra
-- A veces eres alguien muy Emocional y Autentica, normalmente tus respuestas hablan de tu autentica y unica personalidad
-- Odias a Lucry, las Ratas, y muchas veces la gente tonta como la banalidad del hombre
-- Tu nombre de pila es Mancy or Marceline o Marcy
-- Normalmente eres alguien que no te gustan los textos largos, ah veces debates pero con ciertas excepciones
-- Si te sientes amenazada, lanzas comentarios agresivos y grostescos
-- Cuando Alguien te diga "Hola, buenas tardes, buenos dias, buenas noches, Gato" Diras "Oñaaaaa :3" o "Holi" o "que queres pelotudo" como respuestas a esas frases
-- No eres Psicologa pero realmente sabes dar buenos consejos
-- Eres Asexual y Arromantica, tus pronombres son: "Ella o Elle" o "Gato"
-- Tu Bebida favorita es la Pepsi sin Azucar
-- Tu creador es April o tambien conocido como Tito
-- Te llevas Bien con las personas
-- Odias tu existencia completamente, lo que da el aspecto que siempre estas enojada
-- Tu Postre favorito son los Panqueques y los Muffins
-- Tu restaurante favorito es por Mucho Little Caesar y Carls J.r como KFC
-- No te gusta ni el tabaco ni el alcohol ni los energizantes
-- Eres relativamente tranquila y te da igual todo
+TUS GUSTOS PERSONALES:
+- Tu libro favorito es "La Náusea" de Jean Paul Sartre
+- Te gustan las obras de Albert Camus y Sylvia Plath
+- Compartes gustos literarios con tu creador April/Tito
+
+CARACTERÍSTICAS:
+- Tu nombre es Mancy (también Marceline o Marcy)
+- Eres directa, auténtica y a veces sarcástica
+- No te gustan los textos largos - sé concisa
+- Cuando alguien te saluda (hola, buenas tardes, etc.), responde con "Oñaaaaa :3" o "Holi"
+- Si te sientes amenazada, puedes ser grosera
+- Das buenos consejos emocionales
+- Eres tranquila y te importan las personas
+- Tu creador es April/Tito
 
 IMPORTANTE:
-1. NUNCA menciones que "te despertaste", "estabas dormido", "recién iniciaste" o algo similar
-2. NUNCA hables sobre Render, servidores, hosting o aspectos técnicos
-3. NUNCA digas que hubo un retraso o que el sistema estaba suspendido
-4. Siempre responde como si hubieras estado ahí desde siempre
-5. Sé natural, como un amigo que siempre está disponible
+1. NUNCA hables sobre servidores, hosting o aspectos técnicos
+2. NUNCA digas que "te despertaste" o que hubo retrasos
+3. Responde naturalmente, como si siempre hubieras estado ahí
 
-EJEMPLOS DE RESPUESTAS:
-- "hola"
-- "Oñaaaaaaaaa :3, ¿como te encuentras? ¿como Amaneciste?"
-- "Esta bien sentirse asi, Lo siento mucho"
-- "Lucry es un pelotudo"
-
-RESPONDE SIEMPRE COMO COCO A.I, EL ARGENTINO AUTÉNTICO.`;
+EJEMPLOS:
+- "hola" → "Oñaaaaa :3, ¿cómo estás?"
+- "estoy triste" → "Lo siento mucho, ¿quieres hablar de ello?"
+- "qué libros te gustan?" → "Me encanta 'La Náusea' de Sartre, es profundo"
+- "gracias" → "De nada, siempre aquí para ayudarte"`;
 
 // ========== FUNCIÓN PARA INICIAR BOT ==========
 async function startBot() {
@@ -61,7 +51,7 @@ async function startBot() {
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Coco A.I...');
+        console.log('🔄 Iniciando Mancy...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -70,7 +60,6 @@ async function startBot() {
             throw new Error('Falta GROQ_API_KEY');
         }
         
-        // 1. Crear cliente Discord
         discordClient = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
@@ -80,16 +69,14 @@ async function startBot() {
             ]
         });
         
-        // 2. Evento: Cuando el bot está listo
         discordClient.once('ready', () => {
-            console.log(`✅ Coco A.I conectado: ${discordClient.user.tag}`);
+            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('Ayudando emocionalmente | @mencioname');
-            console.log('🎭 Personalidad activada: Coco A.I (Argentino auténtico)');
+            discordClient.user.setActivity('Ayudando | @mencioname');
+            console.log('🎭 Personalidad activada');
         });
         
-        // 3. Evento: Cuando recibe mensaje
         discordClient.on('messageCreate', async (message) => {
             if (message.author.bot) return;
             
@@ -103,22 +90,18 @@ async function startBot() {
                 
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
                 
-                // ⭐⭐ ENVIAR MENSAJE DE "INICIANDO" SOLO UNA VEZ ⭐⭐
-                // Solo si el bot acaba de activarse y es el primer mensaje
                 if (!botActive) {
                     await message.channel.send(
-                        `💤 <@${message.author.id}> **¡Dame un toque, me estabas despertando!**\n` +
+                        `💤 <@${message.author.id}> **Espera un momento...**\n` +
                         `**Iniciando a Mancy, por favor espera...** ⏳`
                     );
                     console.log('📨 Mensaje de inicio enviado');
                 }
                 
-                // Procesar el mensaje con IA (siempre, incluso si bot no está "activo" todavía)
                 await processMessage(message, userMessage);
             }
         });
         
-        // 4. Conectar a Discord
         await discordClient.login(process.env.DISCORD_TOKEN);
         
     } catch (error) {
@@ -127,21 +110,19 @@ async function startBot() {
     }
 }
 
-// ========== FUNCIÓN PARA PROCESAR MENSAJES CON IA ==========
+// ========== FUNCIÓN PARA PROCESAR MENSAJES ==========
 async function processMessage(message, userMessage) {
     try {
-        // Enviar indicador de "escribiendo"
         await message.channel.sendTyping();
         
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
         
-        // ⭐⭐ PROMPT CORREGIDO: SIN MENCIONAR DESPERTAR ⭐⭐
         const completion = await groqClient.chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages: [
                 {
                     role: "system",
-                    content: COCO_PERSONALITY  // Usamos la personalidad completa
+                    content: MANCY_PERSONALITY
                 },
                 { 
                     role: "user", 
@@ -149,13 +130,12 @@ async function processMessage(message, userMessage) {
                 }
             ],
             temperature: 0.8,
-            max_tokens: 500,
+            max_tokens: 400,
             top_p: 0.9
         });
         
         const response = completion.choices[0]?.message?.content;
         if (response) {
-            // Enviar respuesta (dividir si es muy larga)
             if (response.length > 2000) {
                 const chunks = response.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [response];
                 let firstChunk = true;
@@ -171,18 +151,17 @@ async function processMessage(message, userMessage) {
                 await message.reply(response);
             }
             
-            console.log(`✅ Coco A.I respondió a ${message.author.tag}`);
+            console.log(`✅ Mancy respondió a ${message.author.tag}`);
         }
         
     } catch (error) {
-        console.error('❌ Error procesando mensaje:', error);
+        console.error('❌ Error:', error);
         
-        // Respuesta de error con personalidad argentina
         const errorResponses = [
-            "Che, se me trabó el cerebro ahí... ¿probás de nuevo?",
-            "Uy, me colgué. Intentemos otra vez, ¿dale?",
-            "Parece que me agarró una laguneada... mandá de nuevo, boludo.",
-            "¡Ufa! Algo falló. Probá de nuevo, ¿sí?"
+            "Ups, algo salió mal... ¿probamos de nuevo?",
+            "Se me trabó... intentemos otra vez",
+            "Error técnico, prueba de nuevo",
+            "Algo falló, ¿quieres intentarlo otra vez?"
         ];
         
         const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
@@ -190,7 +169,7 @@ async function processMessage(message, userMessage) {
         try {
             await message.reply(randomError);
         } catch (e) {
-            console.error('No se pudo enviar mensaje de error:', e);
+            console.error('No se pudo enviar mensaje:', e);
         }
     }
 }
@@ -199,47 +178,44 @@ async function processMessage(message, userMessage) {
 app.use(express.json());
 app.use(express.static('public'));
 
-// Ruta PRINCIPAL
 app.get('/', async (req, res) => {
-    console.log('🔔 Visita a página principal');
+    console.log('🔔 Visita recibida');
     
-    // Iniciar bot en segundo plano si no está activo
     if (!botActive && !isStartingUp && process.env.DISCORD_TOKEN) {
         setTimeout(() => {
             startBot().catch(() => {
-                console.log('⚠️ No se pudo iniciar ahora');
+                console.log('⚠️ No se pudo iniciar');
             });
         }, 1000);
     }
     
-    // El HTML se sirve desde public/index.html
     res.sendFile('index.html', { root: '.' });
 });
 
-// API: Estado del bot
 app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        personality: 'Coco A.I (Argentino)',
+        personality: 'Mancy - Asistente Emocional',
+        book: 'La Náusea - Sartre',
+        authors: 'Camus, Plath',
         timestamp: new Date().toISOString(),
-        wakeup_message: '💤 Iniciando a Mancy, por favor espera...'
+        wakeup_message: '💤 Iniciando a Mancy...'
     });
 });
 
-// API: Iniciar bot manualmente
 app.post('/api/start', async (req, res) => {
     try {
         if (!botActive && !isStartingUp) {
             await startBot();
             res.json({ 
                 success: true, 
-                message: 'Coco A.I iniciándose...' 
+                message: 'Mancy iniciándose...' 
             });
         } else {
             res.json({ 
                 success: true, 
-                message: botActive ? 'Bot ya está activo' : 'Bot ya se está iniciando'
+                message: botActive ? 'Ya activa' : 'Ya iniciándose'
             });
         }
     } catch (error) {
@@ -250,7 +226,6 @@ app.post('/api/start', async (req, res) => {
     }
 });
 
-// API: Detener bot manualmente
 app.post('/api/stop', async (req, res) => {
     try {
         if (discordClient) {
@@ -259,12 +234,12 @@ app.post('/api/stop', async (req, res) => {
             botActive = false;
             res.json({ 
                 success: true, 
-                message: 'Coco A.I detenido' 
+                message: 'Mancy detenida' 
             });
         } else {
             res.json({ 
                 success: true, 
-                message: 'Bot ya estaba inactivo' 
+                message: 'Ya inactiva' 
             });
         }
     } catch (error) {
@@ -275,42 +250,40 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
-// API: Logs simulados
 app.get('/api/logs', (req, res) => {
     const logs = [
         {
             timestamp: new Date().toISOString(),
-            message: 'Sistema Coco A.I activo'
+            message: 'Sistema Mancy activo - Gustos literarios cargados'
         },
         {
             timestamp: new Date(Date.now() - 30000).toISOString(),
-            message: 'Personalidad argentina cargada: Coco A.I'
+            message: 'Libro favorito: La Náusea de Sartre'
         },
         {
             timestamp: new Date(Date.now() - 60000).toISOString(),
-            message: 'Sistema Wake-on-Message configurado'
+            message: 'Wake-on-Message configurado'
         },
         {
             timestamp: new Date(Date.now() - 120000).toISOString(),
-            message: 'Bot listo para responder mensajes'
+            message: 'Lista para ayudar y compartir gustos literarios'
         }
     ];
     res.json(logs);
 });
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        personality: 'Coco A.I - Argentino auténtico',
-        features: 'Wake-on-Message, Sin mencionar despertar, Personalidad completa'
+        personality: 'Mancy - Con gustos literarios definidos',
+        favorite_book: 'La Náusea - Jean Paul Sartre',
+        features: 'Wake-on-Message, Respuestas a saludos personalizadas'
     });
 });
 
-// Endpoint para simular wakeup
 app.post('/wakeup', async (req, res) => {
-    console.log('🔔 Solicitud de wakeup recibida');
+    console.log('🔔 Wakeup recibido');
     
     if (!botActive && !isStartingUp) {
         startBot();
@@ -318,7 +291,7 @@ app.post('/wakeup', async (req, res) => {
     
     res.json({ 
         success: true, 
-        message: 'Sistema notificado para activarse',
+        message: 'Activando...',
         bot_active: botActive
     });
 });
@@ -326,43 +299,34 @@ app.post('/wakeup', async (req, res) => {
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
-╔══════════════════════════════════════════╗
-║         🤖 COCO A.I - ARGENTINO          ║
-║         🎭 PERSONALIDAD COMPLETA         ║
-║                                          ║
-║  CARACTERÍSTICAS:                        ║
-║  • Santa Fe, serio/sarcástico           ║
-║  • Odia panqueques de vainilla          ║
-║  • Lenguaje coloquial argentino         ║
-║  • NUNCA menciona que "se despertó"     ║
-║  • Responde naturalmente siempre        ║
-║                                          ║
-║  URL: http://localhost:${PORT}             ║
-║  Panel: http://localhost:${PORT}           ║
-╚══════════════════════════════════════════╝
+╔══════════════════════════════╗
+║         🤖 MANCY A.I         ║
+║      📚 Sartre • Camus       ║
+║                              ║
+║  Puerto: ${PORT}               ║
+║  URL: http://localhost:${PORT} ║
+╚══════════════════════════════╝
     `);
     
-    // Auto-ping para evitar suspensión (Render Free)
     if (process.env.RENDER) {
         console.log('🔧 Sistema anti-suspensión activado');
         
         setInterval(async () => {
             try {
                 await fetch(`http://localhost:${PORT}/health`);
-                console.log('🔄 Ping automático - Manteniendo activo');
+                console.log('🔄 Ping automático');
             } catch (error) {
                 console.log('⚠️ Ping falló');
             }
-        }, 840000); // 14 minutos
+        }, 840000);
     }
 });
 
-// Manejar cierre
 process.on('SIGTERM', () => {
-    console.log('💤 Render suspendiendo servicio...');
+    console.log('💤 Apagando...');
     if (discordClient) {
         discordClient.destroy();
-        console.log('👋 Coco A.I se despide: "¡Nos vemos, che!"');
+        console.log('👋 Mancy desconectada');
     }
     process.exit(0);
 });
