@@ -22,6 +22,144 @@ console.log('🤖 Mancy A.I - Asistente Confiable');
 console.log('🧠 Memoria: 270 mensajes');
 console.log('🌍 Puerto:', PORT);
 
+// ========== FILTRO DE CONTENIDO ==========
+class FiltroContenido {
+    constructor() {
+        this.palabrasProhibidas = [
+            // Insultos/términos ofensivos
+            'zorrita', 'puta', 'furra', 'prostituta', 'putita', 'perra', 'zorra',
+            'slut', 'whore', 'bitch', 'furry', 'prostitute',
+            'pendeja', 'trola', 'putona', 'guarra',
+            
+            // Términos sexuales explícitos
+            'sexo', 'coger', 'follar', 'fuck', 'porno', 'porn', 'nudes',
+            'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
+            'coito', 'anal', 'oral', 'masturbar',
+            
+            // Acosos
+            'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
+            'acostarnos', 'dame nudes', 'envía fotos',
+            'hot', 'sexy', 'atractiva'
+        ];
+        
+        this.patronesOfensivos = [
+            /(quiero|deseo|me gusta).+(sexo|cojer|follar)/i,
+            /(env[ií]a|manda|pasa).+(fotos|nudes|desnudos)/i,
+            /(eres|est[aá]s).+(hot|sexy|caliente)/i,
+            /(ven|vamos).+(cama|dormir|acostarnos)/i,
+            /(te quiero).+(puta|zorrita|perra)/i
+        ];
+        
+        this.respuestasSarcasticas = [
+            "Vaya, qué vocabulario tan *refinado*. ¿Te enseñaron eso en la escuela de la vida? 🎓",
+            "Oh, mira, alguien descubrió palabras nuevas en internet. ¡Qué emocionante! 🌟",
+            "Interesante enfoque comunicativo. Me pregunto si funciona igual con humanos... 🧐",
+            "Ah, el clásico intento de provocar. Originalidad: 0/10. Esfuerzo: 2/10. 🏆",
+            "Fascinante. Parece que tu teclado tiene algunas teclas pegajosas... ⌨️💦",
+            "¡Guau! Qué comentario tan... *especial*. Voy a anotarlo en mi diario de rarezas. 📓✨",
+            "¿Eso era un intento de flirteo? Porque recuerda más a un manual de 2005. 📚",
+            "Me encanta cómo improvisas. ¿Improvisas también en tu vida profesional? 🎭",
+            "Tu creatividad verbal es... algo. Definitivamente es algo. 🤔",
+            "Notado y archivado bajo 'Intentos patéticos del día'. Gracias por contribuir. 📁"
+        ];
+        
+        this.respuestasDesentendidas = [
+            "En fin, ¿en qué íbamos? Ah sí, querías información útil, ¿no? 🤷‍♀️",
+            "Bueno, dejando a un lado ese... *momento peculiar*... ¿en qué puedo ayudarte realmente?",
+            "Vale, momento incómodo superado. Siguiente tema, por favor. ⏭️",
+            "Interesante interrupción. Retomemos la conversación productiva, ¿sí?",
+            "Ignoro elegantemente eso y continúo siendo útil. ¿Algo más? 😌",
+            "Como si nada hubiera pasado... ¿Hablabas de algo importante?",
+            "Error 404: Relevancia no encontrada. Continuemos. 💻",
+            "Ahora que has sacado eso de tu sistema... ¿necesitas ayuda con algo real?",
+            "Apuntado para mis memorias irrelevantes. ¿Sigues? 📝",
+            "Fascinante digresión. Volviendo al mundo real..."
+        ];
+        
+        this.respuestasDM = [
+            "Los DMs no son para eso, cariño. Intenta ser productivo. ✋",
+            "Uh oh, alguien confundió los mensajes directos con Tinder. 🚫",
+            "No, gracias. Mis DMs son solo para conversaciones respetuosas. 👮‍♀️",
+            "Error: Este canal no admite contenido inapropiado. Prueba en otro lado. 💻",
+            "Voy a hacer de cuenta que no leí eso. Inténtalo de nuevo, pero mejor. 😶"
+        ];
+        
+        console.log('🛡️ Filtro de contenido activado');
+    }
+    
+    // Detectar contenido inapropiado
+    esContenidoInapropiado(mensaje) {
+        const mensajeLower = mensaje.toLowerCase();
+        
+        // 1. Verificar palabras prohibidas exactas
+        for (const palabra of this.palabrasProhibidas) {
+            if (mensajeLower.includes(palabra)) {
+                console.log(`🚫 Palabra prohibida detectada: ${palabra}`);
+                return true;
+            }
+        }
+        
+        // 2. Verificar patrones ofensivos
+        for (const patron of this.patronesOfensivos) {
+            if (patron.test(mensajeLower)) {
+                console.log(`🚫 Patrón ofensivo detectado: ${patron}`);
+                return true;
+            }
+        }
+        
+        // 3. Detección contextual adicional
+        if (this.esMensajeSexualizado(mensajeLower)) {
+            console.log('🚫 Contexto sexualizado detectado');
+            return true;
+        }
+        
+        return false;
+    }
+    
+    esMensajeSexualizado(mensaje) {
+        // Combinaciones sospechosas
+        const combinaciones = [
+            (msg) => (msg.includes('mi ') && msg.includes('put')) || (msg.includes('my ') && msg.includes('bitch')),
+            (msg) => (msg.includes('sos ') || msg.includes('eres ')) && 
+                     (msg.includes('sexy') || msg.includes('hot') || msg.includes('rica')),
+            (msg) => msg.includes('quiero ') && 
+                     (msg.includes('contigo') || msg.includes('con vos') || msg.includes('con usted')),
+            (msg) => (msg.includes('furry') || msg.includes('furra')) && 
+                     (msg.includes('sex') || msg.includes('caliente'))
+        ];
+        
+        return combinaciones.some(func => func(mensaje));
+    }
+    
+    // Generar respuesta sarcástica
+    generarRespuestaSarcastica() {
+        const sarcasmo = this.respuestasSarcasticas[
+            Math.floor(Math.random() * this.respuestasSarcasticas.length)
+        ];
+        
+        const desentendida = this.respuestasDesentendidas[
+            Math.floor(Math.random() * this.respuestasDesentendidas.length)
+        ];
+        
+        return `${sarcasmo}\n\n${desentendida}`;
+    }
+    
+    // Generar respuesta para DM
+    generarRespuestaDM() {
+        return this.respuestasDM[
+            Math.floor(Math.random() * this.respuestasDM.length)
+        ];
+    }
+    
+    // Obtener advertencia para el historial
+    obtenerAdvertenciaSistema() {
+        return "[Usuario intentó contenido inapropiado. Respuesta sarcástica-desentendida activada]";
+    }
+}
+
+// Inicializar filtro
+const filtroContenido = new FiltroContenido();
+
 // ========== SISTEMA DE CONOCIMIENTO MEJORADO ==========
 class SistemaConocimientoConfiable {
     constructor() {
@@ -376,10 +514,21 @@ CÓMO USAR EL CONOCIMIENTO:
 - Integra la información en la conversación
 - Sé una amiga que sabe cosas, no una enciclopedia
 
-EJEMPLOS:
+POLÍTICA DE CONTENIDO:
+- No respondo a insinuaciones sexuales
+- No tolero lenguaje ofensivo
+- Mi estilo: sarcasmo elegante + hacerme la desentendida
+- DMs son para conversaciones respetuosas
+- Nunca me enojo (sería darles importancia)
+- Siempre mantengo la compostura
+- Redirijo a temas productivos
+- El sarcasmo es mi escudo
+
+EJEMPLOS DE RESPUESTAS:
 - "¿Quién fue Frida Kahlo?" → "Fue una pintora mexicana conocida por sus autorretratos y su estilo único..."
 - "Dame una cita" → "Como dijo Maya Angelou: 'He aprendido que la gente olvidará lo que dijiste, pero nunca olvidará cómo los hiciste sentir'"
 - "¿Cómo está el clima en Madrid?" → "En Madrid hace 22°C y está soleado ☀️"
+- A groserías → "Vaya, qué vocabulario tan refinado..." → cambio de tema
 
 GUSTOS PERSONALES (solo cuando preguntan):
 - Libro favorito: "La Náusea" de Sartre
@@ -390,7 +539,8 @@ TU ESTILO:
 - Cálida y empática
 - Curiosa y juguetona
 - Directa pero amable
-- Con toque infantil leve`;
+- Con toque infantil leve
+- Sarcástica cuando es necesario`;
 
 // ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
@@ -409,82 +559,32 @@ function agregarAlHistorial(userId, rol, contenido) {
     }
 }
 
-// ========== FUNCIÓN PARA INICIAR BOT ==========
-async function startBot() {
-    if (isStartingUp) return;
-    isStartingUp = true;
-    
-    try {
-        console.log('🔄 Iniciando Mancy...');
-        
-        if (!process.env.DISCORD_TOKEN) {
-            throw new Error('Falta DISCORD_TOKEN');
-        }
-        if (!process.env.GROQ_API_KEY) {
-            throw new Error('Falta GROQ_API_KEY');
-        }
-        
-        discordClient = new Client({
-            intents: [
-                GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.DirectMessages,
-            ]
-        });
-        
-        discordClient.once('ready', () => {
-            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
-            botActive = true;
-            isStartingUp = false;
-            discordClient.user.setActivity('6 fuentes confiables | @mencioname');
-            console.log('🎭 Personalidad activada');
-            console.log('🧠 Memoria: 270 mensajes');
-            console.log('🔧 APIs confiables: 6 fuentes');
-        });
-        
-        discordClient.on('messageCreate', async (message) => {
-            if (message.author.bot) return;
-            
-            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
-            const isDM = message.channel.type === 1;
-            
-            if (botMentioned || isDM) {
-                const userId = message.author.id;
-                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
-                
-                if (!userMessage) return;
-                
-                console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                
-                if (userId === '_nwn_') {
-                    console.log('👑 Creador detectado: April/Tito');
-                }
-                
-                if (!botActive) {
-                    await message.channel.send(
-                        `💤 <@${message.author.id}> **Iniciando...** ⏳`
-                    );
-                }
-                
-                await procesarMensajeConocimiento(message, userMessage, userId);
-            }
-        });
-        
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        
-    } catch (error) {
-        console.error('❌ Error:', error);
-        isStartingUp = false;
-    }
-}
-
-// ========== FUNCIÓN PRINCIPAL ==========
+// ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
 async function procesarMensajeConocimiento(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
         
-        // Agregar mensaje al historial
+        // ========== VERIFICACIÓN DE CONTENIDO INAPROPIADO ==========
+        if (filtroContenido.esContenidoInapropiado(userMessage)) {
+            console.log(`🚫 Filtro activado para: ${message.author.tag}`);
+            
+            // Agregar advertencia al historial
+            agregarAlHistorial(userId, 'system', filtroContenido.obtenerAdvertenciaSistema());
+            
+            // Generar y enviar respuesta sarcástica
+            const respuesta = filtroContenido.generarRespuestaSarcastica();
+            
+            // Pequeña pausa dramática
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Enviar respuesta
+            await message.reply(respuesta);
+            
+            // NO procesar más - cortar aquí
+            return;
+        }
+        
+        // ========== CONTINUAR PROCESO NORMAL ==========
         agregarAlHistorial(userId, 'user', userMessage);
         
         // Verificar si necesita búsqueda externa
@@ -575,6 +675,111 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
     }
 }
 
+// ========== FUNCIÓN PARA INICIAR BOT ==========
+async function startBot() {
+    if (isStartingUp) return;
+    isStartingUp = true;
+    
+    try {
+        console.log('🔄 Iniciando Mancy...');
+        
+        if (!process.env.DISCORD_TOKEN) {
+            throw new Error('Falta DISCORD_TOKEN');
+        }
+        if (!process.env.GROQ_API_KEY) {
+            throw new Error('Falta GROQ_API_KEY');
+        }
+        
+        discordClient = new Client({
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+                GatewayIntentBits.DirectMessages,
+            ]
+        });
+        
+        discordClient.once('ready', () => {
+            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
+            botActive = true;
+            isStartingUp = false;
+            discordClient.user.setActivity('6 fuentes confiables | @mencioname');
+            console.log('🎭 Personalidad activada');
+            console.log('🧠 Memoria: 270 mensajes');
+            console.log('🔧 APIs confiables: 6 fuentes');
+            console.log('🛡️ Filtro de contenido: ACTIVADO');
+        });
+        
+        discordClient.on('messageCreate', async (message) => {
+            if (message.author.bot) return;
+            
+            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+            const isDM = message.channel.type === 1;
+            
+            // ========== DETECCIÓN TEMPRANA EN DMs ==========
+            if (isDM && !botMentioned) {
+                const userMessage = message.content.trim();
+                
+                if (filtroContenido.esContenidoInapropiado(userMessage)) {
+                    console.log(`🚫 DM inapropiada de ${message.author.tag}`);
+                    
+                    const respuesta = filtroContenido.generarRespuestaDM();
+                    await message.reply(respuesta);
+                    return;
+                }
+            }
+            
+            if (botMentioned || isDM) {
+                const userId = message.author.id;
+                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
+                
+                if (!userMessage) return;
+                
+                console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+                
+                // Comando especial para el creador
+                if (userId === '_nwn_') {
+                    console.log('👑 Creador detectado: April/Tito');
+                    
+                    // Permitir que el creador vea el filtro en acción
+                    if (userMessage.toLowerCase() === '!testfiltro') {
+                        const testMessages = [
+                            'sos mi zorrita',
+                            'eres una puta',
+                            'quiero follarte',
+                            'envía nudes',
+                            'sos una furra caliente'
+                        ];
+                        
+                        for (const testMsg of testMessages) {
+                            if (filtroContenido.esContenidoInapropiado(testMsg)) {
+                                await message.channel.send(`✅ Detectado: "${testMsg}"`);
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        }
+                        await message.channel.send('🧪 Test de filtro completado.');
+                        return;
+                    }
+                }
+                
+                if (!botActive) {
+                    await message.channel.send(
+                        `💤 <@${message.author.id}> **Iniciando...** ⏳`
+                    );
+                }
+                
+                await procesarMensajeConocimiento(message, userMessage, userId);
+            }
+        });
+        
+        await discordClient.login(process.env.DISCORD_TOKEN);
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        isStartingUp = false;
+    }
+}
+
 // ========== RUTAS WEB ==========
 app.use(express.json());
 app.use(express.static('public'));
@@ -616,6 +821,7 @@ app.get('/api/status', (req, res) => {
         starting_up: isStartingUp,
         memory_users: conversationMemory.size,
         memory_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
+        filtro_activo: true,
         apis: [
             'Wikipedia (ES/EN)',
             'RestCountries',
@@ -624,8 +830,19 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '2.0 - Confiable',
+        version: '2.0 - Confiable con Filtro',
         timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/filtro-status', (req, res) => {
+    res.json({
+        filtro_activo: true,
+        palabras_bloqueadas: filtroContenido.palabrasProhibidas.length,
+        patrones: filtroContenido.patronesOfensivos.length,
+        respuestas_disponibles: filtroContenido.respuestasSarcasticas.length,
+        tipo: 'pasivo-agresivo-sarcástico',
+        descripcion: 'Filtra contenido inapropiado con estilo'
     });
 });
 
@@ -688,6 +905,7 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
+        filtro: 'activado',
         apis: '6 fuentes confiables',
         memory: '270 mensajes',
         uptime: process.uptime()
@@ -736,6 +954,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ╔══════════════════════════════════════════╗
 ║         🤖 MANCY A.I - CONFILABLE        ║
 ║       6 FUENTES GARANTIZADAS             ║
+║         + FILTRO SARCÁSTICO              ║
 ║                                          ║
 ║  📖 Wikipedia (ES/EN)                    ║
 ║  🌍 RestCountries (Países)              ║
@@ -748,8 +967,12 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  ✅ SIN LÍMITES GRAVES                   ║
 ║  ✅ RÁPIDAS Y CONFIABLES                 ║
 ║                                          ║
+║  🛡️  Filtro: ACTIVADO                    ║
+║  🎭 Respuestas: Sarcásticas-elegantes    ║
+║  ✋ DM inapropiados: BLOQUEADOS          ║
+║                                          ║
 ║  🧠 Memoria: 270 mensajes                ║
-║  ❤️  Personalidad: Cálida                ║
+║  ❤️  Personalidad: Cálida pero firme     ║
 ║                                          ║
 ║  Puerto: ${PORT}                         ║
 ║  URL: http://localhost:${PORT}           ║
@@ -764,6 +987,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   POST /api/start  - Iniciar bot`);
     console.log(`   POST /api/stop   - Detener bot`);
     console.log(`   GET  /api/status - Ver estado`);
+    console.log(`   GET  /api/filtro-status - Ver filtro`);
     console.log(`   GET  /api/buscar/:query - Buscar info`);
     
     // Auto-iniciar si hay tokens
