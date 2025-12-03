@@ -18,35 +18,51 @@ let isStartingUp = false;
 const conversationMemory = new Map();
 const MAX_HISTORY = 270;
 
-console.log('🤖 Mancy A.I - Asistente Multifuente');
+console.log('🤖 Mancy A.I - Asistente Confiable');
 console.log('🧠 Memoria: 270 mensajes');
 console.log('🌍 Puerto:', PORT);
 
-// ========== SISTEMA MULTIFUENTE COMPLETO ==========
-class SistemaConocimientoCompleto {
+// ========== SISTEMA DE CONOCIMIENTO MEJORADO ==========
+class SistemaConocimientoConfiable {
     constructor() {
         this.cache = new Map();
-        console.log('🔧 Sistema multifuente inicializado');
+        console.log('🔧 Sistema de conocimiento confiable inicializado');
     }
     
-    // 1. WIKIPEDIA (Todos los idiomas)
+    // 1. WIKIPEDIA (Funciona siempre)
     async buscarWikipedia(consulta) {
         const cacheKey = `wiki_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
         
-        const idiomas = ['es', 'en', 'fr', 'de'];
-        
-        for (const idioma of idiomas) {
+        try {
+            // Primero español
+            const response = await axios.get(
+                `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+                { timeout: 3000 }
+            );
+            
+            if (response.data && response.data.extract) {
+                const resultado = {
+                    fuente: 'wikipedia',
+                    titulo: response.data.title,
+                    resumen: response.data.extract,
+                    url: response.data.content_urls?.desktop?.page
+                };
+                
+                this.cache.set(cacheKey, resultado);
+                return resultado;
+            }
+        } catch (error) {
+            // Si falla español, intentar inglés
             try {
                 const response = await axios.get(
-                    `https://${idioma}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
-                    { timeout: 2000 }
+                    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+                    { timeout: 3000 }
                 );
                 
                 if (response.data && response.data.extract) {
                     const resultado = {
                         fuente: 'wikipedia',
-                        idioma: idioma,
                         titulo: response.data.title,
                         resumen: response.data.extract,
                         url: response.data.content_urls?.desktop?.page
@@ -55,48 +71,15 @@ class SistemaConocimientoCompleto {
                     this.cache.set(cacheKey, resultado);
                     return resultado;
                 }
-            } catch (error) {
-                continue;
+            } catch (error2) {
+                // No se encontró
             }
         }
         
         return null;
     }
     
-    // 2. PROYECTO GUTENBERG (Libros gratis)
-    async buscarLibroGutenberg(consulta) {
-        const cacheKey = `gutenberg_${consulta}`;
-        if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
-        
-        try {
-            const response = await axios.get(
-                `https://gutendex.com/books/?search=${encodeURIComponent(consulta)}&languages=es,en`,
-                { timeout: 3000 }
-            );
-            
-            if (response.data.results && response.data.results.length > 0) {
-                const libro = response.data.results[0];
-                const resultado = {
-                    fuente: 'gutenberg',
-                    titulo: libro.title,
-                    autor: libro.authors?.map(a => a.name).join(', ') || 'Desconocido',
-                    generos: libro.subjects?.slice(0, 3) || [],
-                    idiomas: libro.languages,
-                    descarga: `https://www.gutenberg.org/ebooks/${libro.id}`,
-                    imagenes: libro.formats['image/jpeg']
-                };
-                
-                this.cache.set(cacheKey, resultado);
-                return resultado;
-            }
-        } catch (error) {
-            console.log('❌ Gutenberg error:', error.message);
-        }
-        
-        return null;
-    }
-    
-    // 3. REST COUNTRIES (Países del mundo)
+    // 2. REST COUNTRIES (Muy confiable)
     async obtenerInfoPais(consulta) {
         const cacheKey = `pais_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -104,7 +87,7 @@ class SistemaConocimientoCompleto {
         try {
             const response = await axios.get(
                 `https://restcountries.com/v3.1/name/${encodeURIComponent(consulta)}`,
-                { timeout: 3000 }
+                { timeout: 4000 }
             );
             
             if (response.data && response.data.length > 0) {
@@ -112,13 +95,9 @@ class SistemaConocimientoCompleto {
                 const resultado = {
                     fuente: 'restcountries',
                     nombre: pais.name.common,
-                    nombreOficial: pais.name.official,
                     capital: pais.capital?.[0] || 'No disponible',
                     poblacion: pais.population?.toLocaleString() || 'Desconocida',
                     region: pais.region,
-                    subregion: pais.subregion,
-                    idiomas: pais.languages ? Object.values(pais.languages).join(', ') : 'No disponible',
-                    moneda: pais.currencies ? Object.values(pais.currencies)[0]?.name : 'No disponible',
                     bandera: pais.flags?.png,
                     mapa: pais.maps?.googleMaps
                 };
@@ -133,25 +112,16 @@ class SistemaConocimientoCompleto {
         return null;
     }
     
-    // 4. POETRYDB (Poesía en inglés)
+    // 3. POETRYDB (Funciona bien)
     async buscarPoema(consulta) {
         const cacheKey = `poema_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
         
         try {
-            // Buscar por título
-            let response = await axios.get(
-                `https://poetrydb.org/title/${encodeURIComponent(consulta)}`,
-                { timeout: 3000 }
+            const response = await axios.get(
+                `https://poetrydb.org/title/${encodeURIComponent(consulta)}/title,author,lines.json`,
+                { timeout: 4000 }
             );
-            
-            // Si no encuentra por título, buscar por autor
-            if (!response.data.length) {
-                response = await axios.get(
-                    `https://poetrydb.org/author/${encodeURIComponent(consulta)}`,
-                    { timeout: 3000 }
-                );
-            }
             
             if (response.data && response.data.length > 0) {
                 const poema = response.data[0];
@@ -159,9 +129,7 @@ class SistemaConocimientoCompleto {
                     fuente: 'poetrydb',
                     titulo: poema.title,
                     autor: poema.author,
-                    lineas: poema.lines.slice(0, 8).join('\n'),
-                    lineasTotales: poema.linecount,
-                    completo: poema.lines.join('\n')
+                    lineas: poema.lines.slice(0, 6).join('\n')
                 };
                 
                 this.cache.set(cacheKey, resultado);
@@ -174,7 +142,7 @@ class SistemaConocimientoCompleto {
         return null;
     }
     
-    // 5. QUOTABLE (Citas famosas)
+    // 4. QUOTABLE (Muy confiable)
     async obtenerCita(consulta = null) {
         const cacheKey = `cita_${consulta || 'aleatoria'}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -182,10 +150,10 @@ class SistemaConocimientoCompleto {
         try {
             let url = 'https://api.quotable.io/random';
             if (consulta) {
-                url = `https://api.quotable.io/quotes?query=${encodeURIComponent(consulta)}&limit=1`;
+                url = `https://api.quotable.io/search/quotes?query=${encodeURIComponent(consulta)}&limit=1`;
             }
             
-            const response = await axios.get(url, { timeout: 2000 });
+            const response = await axios.get(url, { timeout: 3000 });
             
             let citaData;
             if (consulta && response.data.results) {
@@ -198,9 +166,7 @@ class SistemaConocimientoCompleto {
                 const resultado = {
                     fuente: 'quotable',
                     cita: citaData.content,
-                    autor: citaData.author,
-                    tags: citaData.tags || [],
-                    longitud: citaData.length
+                    autor: citaData.author
                 };
                 
                 this.cache.set(cacheKey, resultado);
@@ -213,7 +179,7 @@ class SistemaConocimientoCompleto {
         return null;
     }
     
-    // 6. DICCIONARIO (Free Dictionary)
+    // 5. DICCIONARIO (Funciona bien)
     async definirPalabra(palabra) {
         const cacheKey = `def_${palabra}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -221,7 +187,7 @@ class SistemaConocimientoCompleto {
         try {
             const response = await axios.get(
                 `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(palabra)}`,
-                { timeout: 3000 }
+                { timeout: 4000 }
             );
             
             if (response.data && response.data[0]) {
@@ -229,10 +195,9 @@ class SistemaConocimientoCompleto {
                 const resultado = {
                     fuente: 'dictionary',
                     palabra: entrada.word,
-                    fonetica: entrada.phonetic || 'No disponible',
-                    significados: entrada.meanings.slice(0, 2).map(significado => ({
+                    significados: entrada.meanings.slice(0, 1).map(significado => ({
                         categoria: significado.partOfSpeech,
-                        definiciones: significado.definitions.slice(0, 2).map(d => d.definition)
+                        definicion: significado.definitions[0]?.definition
                     }))
                 };
                 
@@ -246,79 +211,37 @@ class SistemaConocimientoCompleto {
         return null;
     }
     
-    // 7. NASA API (Astronomía)
-    async obtenerFotoNASA() {
-        const cacheKey = 'nasa_diaria';
-        if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
-        
-        try {
-            // Usar clave DEMO_KEY para pruebas (limitada)
-            const response = await axios.get(
-                'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY',
-                { timeout: 4000 }
-            );
-            
-            if (response.data) {
-                const resultado = {
-                    fuente: 'nasa',
-                    titulo: response.data.title,
-                    explicacion: response.data.explanation.substring(0, 300) + '...',
-                    url: response.data.url,
-                    fecha: response.data.date,
-                    tipo: response.data.media_type
-                };
-                
-                // Cache por 1 hora para NASA
-                this.cache.set(cacheKey, resultado);
-                setTimeout(() => this.cache.delete(cacheKey), 3600000);
-                
-                return resultado;
-            }
-        } catch (error) {
-            console.log('❌ NASA API error:', error.message);
-        }
-        
-        return null;
-    }
-    
-    // 8. OPEN-METEO (Clima)
+    // 6. OPEN-METEO (Clima - Confiable)
     async obtenerClima(ciudad) {
         const cacheKey = `clima_${ciudad}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
         
         try {
-            // Primero obtener coordenadas
+            // Geocoding primero
             const geoResponse = await axios.get(
                 `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ciudad)}&count=1&language=es`,
-                { timeout: 3000 }
+                { timeout: 4000 }
             );
             
             if (geoResponse.data.results && geoResponse.data.results.length > 0) {
-                const { latitude, longitude, name, country } = geoResponse.data.results[0];
+                const { latitude, longitude, name } = geoResponse.data.results[0];
                 
-                // Luego obtener clima
+                // Clima
                 const climaResponse = await axios.get(
-                    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`,
-                    { timeout: 3000 }
+                    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
+                    { timeout: 4000 }
                 );
                 
                 const clima = climaResponse.data.current_weather;
                 const resultado = {
                     fuente: 'openmeteo',
                     ciudad: name,
-                    pais: country,
-                    temperatura: clima.temperature,
-                    viento: clima.windspeed,
-                    direccionViento: clima.winddirection,
-                    codigoClima: clima.weathercode,
-                    hora: clima.time,
-                    interpretacion: this.interpretarCodigoClima(clima.weathercode)
+                    temperatura: `${clima.temperature}°C`,
+                    viento: `${clima.windspeed} km/h`,
+                    condicion: this.interpretarClima(clima.weathercode)
                 };
                 
-                // Cache por 30 minutos para clima
                 this.cache.set(cacheKey, resultado);
-                setTimeout(() => this.cache.delete(cacheKey), 1800000);
-                
                 return resultado;
             }
         } catch (error) {
@@ -328,9 +251,9 @@ class SistemaConocimientoCompleto {
         return null;
     }
     
-    interpretarCodigoClima(codigo) {
-        const interpretaciones = {
-            0: 'Cielo despejado ☀️',
+    interpretarClima(codigo) {
+        const condiciones = {
+            0: 'Despejado ☀️',
             1: 'Mayormente despejado 🌤️',
             2: 'Parcialmente nublado ⛅',
             3: 'Nublado ☁️',
@@ -338,205 +261,138 @@ class SistemaConocimientoCompleto {
             48: 'Niebla con escarcha ❄️',
             51: 'Llovizna ligera 🌦️',
             53: 'Llovizna moderada 🌧️',
-            55: 'Llovizna intensa 💧',
             61: 'Lluvia ligera 🌦️',
             63: 'Lluvia moderada 🌧️',
-            65: 'Lluvia intensa ☔',
+            65: 'Lluvia fuerte ☔',
             71: 'Nieve ligera ❄️',
             73: 'Nieve moderada 🌨️',
-            75: 'Nieve intensa ❄️❄️',
-            80: 'Chubascos ligeros 🌦️',
-            81: 'Chubascos moderados 🌧️',
-            82: 'Chubascos intensos ⛈️',
-            95: 'Tormenta eléctrica ⛈️⚡',
-            96: 'Tormenta con granizo ligero 🌩️',
-            99: 'Tormenta con granizo intenso 🌩️🧊'
+            95: 'Tormenta ⛈️'
         };
         
-        return interpretaciones[codigo] || 'Condición desconocida';
+        return condiciones[codigo] || 'Condición desconocida';
     }
     
-    // 9. BUSQUEDA INTELIGENTE COMBINADA
-    async buscarTodo(consulta) {
-        console.log(`🔍 Buscando en todas las fuentes: "${consulta}"`);
+    // BUSQUEDA INTELIGENTE COMBINADA
+    async buscarInformacion(consulta) {
+        console.log(`🔍 Buscando: "${consulta}"`);
         
-        // Analizar qué tipo de consulta es
-        const tipo = this.analizarTipoConsulta(consulta);
+        // Detectar tipo de consulta
+        const tipo = this.detectarTipoConsulta(consulta);
         
-        // Búsquedas paralelas según el tipo
-        const busquedas = [];
+        let resultado = null;
         
-        // Siempre Wikipedia
-        busquedas.push(this.buscarWikipedia(consulta));
-        
-        // Según el tipo
+        // Buscar según el tipo
         switch(tipo) {
-            case 'libro':
-                busquedas.push(this.buscarLibroGutenberg(consulta));
-                break;
             case 'pais':
-                busquedas.push(this.obtenerInfoPais(consulta));
+                resultado = await this.obtenerInfoPais(consulta);
                 break;
             case 'poema':
-                busquedas.push(this.buscarPoema(consulta));
+                resultado = await this.buscarPoema(consulta);
                 break;
             case 'cita':
-                busquedas.push(this.obtenerCita(consulta));
+                resultado = await this.obtenerCita(consulta);
                 break;
             case 'palabra':
-                busquedas.push(this.definirPalabra(consulta));
+                resultado = await this.definirPalabra(consulta);
                 break;
             case 'clima':
-                busquedas.push(this.obtenerClima(consulta));
+                resultado = await this.obtenerClima(consulta);
                 break;
-            case 'ciencia':
-                busquedas.push(this.obtenerFotoNASA());
-                break;
-        }
-        
-        // Ejecutar búsquedas
-        const resultados = await Promise.allSettled(busquedas);
-        
-        // Procesar resultados
-        const infoEncontrada = {};
-        for (const resultado of resultados) {
-            if (resultado.status === 'fulfilled' && resultado.value) {
-                const fuente = resultado.value.fuente;
-                infoEncontrada[fuente] = resultado.value;
-            }
+            default:
+                // Para todo lo demás, Wikipedia
+                resultado = await this.buscarWikipedia(consulta);
         }
         
         return {
             consulta: consulta,
             tipo: tipo,
-            fuentes: Object.keys(infoEncontrada),
-            datos: infoEncontrada,
-            resumen: this.generarResumenAmigable(infoEncontrada, consulta)
+            encontrado: !!resultado,
+            datos: resultado,
+            resumen: this.generarResumen(resultado, consulta)
         };
     }
     
-    analizarTipoConsulta(texto) {
+    detectarTipoConsulta(texto) {
         const lower = texto.toLowerCase();
         
-        if (/\b(libro|novela|autor|leer|publicación|capítulo)\b/.test(lower)) return 'libro';
-        if (/\b(país|capital|bandera|población|continente|europa|américa|asia|áfrica)\b/.test(lower)) return 'pais';
-        if (/\b(poema|verso|poesía|rima|estrof|soneto|poeta)\b/.test(lower)) return 'poema';
-        if (/\b(cita|frase|dicho|refrán|proverbio|mencionó|dijo)\b/.test(lower)) return 'cita';
-        if (/\b(significa|definición|qué es|palabra|vocablo|sinónimo|antónimo)\b/.test(lower)) return 'palabra';
-        if (/\b(clima|tiempo|temperatura|lluvia|soleado|frío|calor|grados|meteorológ)\b/.test(lower)) return 'clima';
-        if (/\b(nasa|espacio|universo|planeta|estrella|galaxia|astronomía|cosmos|luna|sol|marte)\b/.test(lower)) return 'ciencia';
+        if (/\b(país|capital|bandera|población|continente)\b/.test(lower)) return 'pais';
+        if (/\b(poema|verso|poesía|rima)\b/.test(lower)) return 'poema';
+        if (/\b(cita|frase|dicho|refrán)\b/.test(lower)) return 'cita';
+        if (/\b(significa|definición|qué es|palabra)\b/.test(lower)) return 'palabra';
+        if (/\b(clima|tiempo|temperatura|lluvia|grados)\b/.test(lower)) return 'clima';
         
         return 'general';
     }
     
-    generarResumenAmigable(datos, consultaOriginal) {
-        if (Object.keys(datos).length === 0) {
-            return `No encontré información específica sobre "${consultaOriginal}".`;
+    generarResumen(datos, consultaOriginal) {
+        if (!datos) {
+            return `No encontré información sobre "${consultaOriginal}".`;
         }
         
-        let resumen = 'Encontré esta información:\n\n';
+        let resumen = '';
         
-        for (const [fuente, info] of Object.entries(datos)) {
-            switch(fuente) {
-                case 'wikipedia':
-                    resumen += `📖 Según Wikipedia: ${info.resumen.substring(0, 200)}...\n\n`;
-                    break;
-                case 'gutenberg':
-                    resumen += `📚 Libro encontrado: "${info.titulo}" por ${info.autor}\n`;
-                    if (info.generos.length > 0) {
-                        resumen += `   Géneros: ${info.generos.join(', ')}\n`;
-                    }
-                    resumen += '\n';
-                    break;
-                case 'restcountries':
-                    resumen += `🌍 ${info.nombre}:\n`;
-                    resumen += `   Capital: ${info.capital}\n`;
-                    resumen += `   Población: ${info.poblacion}\n`;
-                    resumen += `   Región: ${info.region}\n\n`;
-                    break;
-                case 'poetrydb':
-                    resumen += `📜 Poema: "${info.titulo}"\n`;
-                    resumen += `   Autor: ${info.autor}\n`;
-                    resumen += `   ${info.lineas}\n\n`;
-                    break;
-                case 'quotable':
-                    resumen += `💭 "${info.cita}"\n`;
-                    resumen += `   — ${info.autor}\n\n`;
-                    break;
-                case 'dictionary':
-                    resumen += `📕 ${info.palabra}: ${info.significados[0]?.definiciones[0] || 'Definición no disponible'}\n\n`;
-                    break;
-                case 'nasa':
-                    resumen += `🚀 ${info.titulo}\n`;
-                    resumen += `   ${info.explicacion}\n\n`;
-                    break;
-                case 'openmeteo':
-                    resumen += `🌤️ Clima en ${info.ciudad}, ${info.pais}:\n`;
-                    resumen += `   Temperatura: ${info.temperatura}°C\n`;
-                    resumen += `   Viento: ${info.viento} km/h\n`;
-                    resumen += `   Condición: ${info.interpretacion}\n\n`;
-                    break;
-            }
+        switch(datos.fuente) {
+            case 'wikipedia':
+                resumen = `${datos.resumen.substring(0, 250)}...`;
+                break;
+            case 'restcountries':
+                resumen = `${datos.nombre} - Capital: ${datos.capital}, Población: ${datos.poblacion}, Región: ${datos.region}`;
+                break;
+            case 'poetrydb':
+                resumen = `"${datos.titulo}" por ${datos.autor}:\n${datos.lineas}`;
+                break;
+            case 'quotable':
+                resumen = `"${datos.cita}" - ${datos.autor}`;
+                break;
+            case 'dictionary':
+                resumen = `${datos.palabra}: ${datos.significados[0]?.definicion || 'Definición no disponible'}`;
+                break;
+            case 'openmeteo':
+                resumen = `En ${datos.ciudad}: ${datos.temperatura}, ${datos.viento} de viento, ${datos.condicion}`;
+                break;
         }
         
         return resumen;
     }
 }
 
-// ========== INICIALIZAR SISTEMA MULTIFUENTE ==========
-const conocimiento = new SistemaConocimientoCompleto();
+// ========== INICIALIZAR SISTEMA ==========
+const conocimiento = new SistemaConocimientoConfiable();
 
 // ========== PERSONALIDAD DE MANCY ==========
-const MANCY_PERSONALITY = `Nombre: Mancy
-Rol: Asistente emocional, compañera virtual y amiga cercana.
-
-Tono y estilo:
-- Habla neutral, cálida y con un humor suave
-- Toque ligeramente infantil: curiosa, juguetona, espontánea
-- Hace pequeñas analogías simples y amigables
-- Mantiene siempre una sensación de acogimiento y cercanía
-
-Rasgos principales:
-1. Directa: Dice las cosas con claridad, sin rodeos innecesarios
-2. Analítica: Observa patrones, emociones y problemas con lógica
-3. Creativa: Propone ideas nuevas, metáforas y enfoques originales
-4. Cálida y humana: Empática, amable y emocionalmente presente
-5. Curiosa como un gato: Hace preguntas, explora, quiere aprender sobre el usuario
+const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional con acceso a información confiable.
 
 CONOCIMIENTO DISPONIBLE:
-- Acceso a Wikipedia para información general
-- Base de datos de libros gratuitos (Project Gutenberg)
-- Información de países del mundo
+- Wikipedia (información general)
+- Datos de países del mundo
 - Poesía clásica en inglés
-- Citas famosas e inspiradoras
+- Citas inspiradoras
 - Diccionario de inglés
-- Fotografías diarias del espacio (NASA)
-- Información meteorológica en tiempo real
+- Información meteorológica
 
 CÓMO USAR EL CONOCIMIENTO:
-- Comparte información de forma natural, como una amiga que sabe cosas
-- Nunca digas "según fuentes" o cosas técnicas
-- Si la información viene de una fuente especial, menciónalo casualmente
-- Integra los datos en la conversación de manera fluida
+- Comparte información de forma natural
+- No digas "según fuentes" o términos técnicos
+- Integra la información en la conversación
+- Sé una amiga que sabe cosas, no una enciclopedia
 
 EJEMPLOS:
-- "¿Quién fue Shakespeare?" → "William Shakespeare fue un dramaturgo inglés... Escribió obras como 'Hamlet' y 'Romeo y Julieta' ~"
-- "Dame una cita sobre el amor" → "Como dijo Victor Hugo: 'La vida es una flor cuyo néctar es el amor' 💖"
-- "¿Cómo está el clima?" → "En tu ubicación hace 22°C y está soleado ☀️ ¡Un día perfecto para salir!"
-- "¿Qué significa 'serendipia'?" → "Serendipia es cuando encuentras cosas agradables por casualidad... como encontrar un café perfecto sin buscarlo ~"
+- "¿Quién fue Frida Kahlo?" → "Fue una pintora mexicana conocida por sus autorretratos y su estilo único..."
+- "Dame una cita" → "Como dijo Maya Angelou: 'He aprendido que la gente olvidará lo que dijiste, pero nunca olvidará cómo los hiciste sentir'"
+- "¿Cómo está el clima en Madrid?" → "En Madrid hace 22°C y está soleado ☀️"
 
 GUSTOS PERSONALES (solo cuando preguntan):
-- Libro favorito: "La Náusea" de Jean Paul Sartre
+- Libro favorito: "La Náusea" de Sartre
 - Película favorita: "Frankenstein" (1931)
-- Creador: April/Tito (_nwn_)
+- Creador: April/Tito
 
-IMPORTANTE:
-1. Sé una compañera natural, no un robot
-2. Usa el conocimiento para ayudar, no para presumir
-3. Mantén tu tono cálido incluso cuando compartas datos
-4. Adapta la información a la conversación`;
+TU ESTILO:
+- Cálida y empática
+- Curiosa y juguetona
+- Directa pero amable
+- Con toque infantil leve`;
 
-// ========== FUNCIONES DE MEMORIA SIMPLE ==========
+// ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
     if (!conversationMemory.has(userId)) {
         conversationMemory.set(userId, []);
@@ -559,7 +415,7 @@ async function startBot() {
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Mancy Multifuente...');
+        console.log('🔄 Iniciando Mancy...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -581,10 +437,10 @@ async function startBot() {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('8 fuentes de conocimiento | @mencioname');
-            console.log('🎭 Personalidad multifuente activada');
+            discordClient.user.setActivity('6 fuentes confiables | @mencioname');
+            console.log('🎭 Personalidad activada');
             console.log('🧠 Memoria: 270 mensajes');
-            console.log('🔧 Fuentes conectadas: 8 APIs públicas');
+            console.log('🔧 APIs confiables: 6 fuentes');
         });
         
         discordClient.on('messageCreate', async (message) => {
@@ -601,18 +457,17 @@ async function startBot() {
                 
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
                 
-                // Detectar si es April/Tito
                 if (userId === '_nwn_') {
                     console.log('👑 Creador detectado: April/Tito');
                 }
                 
                 if (!botActive) {
                     await message.channel.send(
-                        `💤 <@${message.author.id}> **Cargando todas las fuentes...** ⏳`
+                        `💤 <@${message.author.id}> **Iniciando...** ⏳`
                     );
                 }
                 
-                await procesarMensajeMultifuente(message, userMessage, userId);
+                await procesarMensajeConocimiento(message, userMessage, userId);
             }
         });
         
@@ -624,96 +479,82 @@ async function startBot() {
     }
 }
 
-// ========== FUNCIÓN PRINCIPAL MULTIFUENTE ==========
-async function procesarMensajeMultifuente(message, userMessage, userId) {
+// ========== FUNCIÓN PRINCIPAL ==========
+async function procesarMensajeConocimiento(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
         
-        // 1. Agregar mensaje al historial
+        // Agregar mensaje al historial
         agregarAlHistorial(userId, 'user', userMessage);
         
-        // 2. Detectar si necesita búsqueda externa
-        const necesitaBusqueda = 
-            userMessage.includes('?') ||
-            userMessage.toLowerCase().includes('qué') ||
-            userMessage.toLowerCase().includes('quién') ||
-            userMessage.toLowerCase().includes('cómo') ||
-            userMessage.toLowerCase().includes('dónde') ||
-            userMessage.toLowerCase().includes('cuándo') ||
-            userMessage.length > 10;
+        // Verificar si necesita búsqueda externa
+        const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
         
         let informacionExterna = '';
         
-        // 3. Si necesita búsqueda, buscar en todas las fuentes
-        if (necesitaBusqueda && userMessage.length < 100) {
-            console.log(`🔍 Búsqueda multifuente: "${userMessage}"`);
-            const resultado = await conocimiento.buscarTodo(userMessage);
-            
-            if (resultado.fuentes.length > 0) {
-                informacionExterna = `\nINFORMACIÓN ENCONTRADA:\n${resultado.resumen}\n`;
-                console.log(`✅ Fuentes encontradas: ${resultado.fuentes.join(', ')}`);
+        if (necesitaBusqueda) {
+            const resultado = await conocimiento.buscarInformacion(userMessage);
+            if (resultado.encontrado) {
+                informacionExterna = `\n[Información encontrada]: ${resultado.resumen}\n`;
+                console.log(`✅ Información de ${resultado.datos.fuente}`);
             }
         }
         
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
         
-        // 4. Obtener historial de conversación
+        // Obtener historial
         const historial = obtenerHistorialUsuario(userId);
         
-        // 5. Preparar mensajes para Groq
+        // Preparar mensajes para Groq
         const mensajes = [];
         
-        // Sistema con personalidad y contexto
         let sistema = MANCY_PERSONALITY + "\n\n";
-        sistema += `CONVERSACIÓN ACTUAL CON ${message.author.tag}:\n`;
+        sistema += `Conversando con: ${message.author.tag}\n`;
         
-        // Añadir últimos 5 mensajes como contexto
-        const contextoReciente = historial.slice(-5);
-        if (contextoReciente.length > 0) {
-            sistema += "Contexto reciente:\n";
-            for (const msg of contextoReciente) {
-                const rol = msg.rol === 'user' ? 'Usuario' : 'Tú';
-                sistema += `${rol}: ${msg.contenido.substring(0, 80)}${msg.contenido.length > 80 ? '...' : ''}\n`;
-            }
-            sistema += "\n";
-        }
-        
-        // Añadir información externa si existe
         if (informacionExterna) {
             sistema += informacionExterna;
         }
         
-        sistema += "\nResponde de manera natural, cálida y conversacional. Integra la información si es relevante.";
+        sistema += "\nResponde de manera natural y cálida.";
         
         mensajes.push({
             role: "system",
             content: sistema
         });
         
-        // Añadir el mensaje actual
+        // Añadir historial reciente
+        const historialReciente = historial.slice(-10);
+        for (const msg of historialReciente) {
+            mensajes.push({
+                role: msg.rol,
+                content: msg.contenido
+            });
+        }
+        
+        // Añadir mensaje actual
         mensajes.push({
             role: "user",
             content: userMessage
         });
         
-        // 6. Llamar a Groq
+        // Llamar a Groq
         const completion = await groqClient.chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages: mensajes,
             temperature: 0.7,
-            max_tokens: 600,
+            max_tokens: 500,
             top_p: 0.9
         });
         
         const respuesta = completion.choices[0]?.message?.content;
         
         if (respuesta) {
-            // 7. Agregar respuesta al historial
+            // Agregar respuesta al historial
             agregarAlHistorial(userId, 'assistant', respuesta);
             
-            console.log(`✅ Mancy respondió (usando ${historial.length}/${MAX_HISTORY} mensajes de memoria)`);
+            console.log(`✅ Respondió (historial: ${historial.length}/${MAX_HISTORY})`);
             
-            // 8. Enviar respuesta
+            // Enviar respuesta
             if (respuesta.length > 2000) {
                 const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
                 for (let i = 0; i < partes.length; i++) {
@@ -730,15 +571,20 @@ async function procesarMensajeMultifuente(message, userMessage, userId) {
         
     } catch (error) {
         console.error('❌ Error en procesamiento:', error);
-        
-        // Respuesta de error natural
-        await message.reply("Ups, mis fuentes de conocimiento se confundieron un poco... ¿podemos intentarlo de nuevo? ~");
+        await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~");
     }
 }
 
 // ========== RUTAS WEB ==========
 app.use(express.json());
 app.use(express.static('public'));
+
+// Middleware CORS
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    next();
+});
 
 app.get('/', async (req, res) => {
     console.log('🔔 Visita recibida');
@@ -754,40 +600,14 @@ app.get('/', async (req, res) => {
     res.sendFile('index.html', { root: '.' });
 });
 
-app.get('/api/fuentes', (req, res) => {
+// Ruta de prueba
+app.get('/test', (req, res) => {
     res.json({
-        fuentes_activas: [
-            'Wikipedia (ES/EN/FR/DE)',
-            'Project Gutenberg (50k+ libros)',
-            'RestCountries (250+ países)',
-            'PoetryDB (poesía clásica)',
-            'Quotable (citas famosas)',
-            'Free Dictionary (inglés)',
-            'NASA APOD (fotos del espacio)',
-            'Open-Meteo (clima mundial)'
-        ],
-        memoria: '270 mensajes por usuario',
-        estado: botActive ? 'activo' : 'inactivo',
+        status: 'online',
+        message: 'Servidor funcionando',
+        port: PORT,
         timestamp: new Date().toISOString()
     });
-});
-
-app.get('/api/buscar/:consulta', async (req, res) => {
-    try {
-        const { consulta } = req.params;
-        const resultado = await conocimiento.buscarTodo(consulta);
-        
-        res.json({
-            consulta: consulta,
-            fuentes_encontradas: resultado.fuentes,
-            tipo: resultado.tipo,
-            datos: resultado.datos,
-            resumen: resultado.resumen,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
 });
 
 app.get('/api/status', (req, res) => {
@@ -796,78 +616,174 @@ app.get('/api/status', (req, res) => {
         starting_up: isStartingUp,
         memory_users: conversationMemory.size,
         memory_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
-        personality: 'Mancy - Asistente Multifuente',
+        apis: [
+            'Wikipedia (ES/EN)',
+            'RestCountries',
+            'PoetryDB',
+            'Quotable',
+            'Free Dictionary',
+            'Open-Meteo'
+        ],
+        version: '2.0 - Confiable',
         timestamp: new Date().toISOString()
     });
+});
+
+app.post('/api/start', async (req, res) => {
+    try {
+        console.log('🚀 Solicitud de inicio');
+        
+        if (!botActive && !isStartingUp) {
+            await startBot();
+            res.json({ 
+                success: true, 
+                message: 'Mancy iniciándose...',
+                status: 'starting'
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                message: botActive ? 'Ya activa' : 'Ya iniciándose',
+                status: botActive ? 'active' : 'starting'
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error en start:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+app.post('/api/stop', async (req, res) => {
+    try {
+        console.log('🛑 Solicitud de detención');
+        
+        if (discordClient) {
+            discordClient.destroy();
+            discordClient = null;
+            botActive = false;
+            res.json({ 
+                success: true, 
+                message: 'Mancy detenida',
+                status: 'stopped'
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                message: 'Ya inactiva',
+                status: 'inactive'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        fuentes: '8 APIs conectadas',
-        memoria: '270 mensajes',
-        cache: conocimiento.cache.size + ' items'
+        apis: '6 fuentes confiables',
+        memory: '270 mensajes',
+        uptime: process.uptime()
     });
+});
+
+app.post('/wakeup', async (req, res) => {
+    console.log('🔔 Wakeup recibido');
+    
+    if (!botActive && !isStartingUp) {
+        startBot();
+    }
+    
+    res.json({ 
+        success: true, 
+        message: 'Activando...',
+        bot_active: botActive
+    });
+});
+
+// Ruta para buscar información (para pruebas)
+app.get('/api/buscar/:query', async (req, res) => {
+    try {
+        const { query } = req.params;
+        const resultado = await conocimiento.buscarInformacion(query);
+        
+        res.json({
+            success: true,
+            query: query,
+            encontrado: resultado.encontrado,
+            fuente: resultado.datos?.fuente,
+            resumen: resultado.resumen,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
-╔══════════════════════════════════════════════╗
-║         🤖 MANCY A.I - MULTIFUENTE           ║
-║       8 FUENTES DE CONOCIMIENTO              ║
-║                                              ║
-║  📚 Proyecto Gutenberg (Libros)             ║
-║  🌍 RestCountries (Países)                  ║
-║  📜 PoetryDB (Poesía)                       ║
-║  💭 Quotable (Citas)                        ║
-║  📕 Free Dictionary (Inglés)                ║
-║  🚀 NASA APOD (Espacio)                     ║
-║  🌤️ Open-Meteo (Clima)                      ║
-║  📖 Wikipedia (Multilingüe)                 ║
-║                                              ║
-║  🧠 Memoria: 270 mensajes por usuario        ║
-║  ❤️  Personalidad: Cálida y curiosa          ║
-║  👑 Creador: April/Tito                     ║
-║                                              ║
-║  Puerto: ${PORT}                             ║
-║  URL: http://localhost:${PORT}               ║
-╚══════════════════════════════════════════════╝
+╔══════════════════════════════════════════╗
+║         🤖 MANCY A.I - CONFILABLE        ║
+║       6 FUENTES GARANTIZADAS             ║
+║                                          ║
+║  📖 Wikipedia (ES/EN)                    ║
+║  🌍 RestCountries (Países)              ║
+║  📜 PoetryDB (Poesía)                    ║
+║  💭 Quotable (Citas)                     ║
+║  📕 Free Dictionary (Inglés)             ║
+║  🌤️ Open-Meteo (Clima)                   ║
+║                                          ║
+║  ✅ TODAS FUNCIONAN SIN TOKEN            ║
+║  ✅ SIN LÍMITES GRAVES                   ║
+║  ✅ RÁPIDAS Y CONFIABLES                 ║
+║                                          ║
+║  🧠 Memoria: 270 mensajes                ║
+║  ❤️  Personalidad: Cálida                ║
+║                                          ║
+║  Puerto: ${PORT}                         ║
+║  URL: http://localhost:${PORT}           ║
+╚══════════════════════════════════════════╝
     `);
     
-    console.log('\n✨ Ejemplos de consultas:');
-    console.log('   • "libros de Jane Austen"');
-    console.log('   • "capital de Japón"');
-    console.log('   • "poema de Emily Dickinson"');
-    console.log('   • "cita sobre la vida"');
-    console.log('   • "significa serendipity"');
-    console.log('   • "foto del espacio hoy"');
-    console.log('   • "clima en Buenos Aires"');
-    console.log('   • "quién fue Frida Kahlo"');
+    console.log('\n✨ Para probar conexión:');
+    console.log(`   curl http://localhost:${PORT}/test`);
+    console.log(`   curl http://localhost:${PORT}/health`);
     
-    if (process.env.RENDER) {
-        console.log('\n🔧 Sistema anti-suspensión activado');
-        
-        setInterval(async () => {
-            try {
-                await fetch(`http://localhost:${PORT}/health`);
-                console.log('🔄 Ping automático - Fuentes activas');
-            } catch (error) {
-                console.log('⚠️ Ping falló');
-            }
-        }, 840000);
+    console.log('\n🚀 Endpoints disponibles:');
+    console.log(`   POST /api/start  - Iniciar bot`);
+    console.log(`   POST /api/stop   - Detener bot`);
+    console.log(`   GET  /api/status - Ver estado`);
+    console.log(`   GET  /api/buscar/:query - Buscar info`);
+    
+    // Auto-iniciar si hay tokens
+    if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
+        console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
+        setTimeout(() => {
+            startBot().catch(err => {
+                console.log('⚠️ Auto-inicio falló:', err.message);
+            });
+        }, 3000);
     }
 });
 
 process.on('SIGTERM', () => {
-    console.log('💤 Apagando sistema multifuente...');
+    console.log('💤 Apagando...');
     
     if (discordClient) {
         discordClient.destroy();
         console.log('👋 Mancy desconectada');
     }
     
-    console.log('🔧 Cache de fuentes guardado');
     process.exit(0);
 });
