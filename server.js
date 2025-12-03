@@ -39,12 +39,19 @@ const defaultData = {
 const adapter = new JSONFile(dbFile);
 const db = new Low(adapter, defaultData);
 
-// Inicializar base de datos
-await db.read();
-if (!db.data) db.data = defaultData;
-await db.write();
-
-console.log('💾 Memoria avanzada inicializada');
+// Inicializar base de datos de forma síncrona primero
+let dbInitialized = false;
+const initializeDB = async () => {
+    if (!dbInitialized) {
+        await db.read();
+        if (!db.data) {
+            db.data = defaultData;
+            await db.write();
+        }
+        dbInitialized = true;
+        console.log('💾 Memoria avanzada inicializada');
+    }
+};
 
 // ========== SISTEMA DE MEMORIA JERÁRQUICA ==========
 class MemoriaJerarquica {
@@ -58,10 +65,20 @@ class MemoriaJerarquica {
             conocimientoAdquirido: new Set()
         };
         
-        console.log('🧠 Memoria jerárquica activada (corta + larga + perfiles)');
+        // Inicializar DB en el constructor
+        initializeDB().then(() => {
+            console.log('🧠 Memoria jerárquica activada (corta + larga + perfiles)');
+        }).catch(err => {
+            console.error('❌ Error inicializando memoria:', err);
+        });
     }
     
     async guardarMensaje(userId, rol, contenido, metadata = {}) {
+        // Asegurarse que la DB esté inicializada
+        if (!dbInitialized) {
+            await initializeDB();
+        }
+        
         const timestamp = Date.now();
         const mensajeId = `${userId}_${timestamp}`;
         
@@ -94,7 +111,7 @@ class MemoriaJerarquica {
                 totalMensajes: 0,
                 primerMensaje: timestamp,
                 ultimoMensaje: timestamp,
-                intereses: new Set(),
+                intereses: [],
                 estiloComunicacion: {}
             };
             this.memoriaLarga.data.statistics.totalUsers++;
@@ -106,7 +123,11 @@ class MemoriaJerarquica {
         
         // Extraer y guardar intereses
         const intereses = this.extraerIntereses(contenido);
-        intereses.forEach(interes => usuario.intereses.add(interes));
+        intereses.forEach(interes => {
+            if (!usuario.intereses.includes(interes)) {
+                usuario.intereses.push(interes);
+            }
+        });
         
         // Guardar conversación estructurada
         if (!this.memoriaLarga.data.conversations[userId]) {
@@ -119,13 +140,13 @@ class MemoriaJerarquica {
             contenido,
             timestamp,
             metadata,
-            embedding: await this.generarEmbedding(contenido) // Para búsqueda semántica
+            embedding: this.generarEmbeddingSimple(contenido)
         });
         
-        // Limitar historial a 1000 mensajes por usuario
-        if (this.memoriaLarga.data.conversations[userId].length > 1000) {
+        // Limitar historial a 500 mensajes por usuario (reducido por rendimiento)
+        if (this.memoriaLarga.data.conversations[userId].length > 500) {
             this.memoriaLarga.data.conversations[userId] = 
-                this.memoriaLarga.data.conversations[userId].slice(-1000);
+                this.memoriaLarga.data.conversations[userId].slice(-500);
         }
         
         // Estadísticas globales
@@ -140,7 +161,7 @@ class MemoriaJerarquica {
         return mensajeId;
     }
     
-    async obtenerHistorialCompleto(userId, limite = 50) {
+    async obtenerHistorialCompleto(userId, limite = 30) {
         // Combinar memoria corta y larga
         const historialCorto = this.memoriaCorta.get(userId) || [];
         await this.memoriaLarga.read();
@@ -163,25 +184,21 @@ class MemoriaJerarquica {
         const contextoUsuario = `
 PERFIL DE USUARIO [${userId}]:
 - Total mensajes: ${usuario.totalMensajes || 0}
-- Intereses detectados: ${Array.from(usuario.intereses || []).join(', ')}
+- Intereses detectados: ${(usuario.intereses || []).join(', ')}
 - Estilo de comunicación: ${JSON.stringify(usuario.estiloComunicacion || {})}
 - Actividad: ${usuario.ultimoMensaje ? new Date(usuario.ultimoMensaje).toLocaleDateString() : 'Nueva'}
 `;
         
-        // 2. Conversaciones relevantes (búsqueda semántica)
-        const conversacionesRelevantes = await this.buscarConversacionesRelevantes(
-            userId, 
-            consultaActual, 
-            5
-        );
+        // 2. Conversaciones relevantes (simplificado para rendimiento)
+        const conversacionesRecientes = conversaciones.slice(-5);
         
         let contextoConversaciones = 'CONVERSACIONES PREVIAS RELEVANTES:\n';
-        conversacionesRelevantes.forEach((conv, i) => {
-            contextoConversaciones += `${i + 1}. ${conv.rol}: ${conv.contenido.substring(0, 100)}...\n`;
+        conversacionesRecientes.forEach((conv, i) => {
+            contextoConversaciones += `${i + 1}. ${conv.rol}: ${conv.contenido.substring(0, 80)}...\n`;
         });
         
         // 3. Conocimiento aprendido del usuario
-        const conocimientoUsuario = this.extraerConocimientoUsuario(userId);
+        const conocimientoUsuario = await this.extraerConocimientoUsuario(userId);
         
         return {
             perfil: contextoUsuario,
@@ -189,36 +206,11 @@ PERFIL DE USUARIO [${userId}]:
             conocimiento: conocimientoUsuario,
             estadisticas: {
                 totalMensajes: usuario.totalMensajes || 0,
-                intereses: Array.from(usuario.intereses || []),
+                intereses: usuario.intereses || [],
                 antiguedad: usuario.primerMensaje ? 
                     Math.floor((Date.now() - usuario.primerMensaje) / (1000 * 60 * 60 * 24)) + ' días' : 'Nuevo'
             }
         };
-    }
-    
-    async buscarConversacionesRelevantes(userId, consulta, limite = 5) {
-        await this.memoriaLarga.read();
-        const conversaciones = this.memoriaLarga.data.conversations[userId] || [];
-        
-        if (conversaciones.length === 0) return [];
-        
-        // Embedding simple de la consulta
-        const consultaEmbedding = this.generarEmbeddingSimple(consulta);
-        
-        // Calcular similitud (simplificado)
-        const conversacionesConSimilitud = conversaciones.map(conv => ({
-            ...conv,
-            similitud: this.calcularSimilitud(
-                consultaEmbedding,
-                conv.embedding || this.generarEmbeddingSimple(conv.contenido)
-            )
-        }));
-        
-        // Ordenar por similitud y limitar
-        return conversacionesConSimilitud
-            .sort((a, b) => b.similitud - a.similitud)
-            .slice(0, limite)
-            .filter(conv => conv.similitud > 0.3); // Umbral de relevancia
     }
     
     generarEmbeddingSimple(texto) {
@@ -233,41 +225,8 @@ PERFIL DE USUARIO [${userId}]:
         return embedding;
     }
     
-    calcularSimilitud(embedding1, embedding2) {
-        const palabras = new Set([
-            ...Object.keys(embedding1),
-            ...Object.keys(embedding2)
-        ]);
-        
-        let productoPunto = 0;
-        let magnitud1 = 0;
-        let magnitud2 = 0;
-        
-        palabras.forEach(palabra => {
-            const val1 = embedding1[palabra] || 0;
-            const val2 = embedding2[palabra] || 0;
-            
-            productoPunto += val1 * val2;
-            magnitud1 += val1 * val1;
-            magnitud2 += val2 * val2;
-        });
-        
-        magnitud1 = Math.sqrt(magnitud1);
-        magnitud2 = Math.sqrt(magnitud2);
-        
-        if (magnitud1 === 0 || magnitud2 === 0) return 0;
-        
-        return productoPunto / (magnitud1 * magnitud2);
-    }
-    
-    async generarEmbedding(texto) {
-        // Para producción usar un servicio de embeddings real
-        // Esta es una versión simplificada
-        return this.generarEmbeddingSimple(texto);
-    }
-    
     extraerIntereses(texto) {
-        const intereses = new Set();
+        const intereses = [];
         const palabrasClave = {
             programacion: ['código', 'programar', 'javascript', 'python', 'git', 'github', 'api'],
             ciencia: ['ciencia', 'investigación', 'experimento', 'teoría', 'física', 'química'],
@@ -281,7 +240,7 @@ PERFIL DE USUARIO [${userId}]:
         
         Object.entries(palabrasClave).forEach(([interes, palabras]) => {
             if (palabras.some(palabra => textoLower.includes(palabra))) {
-                intereses.add(interes);
+                intereses.push(interes);
             }
         });
         
@@ -292,7 +251,7 @@ PERFIL DE USUARIO [${userId}]:
         if (!this.perfilesUsuarios.has(userId)) {
             this.perfilesUsuarios.set(userId, {
                 estilo: {},
-                preferencias: new Set(),
+                preferencias: [],
                 patrones: [],
                 nivelConocimiento: 'principiante',
                 emocionesDetectadas: []
@@ -316,8 +275,8 @@ PERFIL DE USUARIO [${userId}]:
         }
         
         // Limitar historial de emociones
-        if (perfil.emocionesDetectadas.length > 100) {
-            perfil.emocionesDetectadas = perfil.emocionesDetectadas.slice(-100);
+        if (perfil.emocionesDetectadas.length > 50) {
+            perfil.emocionesDetectadas = perfil.emocionesDetectadas.slice(-50);
         }
         
         this.perfilesUsuarios.set(userId, perfil);
@@ -337,8 +296,7 @@ PERFIL DE USUARIO [${userId}]:
             usoEmojis: (texto.match(/[\u{1F600}-\u{1F64F}]/gu) || []).length,
             usoMayusculas: (texto.match(/[A-ZÁÉÍÓÚÑ]/g) || []).length,
             preguntasFrecuentes: texto.includes('?'),
-            formalidad: this.calcularFormalidad(texto),
-            emocionalidad: this.calcularEmocionalidad(texto)
+            formalidad: this.calcularFormalidad(texto)
         };
         
         return analisis;
@@ -361,44 +319,12 @@ PERFIL DE USUARIO [${userId}]:
         return Math.max(0, Math.min(1, score));
     }
     
-    calcularEmocionalidad(texto) {
-        const emocionesPositivas = ['❤️', '😊', '🎉', '✨', '👍', '😍', '😄'];
-        const emocionesNegativas = ['😠', '😢', '💔', '👎', '😡', '😞'];
-        
-        let emocionalidad = 0;
-        
-        emocionesPositivas.forEach(emoji => {
-            const regex = new RegExp(emoji, 'gu');
-            emocionalidad += (texto.match(regex) || []).length * 0.2;
-        });
-        
-        emocionesNegativas.forEach(emoji => {
-            const regex = new RegExp(emoji, 'gu');
-            emocionalidad -= (texto.match(regex) || []).length * 0.2;
-        });
-        
-        // Palabras emocionales
-        const palabrasEmocionales = [
-            'amo', 'adoro', 'genial', 'increíble', 'fantástico', // Positivas
-            'odio', 'horrible', 'terrible', 'triste', 'enojo'   // Negativas
-        ];
-        
-        palabrasEmocionales.forEach(palabra => {
-            if (texto.toLowerCase().includes(palabra)) {
-                emocionalidad += palabra === 'odio' || palabra === 'horrible' ? -0.3 : 0.3;
-            }
-        });
-        
-        return Math.max(-1, Math.min(1, emocionalidad));
-    }
-    
     detectarEmocion(texto) {
         const emociones = {
             alegria: ['😊', '😄', '😂', '🤣', '😍', '🥰', 'genial', 'increíble', 'feliz'],
             tristeza: ['😢', '😭', '😔', '💔', 'triste', 'deprimido', 'mal'],
             enojo: ['😠', '😡', '🤬', 'odio', 'enfadado', 'molesto', 'ira'],
-            sorpresa: ['😲', '🤯', '😱', 'wow', 'increíble', 'sorprendente'],
-            neutral: ['ok', 'vale', 'entendido', 'claro']
+            sorpresa: ['😲', '🤯', '😱', 'wow', 'increíble', 'sorprendente']
         };
         
         for (const [emocion, indicadores] of Object.entries(emociones)) {
@@ -413,18 +339,18 @@ PERFIL DE USUARIO [${userId}]:
         return null;
     }
     
-    extraerConocimientoUsuario(userId) {
+    async extraerConocimientoUsuario(userId) {
         await this.memoriaLarga.read();
         const conversaciones = this.memoriaLarga.data.conversations[userId] || [];
         
         const conocimiento = {
             hechosAprendidos: [],
-            preferencias: new Set(),
+            preferencias: [],
             temasRecurrentes: []
         };
         
-        // Analizar últimas 50 conversaciones
-        const conversacionesRecientes = conversaciones.slice(-50);
+        // Analizar últimas 20 conversaciones
+        const conversacionesRecientes = conversaciones.slice(-20);
         
         conversacionesRecientes.forEach(conv => {
             if (conv.rol === 'user') {
@@ -438,7 +364,11 @@ PERFIL DE USUARIO [${userId}]:
                 
                 // Extraer preferencias
                 const preferencias = this.extraerPreferencias(conv.contenido);
-                preferencias.forEach(p => conocimiento.preferencias.add(p));
+                preferencias.forEach(p => {
+                    if (!conocimiento.preferencias.includes(p)) {
+                        conocimiento.preferencias.push(p);
+                    }
+                });
             }
         });
         
@@ -496,9 +426,9 @@ PERFIL DE USUARIO [${userId}]:
         });
         
         // Limitar logs
-        if (this.memoriaLarga.data.reasoningLogs.length > 1000) {
+        if (this.memoriaLarga.data.reasoningLogs.length > 500) {
             this.memoriaLarga.data.reasoningLogs = 
-                this.memoriaLarga.data.reasoningLogs.slice(-1000);
+                this.memoriaLarga.data.reasoningLogs.slice(-500);
         }
         
         await this.memoriaLarga.write();
@@ -530,15 +460,15 @@ PERFIL DE USUARIO [${userId}]:
     
     calcularComplejidad(consulta) {
         const factores = {
-            longitud: consulta.length / 100, // 0-1
-            preguntas: (consulta.match(/\?/g) || []).length * 0.3,
-            tecnicismos: (consulta.match(/\b(api|backend|frontend|database|algorithm)\b/gi) || []).length * 0.2,
-            conectores: (consulta.match(/\b(y|o|pero|aunque|sin embargo|por lo tanto)\b/gi) || []).length * 0.1
+            longitud: Math.min(consulta.length / 200, 1), // 0-1
+            preguntas: Math.min((consulta.match(/\?/g) || []).length * 0.3, 0.5),
+            tecnicismos: Math.min((consulta.match(/\b(api|backend|frontend|database|algorithm)\b/gi) || []).length * 0.2, 0.3),
+            conectores: Math.min((consulta.match(/\b(y|o|pero|aunque|sin embargo|por lo tanto)\b/gi) || []).length * 0.1, 0.2)
         };
         
         let complejidad = 0;
         Object.values(factores).forEach(valor => {
-            complejidad += Math.min(valor, 1);
+            complejidad += valor;
         });
         
         return Math.min(1, complejidad);
@@ -571,8 +501,8 @@ PERFIL DE USUARIO [${userId}]:
         const usuario = this.memoriaLarga.data.users[userId] || {};
         
         const contexto = {
-            historialRelevante: await this.buscarConversacionesRelevantes(userId, consulta, 3),
-            interesesUsuario: Array.from(usuario.intereses || []),
+            historialRelevante: (this.memoriaLarga.data.conversations[userId] || []).slice(-3),
+            interesesUsuario: usuario.intereses || [],
             nivelPrevisto: usuario.totalMensajes > 50 ? 'avanzado' : 'básico'
         };
         
@@ -625,13 +555,12 @@ PERFIL DE USUARIO [${userId}]:
         
         // Construir contexto estructurado
         const contexto = `
-# 🧠 CONTEXTO DE RAZONAMIENTO - MANCY A.I.
+# 🧠 CONTEXTO DE RAZONAMIENTO
 
 ## 📊 ANÁLISIS DE CONSULTA
 - TIPO: ${analisisConsulta.tipoConsulta.toUpperCase()}
 - COMPLEJIDAD: ${(analisisConsulta.complejidad * 100).toFixed(0)}%
 - CLARIDAD: ${(analisisConsulta.claridad * 100).toFixed(0)}%
-- SESGOS DETECTADOS: ${analisisConsulta.posiblesSesgos.join(', ') || 'Ninguno'}
 - NECESITA INVESTIGACIÓN: ${analisisConsulta.requiereInvestigacion ? 'SÍ' : 'NO'}
 
 ## 👤 CONTEXTO DEL USUARIO
@@ -639,38 +568,26 @@ ${contextoUsuario.perfil}
 
 ## 🗣️ ESTILO DE RESPUESTA REQUERIDO
 - Nivel: ${contextoUsuario.estadisticas.nivelPrevisto || 'adaptativo'}
-- Formalidad: ${(contextoUsuario.estadisticas.formalidad || 0.5) > 0.7 ? 'Alta' : 'Media'}
-- Enfoque: ${analisisConsulta.tipoConsulta === 'tecnica' ? 'Técnico preciso' : 'Natural conversacional'}
 
 ## 🎯 OBJETIVOS DE RESPUESTA
 1. Ser precisa y verificada
 2. Adaptarse al nivel del usuario
 3. Mantener contexto histórico
-4. Fomentar aprendizaje continuo
-5. Ser empática pero profesional
+4. Ser empática pero profesional
 
-## ⚠️ CONSIDERACIONES ESPECIALES
-${analisisConsulta.posiblesSesgos.length > 0 ? 
-    `- Evitar reforzar sesgos: ${analisisConsulta.posiblesSesgos.join(', ')}` : 
-    '- Sin sesgos detectados'}
-${analisisConsulta.claridad < 0.7 ? '- La consulta es ambigua, pedir aclaración si es necesario' : ''}
-
-## 💬 CONVERSACIÓN RECIENTE RELEVANTE
 ${contextoUsuario.conversaciones}
-
-## 🎓 CONOCIMIENTO PREVIO DEL USUARIO
-${contextoUsuario.conocimiento ? 
-    `- Hechos conocidos: ${contextoUsuario.conocimiento.hechosAprendidos.length}\n` +
-    `- Preferencias: ${Array.from(contextoUsuario.conocimiento.preferencias || []).join(', ')}` : 
-    '- Usuario nuevo, construir conocimiento progresivamente'}
 `;
-
+        
         return contexto;
     }
 }
 
 // Inicializar memoria avanzada
-const memoriaAvanzada = new MemoriaJerarquica();
+let memoriaAvanzada;
+const initMemoria = async () => {
+    memoriaAvanzada = new MemoriaJerarquica();
+    await initializeDB();
+};
 
 // ========== FILTRO DE CONTENIDO ==========
 class FiltroContenido {
@@ -738,7 +655,7 @@ class SistemaConocimientoConfiable {
         try {
             const response = await axios.get(
                 `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
-                { timeout: 3000 }
+                { timeout: 5000 }
             );
             
             if (response.data && response.data.extract) {
@@ -755,7 +672,7 @@ class SistemaConocimientoConfiable {
             try {
                 const response = await axios.get(
                     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
-                    { timeout: 3000 }
+                    { timeout: 5000 }
                 );
                 
                 if (response.data && response.data.extract) {
@@ -781,7 +698,7 @@ class SistemaConocimientoConfiable {
         try {
             const response = await axios.get(
                 `https://restcountries.com/v3.1/name/${encodeURIComponent(consulta)}`,
-                { timeout: 4000 }
+                { timeout: 6000 }
             );
             
             if (response.data && response.data.length > 0) {
@@ -812,7 +729,7 @@ class SistemaConocimientoConfiable {
         try {
             const response = await axios.get(
                 `https://poetrydb.org/title/${encodeURIComponent(consulta)}/title,author,lines.json`,
-                { timeout: 4000 }
+                { timeout: 5000 }
             );
             
             if (response.data && response.data.length > 0) {
@@ -843,7 +760,7 @@ class SistemaConocimientoConfiable {
                 url = `https://api.quotable.io/search/quotes?query=${encodeURIComponent(consulta)}&limit=1`;
             }
             
-            const response = await axios.get(url, { timeout: 3000 });
+            const response = await axios.get(url, { timeout: 5000 });
             
             let citaData;
             if (consulta && response.data.results) {
@@ -875,7 +792,7 @@ class SistemaConocimientoConfiable {
         try {
             const response = await axios.get(
                 `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(palabra)}`,
-                { timeout: 4000 }
+                { timeout: 5000 }
             );
             
             if (response.data && response.data[0]) {
@@ -905,7 +822,7 @@ class SistemaConocimientoConfiable {
         try {
             const geoResponse = await axios.get(
                 `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ciudad)}&count=1&language=es`,
-                { timeout: 4000 }
+                { timeout: 6000 }
             );
             
             if (geoResponse.data.results && geoResponse.data.results.length > 0) {
@@ -913,7 +830,7 @@ class SistemaConocimientoConfiable {
                 
                 const climaResponse = await axios.get(
                     `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
-                    { timeout: 4000 }
+                    { timeout: 6000 }
                 );
                 
                 const clima = climaResponse.data.current_weather;
@@ -983,7 +900,7 @@ class SistemaConocimientoConfiable {
         if (!datos) return `No encontré información sobre "${consultaOriginal}".`;
         
         switch(datos.fuente) {
-            case 'wikipedia': return `${datos.resumen.substring(0, 250)}...`;
+            case 'wikipedia': return `${datos.resumen.substring(0, 200)}...`;
             case 'restcountries': return `${datos.nombre} - Capital: ${datos.capital}, Población: ${datos.poblacion}`;
             case 'poetrydb': return `"${datos.titulo}" por ${datos.autor}:\n${datos.lineas}`;
             case 'quotable': return `"${datos.cita}" - ${datos.autor}`;
@@ -1004,12 +921,6 @@ const MANCY_PERSONALIDAD = `Eres Mancy, una IA con razonamiento superior y memor
 2. MEMORIA CONTEXTUAL: Recuerdas conversaciones pasadas y preferencias
 3. PENSAMIENTO CRÍTICO: Evalúas fuentes y detectas sesgos
 4. ADAPTABILIDAD: Ajustas respuestas al perfil del usuario
-
-📊 SISTEMA DE RAZONAMIENTO:
-- Clasificas consultas por tipo y complejidad
-- Evalúas claridad y posibles sesgos
-- Determinas el nivel de detalle necesario
-- Integras conocimiento previo del usuario
 
 🎯 METODOLOGÍA DE RESPUESTA:
 FASE 1: ANÁLISIS → Clasificar consulta, evaluar contexto
@@ -1051,7 +962,7 @@ async function procesarMensajeConRazonamiento(message, userMessage, userId) {
             await memoriaAvanzada.guardarMensaje(userId, 'system', 
                 '[Contenido inapropiado detectado - Respuesta filtrada]');
             
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             await message.reply(filtroContenido.generarRespuestaSarcastica());
             return;
         }
@@ -1088,7 +999,7 @@ async function procesarMensajeConRazonamiento(message, userMessage, userId) {
         // 6. PREPARAR PARA GROQ CON CONTEXTO COMPLETO
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
         
-        const historialReciente = await memoriaAvanzada.obtenerHistorialCompleto(userId, 15);
+        const historialReciente = await memoriaAvanzada.obtenerHistorialCompleto(userId, 10);
         
         const mensajes = [
             {
@@ -1099,7 +1010,7 @@ async function procesarMensajeConRazonamiento(message, userMessage, userId) {
         ];
         
         // Añadir historial reciente
-        historialReciente.slice(-10).forEach(msg => {
+        historialReciente.slice(-5).forEach(msg => {
             mensajes.push({
                 role: msg.rol === 'assistant' ? 'assistant' : 'user',
                 content: msg.contenido
@@ -1117,10 +1028,8 @@ async function procesarMensajeConRazonamiento(message, userMessage, userId) {
             model: "llama-3.1-8b-instant",
             messages: mensajes,
             temperature: 0.7,
-            max_tokens: 800,
-            top_p: 0.9,
-            frequency_penalty: 0.1,
-            presence_penalty: 0.1
+            max_tokens: 600,
+            top_p: 0.9
         });
         
         const respuesta = completion.choices[0]?.message?.content;
@@ -1136,8 +1045,8 @@ async function procesarMensajeConRazonamiento(message, userMessage, userId) {
             console.log(`✅ Respondió (tokens: ${completion.usage?.total_tokens || 'N/A'})`);
             
             // 9. ENVIAR RESPUESTA
-            if (respuesta.length > 2000) {
-                const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
+            if (respuesta.length > 1900) {
+                const partes = respuesta.match(/.{1,1800}[\n.!?]|.{1,1900}/g) || [respuesta];
                 for (let i = 0; i < partes.length; i++) {
                     if (i === 0) {
                         await message.reply(partes[i]);
@@ -1167,6 +1076,9 @@ async function startBot() {
         if (!process.env.DISCORD_TOKEN) throw new Error('Falta DISCORD_TOKEN');
         if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY');
         
+        // Inicializar memoria
+        await initMemoria();
+        
         discordClient = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
@@ -1194,14 +1106,12 @@ async function startBot() {
 ║  💾 Memoria cargada:                         ║
 ║     • ${stats.totalMessages} mensajes totales      ║
 ║     • ${stats.totalUsers} usuarios únicos         ║
-║     • ${db.data.reasoningLogs?.length || 0} análisis de razonamiento ║
 ║                                              ║
 ║  🎯 Capacidades activadas:                   ║
 ║     • Razonamiento estratégico               ║
 ║     • Memoria jerárquica                     ║
 ║     • Perfiles de usuario                    ║
 ║     • Análisis de consultas                  ║
-║     • Búsqueda semántica                     ║
 ║                                              ║
 ║  🛡️  Filtro: ACTIVADO                        ║
 ║  🔧 APIs: 6 fuentes verificadas             ║
@@ -1221,7 +1131,7 @@ async function startBot() {
                 
                 if (!userMessage) return;
                 
-                console.log(`\n💬 [${message.author.tag}]: ${userMessage.substring(0, 80)}...`);
+                console.log(`\n💬 [${message.author.tag}]: ${userMessage.substring(0, 60)}...`);
                 
                 if (!botActive) {
                     await message.channel.send(`💤 <@${message.author.id}> **Inicializando sistema cognitivo...** ⏳`);
@@ -1250,7 +1160,18 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile('index.html', { root: '.' });
+    res.json({
+        message: 'Mancy A.I. - Sistema Super-Inteligente',
+        status: 'online',
+        version: '3.0',
+        endpoints: [
+            '/api/status',
+            '/api/health',
+            '/api/memory/stats',
+            '/api/start',
+            '/api/stop'
+        ]
+    });
 });
 
 app.get('/api/status', async (req, res) => {
@@ -1259,52 +1180,36 @@ app.get('/api/status', async (req, res) => {
         bot_active: botActive,
         starting_up: isStartingUp,
         memory_stats: db.data.statistics,
-        memory_size: {
-            users: Object.keys(db.data.users).length,
-            conversations: Object.keys(db.data.conversations).length,
-            reasoning_logs: db.data.reasoningLogs.length,
-            user_profiles: Object.keys(db.data.userProfiles).length
-        },
         capabilities: [
             'Razonamiento estratégico',
-            'Memoria jerárquica (corta + larga)',
-            'Perfiles de usuario dinámicos',
-            'Análisis de consultas inteligente',
-            'Búsqueda semántica contextual',
+            'Memoria jerárquica',
+            'Perfiles de usuario',
             '6 fuentes verificadas',
-            'Filtro de contenido avanzado'
+            'Filtro de contenido'
         ],
         version: '3.0 - Super Inteligente',
         timestamp: new Date().toISOString()
     });
 });
 
-app.get('/api/user/:id', async (req, res) => {
-    const userId = req.params.id;
+app.get('/api/health', async (req, res) => {
     await db.read();
-    
-    const userData = db.data.users[userId] || {};
-    const conversations = db.data.conversations[userId] || [];
-    const profile = db.data.userProfiles[userId] || {};
-    
     res.json({
-        user_id: userId,
-        statistics: {
-            total_messages: userData.totalMensajes || 0,
-            first_message: userData.primerMensaje ? new Date(userData.primerMensaje).toISOString() : null,
-            last_message: userData.ultimoMensaje ? new Date(userData.ultimoMensaje).toISOString() : null,
-            interests: Array.from(userData.intereses || [])
+        status: 'healthy',
+        bot_active: botActive,
+        memory: {
+            total_messages: db.data.statistics.totalMessages,
+            users: Object.keys(db.data.users).length,
+            health: 'optimal'
         },
-        profile: profile,
-        recent_conversations: conversations.slice(-10),
-        conversation_count: conversations.length
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
 });
 
 app.get('/api/memory/stats', async (req, res) => {
     await db.read();
     
-    // Calcular estadísticas avanzadas
     const users = Object.values(db.data.users);
     const totalMessages = users.reduce((sum, user) => sum + (user.totalMensajes || 0), 0);
     const avgMessagesPerUser = users.length > 0 ? totalMessages / users.length : 0;
@@ -1313,9 +1218,7 @@ app.get('/api/memory/stats', async (req, res) => {
         total_messages: totalMessages,
         unique_users: users.length,
         average_messages_per_user: avgMessagesPerUser.toFixed(2),
-        memory_file_size: `${(JSON.stringify(db.data).length / 1024 / 1024).toFixed(2)} MB`,
-        reasoning_logs: db.data.reasoningLogs.length,
-        knowledge_entries: Object.keys(db.data.knowledge).length
+        memory_file_size: `${(JSON.stringify(db.data).length / 1024 / 1024).toFixed(2)} MB`
     });
 });
 
@@ -1352,97 +1255,71 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
-app.get('/health', async (req, res) => {
-    await db.read();
-    res.json({
-        status: 'healthy',
-        bot_active: botActive,
-        memory: {
-            total_messages: db.data.statistics.totalMessages,
-            users: Object.keys(db.data.users).length,
-            health: 'optimal'
-        },
-        reasoning: {
-            active: true,
-            logs: db.data.reasoningLogs.length
-        },
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
-});
-
 // ========== INICIAR SERVIDOR ==========
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║                  🧠 MANCY SUPER-INTELIGENTE              ║
 ║                    VERSIÓN 3.0                           ║
 ║                                                          ║
 ║  🔥 CAPACIDADES MEJORADAS:                              ║
-║                                                          ║
-║  💾 MEMORIA JERÁRQUICA:                                 ║
-║     • Memoria corta (24h) + larga (persistente)         ║
+║     • Memoria jerárquica (JSON persistente)             ║
+║     • Razonamiento estratégico                          ║
 ║     • Perfiles de usuario dinámicos                     ║
-║     • Búsqueda semántica contextual                     ║
-║     • Hasta 1000 mensajes por usuario                   ║
-║                                                          ║
-║  🎯 RAZONAMIENTO ESTRATÉGICO:                           ║
-║     • Análisis de consultas multi-nivel                 ║
-║     • Detección de sesgos y ambigüedades                ║
-║     • Clasificación automática por tipo                 ║
-║     • Evaluación de complejidad                         ║
-║                                                          ║
-║  🔍 SISTEMA COGNITIVO COMPLETO:                         ║
-║     1. Filtro → 2. Memoria → 3. Análisis →              ║
-║     4. Investigación → 5. Integración → 6. Respuesta    ║
-║                                                          ║
-║  🛡️  SEGURIDAD Y ÉTICA:                                 ║
 ║     • Filtro de contenido avanzado                      ║
-║     • Detección de emociones                            ║
-║     • Análisis de estilo comunicativo                   ║
-║     • Sarcasmo elegante para groserías                  ║
-║                                                          ║
-║  📊 DATOS EN TIEMPO REAL:                               ║
-║     • Estadísticas completas                            ║
-║     • API de monitoreo                                  ║
-║     • Logs de razonamiento                              ║
-║     • Perfiles accesibles                               ║
 ║                                                          ║
 ║  🌐 Puerto: ${PORT}                                     ║
 ║  📁 Memoria: memory-db.json                             ║
-║  🚀 Ready para razonamiento superior                    ║
+║  🚀 Sistema listo para Render                           ║
 ╚══════════════════════════════════════════════════════════╝
     `);
     
     console.log('\n🚀 Endpoints disponibles:');
-    console.log(`   GET  /api/status           - Estado completo del sistema`);
-    console.log(`   GET  /api/user/:id         - Datos específicos de usuario`);
-    console.log(`   GET  /api/memory/stats     - Estadísticas de memoria`);
-    console.log(`   POST /api/start            - Iniciar bot`);
-    console.log(`   POST /api/stop             - Detener bot (guarda memoria)`);
-    console.log(`   GET  /health               - Health check avanzado`);
+    console.log(`   GET  /                    - Información del sistema`);
+    console.log(`   GET  /api/status          - Estado completo`);
+    console.log(`   GET  /api/health          - Health check`);
+    console.log(`   GET  /api/memory/stats    - Estadísticas de memoria`);
+    console.log(`   POST /api/start           - Iniciar bot`);
+    console.log(`   POST /api/stop            - Detener bot`);
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
-        console.log('\n🔑 Tokens detectados, iniciando sistema cognitivo en 3 segundos...');
+        console.log('\n🔑 Tokens detectados, iniciando sistema...');
         setTimeout(() => {
             startBot().catch(err => {
                 console.log('⚠️ Error en auto-inicio:', err.message);
             });
         }, 3000);
+    } else {
+        console.log('\n⚠️ Faltan tokens de Discord o Groq en las variables de entorno');
+        console.log('   El bot se iniciará manualmente via POST /api/start');
     }
 });
 
+// Manejo de apagado limpio
 process.on('SIGTERM', async () => {
-    console.log('💤 Apagando sistema cognitivo...');
+    console.log('💤 Recibida señal SIGTERM, apagando...');
     
     if (discordClient) {
         discordClient.destroy();
-        console.log('👋 Mancy desconectada');
+        console.log('👋 Mancy desconectada de Discord');
     }
     
-    // Guardar memoria antes de salir
+    // Guardar memoria
     await db.write();
     console.log('💾 Memoria persistente guardada');
     
-    process.exit(0);
+    // Cerrar servidor
+    server.close(() => {
+        console.log('🚪 Servidor HTTP cerrado');
+        process.exit(0);
+    });
+});
+
+// Manejo de errores no capturados
+process.on('uncaughtException', (error) => {
+    console.error('⚠️ Error no capturado:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ Promise rechazada no manejada:', reason);
 });
