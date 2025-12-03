@@ -1,0 +1,30 @@
+# Dependencias
+node_modules
+npm-debug.log
+
+# Archivos de desarrollo
+.git
+.gitignore
+README.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Variables de entorno
+.env
+.env.local
+
+# Archivos de IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Archivos temporales
+uploads/*
+!uploads/.gitkeep
+
+# Builds y distribuciones
+dist
+build
+*.exe
