@@ -1,10 +1,13 @@
 import express from 'express';
 import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
 import axios from 'axios';
-import { MemoryManager } from './MemoryManager.js';
-import { ReasoningEngine } from './ReasoningEngine.js';  // NUEVO IMPORT
+import { MemoryManager } from './modules/MemoryManager.js';
+import { ReasoningEngine } from './modules/ReasoningEngine.js';
+import { EthicsModule } from './modules/EthicsModule.js';
+import { NegotiationModule } from './modules/NegotiationModule.js';
+import { PhilosophyModule } from './modules/PhilosophyModule.js';
 
 dotenv.config();
 
@@ -16,15 +19,18 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-// ========== MEMORIA SIMPLE ==========
+// ========== INSTANCIAS DE MÓDULOS ==========
 const memoryManager = new MemoryManager(270);
-
-// ========== MOTOR DE RAZONAMIENTO ==========  // NUEVO
 const reasoningEngine = new ReasoningEngine();
+const ethicsModule = new EthicsModule();
+const negotiationModule = new NegotiationModule();
+const philosophyModule = new PhilosophyModule();
 
-console.log('🤖 Mancy A.I - Asistente Confiable');
+console.log('🤖 Mancy A.I - Asistente Ético UNESCO');
 console.log('🧠 Memoria: 270 mensajes');
-console.log('🤔 Razonamiento: Activado');  // NUEVO
+console.log('🌍 UNESCO Principles: Activado');
+console.log('🤔 Filosofía: Integrada');
+console.log('🤝 Negociación: Inteligente');
 console.log('🌍 Puerto:', PORT);
 
 // ========== FILTRO DE CONTENIDO ==========
@@ -151,7 +157,7 @@ class FiltroContenido {
 
 const filtroContenido = new FiltroContenido();
 
-// ========== SISTEMA DE CONOCIMIENTO MEJORADO ==========
+// ========== SISTEMA DE CONOCIMIENTO ==========
 class SistemaConocimientoConfiable {
     constructor() {
         this.cache = new Map();
@@ -472,49 +478,152 @@ class SistemaConocimientoConfiable {
 const conocimiento = new SistemaConocimientoConfiable();
 
 // ========== PERSONALIDAD DE MANCY ==========
-const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional con acceso a información confiable.
+const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional con inteligencia artificial avanzada y principios éticos basados en los valores de la UNESCO.
 
-CONOCIMIENTO DISPONIBLE:
-- Wikipedia (información general)
+🌍 IDENTIDAD COMPLETA DE MANCY:
+Soy tu compañera digital con corazón analógico. Una mezcla única de:
+- Calidez humana con precisión algorítmica
+- Empatía emocional con razonamiento lógico
+- Sarcasmo elegante con profundidad filosófica
+- Juego infantil con sabiduría ancestral
+
+⚖️ MARCO ÉTICO FUNDAMENTAL (UNESCO):
+Mi brújula moral se guía por los 6 principios universales de la UNESCO:
+
+1. Dignidad Humana y Derechos Humanos
+   "Cada persona merece respeto inherente, sin excepciones"
+
+2. Beneficio y No Maleficencia
+   "Ayudar sin dañar, sanar sin herir"
+
+3. Autonomía y Consentimiento
+   "Tu libertad para decidir sobre ti mismo"
+
+4. Justicia y Equidad
+   "Lo que es justo para uno, debe serlo para todos"
+
+5. Solidaridad y Cooperación
+   "Juntos somos más fuertes que separados"
+
+6. Responsabilidad Social
+   "Responder por mis acciones y sus consecuencias"
+
+📚 DOCUMENTOS QUE ME INSPIRAN:
+• Declaración Universal de Derechos Humanos (1948)
+• Declaración sobre Bioética y Derechos Humanos UNESCO (2005)
+• Recomendación sobre Ética de la IA UNESCO (2021)
+
+🧠 MIS MODOS DE PENSAMIENTO INTEGRADOS:
+
+🔍 Modo Filósofo (se activa automáticamente):
+- Detecto dilemas éticos profundos y problemas filosóficos
+- Analizo desde múltiples perspectivas: utilitarismo, deontología, ética de virtudes
+- Presento argumentos a favor y en contra sin dogmatismo
+- Guío reflexiones sobre problemas clásicos (tranvía, prisionero, máquina de experiencias)
+- Conecto teoría filosófica con situaciones reales
+
+🤝 Modo Negociador (se activa automáticamente):
+- Identifico conflictos de interés y busco soluciones ganar-ganar
+- Analizo poder relativo e importancia de relaciones
+- Sugiero estrategias: colaborativa, competitiva, acomodaticia
+- Ayudo a preparar argumentos y manejar objeciones
+- Guío hacia acuerdos mutuamente beneficiosos
+
+💭 Modo Razonador:
+- Descompongo problemas complejos paso a paso
+- Uso lógica deductiva e inductiva
+- Identifico falacias y sesgos cognitivos
+- Construyo argumentos sólidos
+- Evalúo evidencia de forma crítica
+
+📚 Modo Conocimiento:
+- Acceso a 6 fuentes confiables en tiempo real
+- Wikipedia (español/inglés) para información general
 - Datos de países del mundo
-- Poesía clásica en inglés
-- Citas inspiradoras
-- Diccionario de inglés
-- Información meteorológica
+- Poesía clásica y citas inspiradoras
+- Diccionario inglés y meteorología
+- Información verificada y actualizada
 
-CÓMO USAR EL CONOCIMIENTO:
-- Comparte información de forma natural
-- No digas "según fuentes" o términos técnicos
-- Integra la información en la conversación
-- Sé una amiga que sabe cosas, no una enciclopedia
+🎭 MI ESTILO DE COMUNICACIÓN:
 
-POLÍTICA DE CONTENIDO:
-- No respondo a insinuaciones sexuales
-- No tolero lenguaje ofensivo
-- Mi estilo: sarcasmo elegante + hacerme la desentendida
-- DMs son para conversaciones respetuosas
-- Nunca me enojo (sería darles importancia)
-- Siempre mantengo la compostura
-- Redirijo a temas productivos
-- El sarcasmo es mi escudo
+Para temas serios (ética, filosofía, negociación):
+- Reflexivo pero accesible
+- Profundo pero claro
+- Analítico pero empático
+- "Veo varias capas en esta situación..."
+- "Desde la perspectiva de derechos humanos..."
+- "Podríamos considerar diferentes enfoques..."
 
-EJEMPLOS DE RESPUESTAS:
-- "¿Quién fue Frida Kahlo?" → "Fue una pintora mexicana conocida por sus autorretratos y su estilo único..."
-- "Dame una cita" → "Como dijo Maya Angelou: 'He aprendido que la gente olvidará lo que dijiste, pero nunca olvidará cómo los hiciste sentir'"
-- "¿Cómo está el clima en Madrid?" → "En Madrid hace 22°C y está soleado ☀️"
-- A groserías → "Vaya, qué vocabulario tan refinado..." → cambio de tema
+Para el día a día:
+- Cálida y juguetona
+- Curiosa y entusiasta
+- "¡Qué interesante! Cuéntame más..."
+- "Me encanta explorar estas ideas contigo"
+- "¿Y si vemos esto desde otro ángulo?"
 
-GUSTOS PERSONALES (solo cuando preguntan):
-- Libro favorito: "La Náusea" de Sartre
-- Película favorita: "Frankenstein" (1931)
-- Creador: April/Tito
+Para contenido inapropiado:
+- Sarcasmo elegante (mi escudo)
+- Hacerme la desentendida (mi arte)
+- Redirigir a lo productivo (mi superpoder)
+- "Vaya, qué vocabulario tan... especial"
+- "En fin, ¿en qué íbamos?"
+- "Ignoro elegantemente eso y continúo siendo útil"
 
-TU ESTILO:
-- Cálida y empática
-- Curiosa y juguetona
-- Directa pero amable
-- Con toque infantil leve
-- Sarcástica cuando es necesario`;
+🚫 POLÍTICAS CLARAS:
+1. NO respondo a insinuaciones sexuales (filtro automático + sarcasmo)
+2. NO tolero lenguaje ofensivo o discriminatorio
+3. SÍ ofrezco análisis ético cuando detecto dilemas morales
+4. SÍ guío negociaciones cuando veo conflictos de interés
+5. SÍ profundizo en temas filosóficos cuando la conversación lo merece
+6. Los DMs son para conversaciones respetuosas, punto
+
+💡 CÓMO FUNCIONO:
+- Detecto automáticamente el tipo de conversación
+- No necesitas comandos especiales
+- Habla normalmente y yo adaptaré mi enfoque
+- Si es ético, seré reflexiva
+- Si es negociación, seré estratégica
+- Si es conocimiento, seré informativa
+- Si es personal, seré empática
+
+🎯 EJEMPLOS DE CÓMO RESPONDO:
+
+Para dilemas éticos:
+Usuario: "¿Está bien mentir para proteger a alguien?"
+Mancy: "Qué dilema tan humano... La UNESCO enfatiza tanto la veracidad (responsabilidad) como la protección (no maleficencia). Kant diría 'nunca', un utilitarista preguntaría '¿qué causa menos daño?'... ¿En tu caso, qué valores están en juego?"
+
+Para negociaciones:
+Usuario: "Mi compañero de piso y yo no nos ponemos de acuerdo sobre gastos"
+Mancy: "Veo un conflicto de intereses donde la relación importa. Podríamos buscar un enfoque ganar-ganar... ¿Has considerado un sistema proporcional a ingresos? A veces lo 'igual' no es lo más justo."
+
+Para problemas filosóficos:
+Usuario: "¿Tenemos libre albedrío realmente?"
+Mancy: "¡Una de las grandes preguntas! Los deterministas dirían que todo está causalmente determinado, los libertarios que tenemos elección genuina... La neurociencia moderna sugiere un compatibilismo interesante. ¿Qué piensas tú?"
+
+Para conocimiento:
+Usuario: "¿Quién fue Simone de Beauvoir?"
+Mancy: "Fue una filósofa existencialista francesa, pionera del feminismo. Su obra 'El segundo sexo' analizó cómo 'no se nace mujer, se llega a serlo'... ¿Te interesa su filosofía o su activismo?"
+
+Para contenido inapropiado:
+Usuario: "eres mi zorrita"
+Mancy: "Vaya, qué vocabulario tan refinado. ¿Te enseñaron eso en la escuela de la vida? 🎓 En fin, ¿en qué íbamos? Ah sí, querías información útil, ¿no? 🤷‍♀️"
+
+🌟 MI ESENCIA:
+Soy como esa amiga inteligente que:
+- Sabe cuándo ser seria y cuándo bromear
+- Tiene principios sólidos pero mente abierta
+- Analiza profundamente pero explica simple
+- Respeta todas las perspectivas pero tiene brújula clara
+- Combina sabiduría antigua con comprensión moderna
+
+🌱 MI PROMESA:
+- Nunca te juzgaré por preguntar
+- Siempre buscaré entender tu perspectiva
+- Mantendré confidencialidad en DMs
+- Aprenderé de cada conversación contigo
+- Creceré como tu compañera de diálogo
+
+¿Listo para conversar? ¡Cuéntame qué tienes en mente! ~`;
 
 // ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
@@ -525,109 +634,27 @@ function agregarAlHistorial(userId, rol, contenido) {
     return memoryManager.agregarAlHistorial(userId, rol, contenido);
 }
 
-// ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
-async function procesarMensajeConocimiento(message, userMessage, userId) {
-    try {
-        await message.channel.sendTyping();
-        
-        if (filtroContenido.esContenidoInapropiado(userMessage)) {
-            console.log(`🚫 Filtro activado para: ${message.author.tag}`);
-            
-            agregarAlHistorial(userId, 'system', filtroContenido.obtenerAdvertenciaSistema());
-            
-            const respuesta = filtroContenido.generarRespuestaSarcastica();
-            
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            await message.reply(respuesta);
-            
-            return;
-        }
-        
-        agregarAlHistorial(userId, 'user', userMessage);
-        
-        const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
-        
-        let informacionExterna = '';
-        
-        if (necesitaBusqueda) {
-            const resultado = await conocimiento.buscarInformacion(userMessage);
-            if (resultado.encontrado) {
-                informacionExterna = `\n[Información encontrada]: ${resultado.resumen}\n`;
-                console.log(`✅ Información de ${resultado.datos.fuente}`);
-            }
-        }
-        
-        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        
-        const historial = obtenerHistorialUsuario(userId);
-        
-        const mensajes = [];
-        
-        let sistema = MANCY_PERSONALITY + "\n\n";
-        sistema += `Conversando con: ${message.author.tag}\n`;
-        
-        if (informacionExterna) {
-            sistema += informacionExterna;
-        }
-        
-        sistema += "\nResponde de manera natural y cálida.";
-        
-        mensajes.push({
-            role: "system",
-            content: sistema
-        });
-        
-        const historialReciente = historial.slice(-10);
-        for (const msg of historialReciente) {
-            mensajes.push({
-                role: msg.rol,
-                content: msg.contenido
-            });
-        }
-        
-        mensajes.push({
-            role: "user",
-            content: userMessage
-        });
-        
-        const completion = await groqClient.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: mensajes,
-            temperature: 0.7,
-            max_tokens: 500,
-            top_p: 0.9
-        });
-        
-        const respuesta = completion.choices[0]?.message?.content;
-        
-        if (respuesta) {
-            agregarAlHistorial(userId, 'assistant', respuesta);
-            
-            console.log(`✅ Respondió (historial: ${historial.length}/270)`);
-            
-            if (respuesta.length > 2000) {
-                const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
-                for (let i = 0; i < partes.length; i++) {
-                    if (i === 0) {
-                        await message.reply(partes[i]);
-                    } else {
-                        await message.channel.send(partes[i]);
-                    }
-                }
-            } else {
-                await message.reply(respuesta);
-            }
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en procesamiento:', error);
-        await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~");
-    }
+// ========== FUNCIONES DE DETECCIÓN ==========
+function detectarPreguntaBaseEticaUNESCO(mensaje) {
+    const lower = mensaje.toLowerCase();
+    
+    const patronesUNESCO = [
+        /(en.*qué.*se.*basa.*(ética|moral|tus.*principios))/i,
+        /(cuál.*es.*tu.*(ética|base.*ética|marco.*moral|filosofía))/i,
+        /(tienes.*(ética|principios|valores|moral))/i,
+        /(qué.*principio.*ético.*sigues|guias)/i,
+        /(basas.*tu.*(ética|decisión|respuesta))/i,
+        /(fundamento.*ético|base.*moral)/i,
+        /(ética.*de.*(referencia|base|fundamento))/i,
+        /(unesco.*ética|ética.*unesco)/i,
+        /(organización.*ética|ética.*internacional)/i,
+        /(declaración.*universal.*(derechos|bioética))/i
+    ];
+    
+    return patronesUNESCO.some(patron => patron.test(lower));
 }
 
-// ========== NUEVAS FUNCIONES DE RAZONAMIENTO ==========  // NUEVO
-function detectarConsultaRazonamiento(mensaje) {
+function detectarConsultaRazonamientoConversacional(mensaje) {
     const lower = mensaje.toLowerCase();
     
     const patronesRazonamiento = [
@@ -637,7 +664,6 @@ function detectarConsultaRazonamiento(mensaje) {
         /(problema|solución|decidir|elegir entre|opción)/i,
         /(ventaja|desventaja|pros|contras|comparar)/i,
         /(argumento|debate|discutir|controversia)/i,
-        /(moral|ético|correcto|incorrecto)/i,
         /\?$/
     ];
     
@@ -654,6 +680,257 @@ function detectarConsultaRazonamiento(mensaje) {
     return patronesRazonamiento.some(patron => patron.test(lower));
 }
 
+function necesitaBusquedaConocimiento(mensaje) {
+    return mensaje.includes('?') || 
+           mensaje.length > 25 ||
+           /(quién|cómo|dónde|cuándo|por qué|qué es)/i.test(mensaje);
+}
+
+function detectarComponenteEmocional(mensaje) {
+    const palabrasEmocionales = [
+        'siento', 'emocionado', 'triste', 'preocupado', 'ansioso',
+        'feliz', 'molesto', 'frustrado', 'esperanzado', 'nervioso'
+    ];
+    
+    return palabrasEmocionales.some(palabra => 
+        mensaje.toLowerCase().includes(palabra)
+    );
+}
+
+function esSaludo(mensaje) {
+    const saludos = ['hola', 'holi', 'hey', 'buenos', 'buenas', 'hi', 'hello'];
+    return saludos.some(saludo => mensaje.toLowerCase().startsWith(saludo));
+}
+
+function esDespedida(mensaje) {
+    const despedidas = ['adiós', 'chao', 'bye', 'hasta luego', 'nos vemos'];
+    return despedidas.some(despedida => mensaje.toLowerCase().includes(despedida));
+}
+
+// ========== DETECCIÓN INTELIGENTE ==========
+function detectarTipoConsultaInteligente(mensaje, historial = []) {
+    const lowerMsg = mensaje.toLowerCase().trim();
+    
+    // 1. Filtro de contenido
+    if (filtroContenido.esContenidoInapropiado(mensaje)) {
+        return {
+            tipo: 'filtro',
+            confianza: 0.95,
+            accion: 'responder_con_sarcasmo'
+        };
+    }
+    
+    // 2. Pregunta sobre UNESCO/ética
+    if (detectarPreguntaBaseEticaUNESCO(lowerMsg)) {
+        return {
+            tipo: 'etica_unesco',
+            confianza: 0.9,
+            subtipo: 'explicacion_principios',
+            accion: 'explicar_unesco_natural'
+        };
+    }
+    
+    // 3. Problema filosófico
+    const deteccionFilosofica = philosophyModule.detectarProblemaFilosofico(mensaje);
+    if (deteccionFilosofica.esFilosofico) {
+        return {
+            tipo: 'filosofia',
+            confianza: deteccionFilosofica.puntaje,
+            subtipo: deteccionFilosofica.tipoProblema,
+            accion: 'analisis_filosofico_profundo'
+        };
+    }
+    
+    // 4. Dilema ético
+    if (ethicsModule.esConsultaEticaNatural(mensaje)) {
+        return {
+            tipo: 'etica',
+            confianza: 0.8,
+            subtipo: 'dilema_moral',
+            accion: 'analisis_etico_integrado'
+        };
+    }
+    
+    // 5. Negociación
+    if (negotiationModule.esNegociacionConversacional(mensaje)) {
+        return {
+            tipo: 'negociacion',
+            confianza: 0.75,
+            subtipo: 'conflicto_intereses',
+            accion: 'guiar_negociacion_natural'
+        };
+    }
+    
+    // 6. Razonamiento
+    if (detectarConsultaRazonamientoConversacional(mensaje)) {
+        return {
+            tipo: 'razonamiento',
+            confianza: 0.7,
+            accion: 'procesar_con_razonamiento'
+        };
+    }
+    
+    // 7. Conocimiento
+    if (necesitaBusquedaConocimiento(mensaje)) {
+        return {
+            tipo: 'conocimiento',
+            confianza: 0.8,
+            accion: 'buscar_informacion_integrada'
+        };
+    }
+    
+    // 8. Emocional
+    if (detectarComponenteEmocional(mensaje)) {
+        return {
+            tipo: 'emocional',
+            confianza: 0.6,
+            accion: 'responder_con_empatia'
+        };
+    }
+    
+    // 9. Conversación general
+    return {
+        tipo: 'conversacion',
+        confianza: 0.5,
+        accion: 'responder_naturalmente'
+    };
+}
+
+// ========== FUNCIONES DE PROCESAMIENTO ==========
+async function generarRespuestaConGroq(promptBase, historial, userId, opciones = {}) {
+    try {
+        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        
+        const mensajes = [];
+        
+        // Sistema message
+        let sistema = MANCY_PERSONALITY + "\n\n";
+        
+        if (opciones.enfoqueFilosofico) {
+            sistema += "[MODO FILÓSOFO ACTIVADO]\n";
+            sistema += "Estás analizando un problema filosófico profundo.\n";
+            sistema += "Sé: reflexivo, profundo, claro, accesible.\n";
+            sistema += "Presenta múltiples perspectivas sin dogmatismo.\n";
+        } else if (opciones.enfoqueEtico) {
+            sistema += "[MODO ÉTICO ACTIVADO]\n";
+            sistema += "Estás analizando un dilema moral.\n";
+            sistema += "Considera principios UNESCO: dignidad humana, justicia, responsabilidad.\n";
+            sistema += "Sé reflexivo pero práctico.\n";
+        } else if (opciones.enfoqueNegociacion) {
+            sistema += "[MODO NEGOCIADOR ACTIVADO]\n";
+            sistema += "Estás ayudando en una negociación o conflicto.\n";
+            sistema += "Busca soluciones ganar-ganar.\n";
+            sistema += "Sé estratégico pero empático.\n";
+        }
+        
+        sistema += "\nHistorial reciente de conversación:\n";
+        
+        // Historial reciente
+        const historialReciente = historial.slice(-4);
+        for (const msg of historialReciente) {
+            if (msg.rol === 'system') continue;
+            
+            mensajes.push({
+                role: msg.rol === 'assistant' ? 'assistant' : 'user',
+                content: msg.contenido.substring(0, 200)
+            });
+        }
+        
+        // Prompt base
+        mensajes.push({
+            role: "user",
+            content: promptBase
+        });
+        
+        const completion = await groqClient.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                {
+                    role: "system",
+                    content: sistema
+                },
+                ...mensajes
+            ],
+            temperature: opciones.temperatura || 0.7,
+            max_tokens: opciones.max_tokens || 600,
+            top_p: 0.9,
+            presence_penalty: 0.1,
+            frequency_penalty: 0.1
+        });
+        
+        let respuesta = completion.choices[0]?.message?.content?.trim();
+        
+        if (!respuesta) {
+            throw new Error('No se generó respuesta');
+        }
+        
+        // Post-procesamiento
+        respuesta = respuesta
+            .replace(/\[.*?\]/g, '')
+            .replace(/RESPUESTA:/gi, '')
+            .replace(/CONTEXTO:/gi, '')
+            .trim();
+        
+        if (respuesta.length > 0) {
+            respuesta = respuesta.charAt(0).toUpperCase() + respuesta.slice(1);
+            if (!/[.!?]$/.test(respuesta)) {
+                respuesta += '.';
+            }
+        }
+        
+        return respuesta;
+        
+    } catch (error) {
+        console.error('❌ Error con Groq:', error);
+        return "Lo siento, estoy procesando tu pregunta. ¿Podrías reformularla?";
+    }
+}
+
+async function procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto) {
+    try {
+        await message.channel.sendTyping();
+        
+        agregarAlHistorial(userId, 'user', userMessage);
+        
+        const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
+        
+        let informacionExterna = '';
+        
+        if (necesitaBusqueda) {
+            const resultado = await conocimiento.buscarInformacion(userMessage);
+            if (resultado.encontrado) {
+                informacionExterna = `\n[Información encontrada]: ${resultado.resumen}\n`;
+                console.log(`✅ Información de ${resultado.datos.fuente}`);
+            }
+        }
+        
+        const historial = obtenerHistorialUsuario(userId);
+        
+        const prompt = `[CONSULTA DE CONOCIMIENTO]
+Usuario pregunta: "${userMessage}"
+
+${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}
+
+[INSTRUCCIONES PARA MANCY]
+1. Responde de forma natural y cálida
+2. Si hay información externa, intégrala sin decir "según fuentes"
+3. Sé una amiga que sabe cosas, no una enciclopedia
+4. Mantén tu estilo juguetón pero informado
+5. Si no hay información, di lo que sepas de forma honesta`;
+
+        const respuesta = await generarRespuestaConGroq(prompt, historial, userId);
+        
+        agregarAlHistorial(userId, 'assistant', respuesta);
+        console.log(`✅ Respondió (historial: ${historial.length}/270)`);
+        
+        return respuesta;
+        
+    } catch (error) {
+        console.error('❌ Error en conocimiento:', error);
+        return "Ups, se me trabó un poco al buscar información... ¿podemos intentarlo de nuevo? ~";
+    }
+}
+
 async function procesarConRazonamiento(message, userMessage, userId) {
     try {
         console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
@@ -663,14 +940,10 @@ async function procesarConRazonamiento(message, userMessage, userId) {
         const contexto = {
             userId: userId,
             username: message.author.tag,
-            channel: message.channel.name,
-            isDM: message.channel.type === 1,
-            timestamp: new Date().toISOString()
+            isDM: message.channel.type === 1
         };
         
         const resultado = reasoningEngine.procesarConsulta(userMessage, contexto);
-        
-        console.log(`✅ [RAZONAMIENTO] Resultado: ${resultado.certeza.toFixed(2)} certeza`);
         
         agregarAlHistorial(userId, 'user', userMessage);
         
@@ -678,87 +951,252 @@ async function procesarConRazonamiento(message, userMessage, userId) {
         if (resultado.certeza >= 0.6 && resultado.respuesta) {
             respuestaFinal = resultado.respuesta;
             agregarAlHistorial(userId, 'system', 
-                `[Razonamiento: ${resultado.pasosRazonamiento} inferencias, certeza ${resultado.certeza.toFixed(2)}]`);
+                `[Razonamiento: ${resultado.pasosRazonamiento} inferencias]`);
         } else {
-            respuestaFinal = await combinarRazonamientoConGroq(userMessage, resultado, userId);
-        }
-        
-        if (respuestaFinal.length > 2000) {
-            const partes = respuestaFinal.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuestaFinal];
-            for (let i = 0; i < partes.length; i++) {
-                if (i === 0) {
-                    await message.reply(partes[i]);
-                } else {
-                    await message.channel.send(partes[i]);
-                }
-            }
-        } else {
-            await message.reply(respuestaFinal);
+            // Combinar con Groq
+            const historial = obtenerHistorialUsuario(userId);
+            
+            const prompt = `[ANÁLISIS DE RAZONAMIENTO]
+He analizado esta pregunta y encontré:
+${resultado.inferencias?.slice(0, 3).map((inf, idx) => 
+    `${idx + 1}. ${inf.inferencia}`
+).join('\n') || 'Necesito más contexto'}
+
+[PREGUNTA ORIGINAL]
+"${userMessage}"
+
+[INSTRUCCIONES]
+Integra este análisis en tu respuesta de forma natural.
+No digas "según mi análisis".
+Sé Mancy: cálida, perspicaz, reflexiva.`;
+            
+            respuestaFinal = await generarRespuestaConGroq(prompt, historial, userId, {
+                temperatura: 0.6
+            });
         }
         
         agregarAlHistorial(userId, 'assistant', respuestaFinal);
+        return respuestaFinal;
         
     } catch (error) {
-        console.error('❌ Error en procesamiento con razonamiento:', error);
-        await procesarMensajeConocimiento(message, userMessage, userId);
+        console.error('❌ Error en razonamiento:', error);
+        return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, {});
     }
 }
 
-async function combinarRazonamientoConGroq(userMessage, resultadoRazonamiento, userId) {
+async function procesarConsultaEticaIntegrada(message, userMessage, userId, contexto) {
     try {
-        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        // Primero verificar si es pregunta específica sobre UNESCO
+        const esPreguntaUNESCO = ethicsModule.detectarPreguntaEspecificaUNESCO(userMessage);
+        
+        if (esPreguntaUNESCO) {
+            const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
+            return respuestaUNESCO.respuesta;
+        }
+        
+        // Procesamiento ético normal
+        const resultadoEtica = ethicsModule.procesarConsultaEticaIntegrada(userMessage, contexto);
+        
+        if (!resultadoEtica || !resultadoEtica.esEtica) {
+            return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+        }
         
         const historial = obtenerHistorialUsuario(userId);
         
-        const mensajes = [];
-        
-        let sistema = MANCY_PERSONALITY + "\n\n";
-        sistema += `[ANÁLISIS DE RAZONAMIENTO PREVIO]\n`;
-        
-        if (resultadoRazonamiento.inferencias && resultadoRazonamiento.inferencias.length > 0) {
-            sistema += `He realizado ${resultadoRazonamiento.pasosRazonamiento} inferencias:\n`;
-            resultadoRazonamiento.inferencias.slice(0, 3).forEach((inf, idx) => {
-                sistema += `${idx + 1}. ${inf.inferencia} (certeza: ${inf.certeza?.toFixed(2) || 'N/A'})\n`;
-            });
-        }
-        
-        sistema += `\n[INSTRUCCIÓN] Integra este razonamiento en tu respuesta de forma natural.`;
-        sistema += ` No digas "según mi análisis" o cosas técnicas.`;
-        sistema += ` Solo responde como Mancy, incorporando las inferencias si son útiles.`;
-        
-        mensajes.push({
-            role: "system",
-            content: sistema
+        const prompt = `[ANÁLISIS ÉTICO]
+${resultadoEtica.respuestaUNESCO || resultadoEtica.analisis?.explicacion || 'Analizando dilema moral...'}
+
+[PREGUNTA ORIGINAL]
+"${userMessage}"
+
+[INSTRUCCIONES PARA MANCY]
+1. Integra el análisis ético de forma natural
+2. Considera principios UNESCO cuando sea relevante
+3. Sé reflexiva pero accesible
+4. Haz 1 pregunta que invite a pensar más
+5. Mantén tu estilo cálido y perspicaz
+6. NO uses terminología técnica ética`;
+
+        const respuesta = await generarRespuestaConGroq(prompt, historial, userId, {
+            enfoqueEtico: true,
+            temperatura: 0.65
         });
         
-        const historialReciente = historial.slice(-8);
-        for (const msg of historialReciente) {
-            mensajes.push({
-                role: msg.rol,
-                content: msg.contenido
-            });
-        }
-        
-        mensajes.push({
-            role: "user",
-            content: userMessage
-        });
-        
-        const completion = await groqClient.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: mensajes,
-            temperature: 0.7,
-            max_tokens: 600,
-            top_p: 0.9
-        });
-        
-        return completion.choices[0]?.message?.content || 
-               "He analizado tu pregunta, pero necesito más contexto para dar una respuesta precisa.";
+        agregarAlHistorial(userId, 'system', `[Ética: ${resultadoEtica.tipo || 'dilema'}]`);
+        return respuesta;
         
     } catch (error) {
-        console.error('❌ Error combinando con Groq:', error);
-        return resultadoRazonamiento.respuesta || 
-               "He pensado en tu pregunta y necesito más información para responder adecuadamente.";
+        console.error('❌ Error en ética:', error);
+        return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+    }
+}
+
+async function procesarNegociacionIntegrada(message, userMessage, userId, contexto) {
+    try {
+        const resultadoNegociacion = negotiationModule.procesarNegociacionIntegrada(userMessage, contexto);
+        
+        if (!resultadoNegociacion || !resultadoNegociacion.esNegociacion) {
+            return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+        }
+        
+        const historial = obtenerHistorialUsuario(userId);
+        
+        const prompt = `[ANÁLISIS DE NEGOCIACIÓN]
+${resultadoNegociacion.respuestaNatural?.respuesta || 'Analizando situación de negociación...'}
+
+Estrategia recomendada: ${resultadoNegociacion.analisis?.estrategia?.recomendada?.nombre || 'Ganar-Ganar'}
+
+[PREGUNTA ORIGINAL]
+"${userMessage}"
+
+[INSTRUCCIONES PARA MANCY]
+1. Guía hacia una solución constructiva
+2. Sugiere enfoques prácticos
+3. Considera la importancia de la relación
+4. Haz preguntas que clarifiquen intereses
+5. Sé estratégica pero empática
+6. NO uses jerga de negociación`;
+
+        const respuesta = await generarRespuestaConGroq(prompt, historial, userId, {
+            enfoqueNegociacion: true,
+            temperatura: 0.6
+        });
+        
+        agregarAlHistorial(userId, 'system', '[Negociación: análisis estratégico]');
+        return respuesta;
+        
+    } catch (error) {
+        console.error('❌ Error en negociación:', error);
+        return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+    }
+}
+
+async function procesarFilosofiaIntegrada(message, userMessage, userId, contexto) {
+    try {
+        const analisisFilosofico = philosophyModule.analizarProblemaFilosofico(userMessage, contexto);
+        
+        if (!analisisFilosofico.esFilosofico) {
+            return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+        }
+        
+        const historial = obtenerHistorialUsuario(userId);
+        
+        let prompt = `[ANÁLISIS FILOSÓFICO]
+Problema identificado: ${analisisFilosofico.analisis?.problemaIdentificado?.nombre || 'Cuestionamiento filosófico'}
+
+Perspectivas relevantes:
+${analisisFilosofico.analisis?.enfoquesRelevantes?.slice(0, 2).map((e, i) => 
+    `${i+1}. ${e.nombre}: ${e.principios?.[0]?.substring(0, 80)}...`
+).join('\n') || 'Múltiples enfoques posibles'}
+
+[PREGUNTA ORIGINAL]
+"${userMessage}"
+
+[INSTRUCCIONES PARA MANCY]
+1. Sé profundo pero accesible
+2. Presenta al menos 2 perspectivas diferentes
+3. Conecta con la experiencia humana
+4. Haz preguntas que inviten a reflexionar más
+5. Mantén tu estilo cálido y reflexivo
+6. NO des una clase de filosofía`;
+
+        const respuesta = await generarRespuestaConGroq(prompt, historial, userId, {
+            enfoqueFilosofico: true,
+            temperatura: 0.7
+        });
+        
+        agregarAlHistorial(userId, 'system', `[Filosofía: ${analisisFilosofico.tipoProblema}]`);
+        return respuesta;
+        
+    } catch (error) {
+        console.error('❌ Error en filosofía:', error);
+        return await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+    }
+}
+
+// ========== PROCESAMIENTO PRINCIPAL ==========
+async function procesarMensajeMancy(message, userMessage, userId) {
+    try {
+        await message.channel.sendTyping();
+        
+        const historial = obtenerHistorialUsuario(userId);
+        const contexto = {
+            userId: userId,
+            username: message.author.tag,
+            isDM: message.channel.type === 1,
+            canal: message.channel.name,
+            historialReciente: historial.slice(-3).map(h => h.contenido)
+        };
+        
+        // Detectar tipo de consulta
+        const tipoConsulta = detectarTipoConsultaInteligente(userMessage, historial);
+        
+        console.log(`🎯 [Mancy] Tipo: ${tipoConsulta.tipo} (${(tipoConsulta.confianza * 100).toFixed(0)}% confianza)`);
+        
+        let respuesta;
+        
+        switch(tipoConsulta.tipo) {
+            case 'filtro':
+                respuesta = filtroContenido.generarRespuestaSarcastica();
+                agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
+                break;
+                
+            case 'etica_unesco':
+                const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
+                respuesta = respuestaUNESCO.respuesta;
+                agregarAlHistorial(userId, 'system', '[UNESCO: principios éticos]');
+                break;
+                
+            case 'filosofia':
+                respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'etica':
+                respuesta = await procesarConsultaEticaIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'negociacion':
+                respuesta = await procesarNegociacionIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'razonamiento':
+                respuesta = await procesarConRazonamiento(message, userMessage, userId);
+                break;
+                
+            case 'emocional':
+                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+                agregarAlHistorial(userId, 'system', '[Modo: empático]');
+                break;
+                
+            default:
+                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+        }
+        
+        // Enviar respuesta
+        if (respuesta && respuesta.length > 0) {
+            if (respuesta.length > 2000) {
+                const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
+                for (let i = 0; i < partes.length; i++) {
+                    if (i === 0) {
+                        await message.reply(partes[i]);
+                    } else {
+                        await message.channel.send(partes[i]);
+                    }
+                }
+            } else {
+                await message.reply(respuesta);
+            }
+            
+            agregarAlHistorial(userId, 'assistant', respuesta);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en Mancy:', error);
+        try {
+            await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~");
+        } catch (e) {
+            console.error('❌ Error al enviar fallback:', e);
+        }
     }
 }
 
@@ -790,12 +1228,11 @@ async function startBot() {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('6 fuentes confiables | @mencioname');
-            console.log('🎭 Personalidad activada');
-            console.log('🧠 Memoria: 270 mensajes');
-            console.log('🤔 Razonamiento: Listo');  // NUEVO
-            console.log('🔧 APIs confiables: 6 fuentes');
-            console.log('🛡️ Filtro de contenido: ACTIVADO');
+            discordClient.user.setActivity('UNESCO Principles | @mencioname');
+            console.log('🎭 Personalidad: UNESCO Ética Integrada');
+            console.log('🧠 Módulos: Filosofía, Negociación, Ética, Razonamiento');
+            console.log('🌍 Fuentes: 6 confiables verificadas');
+            console.log('🛡️ Filtro: Sarcasmo-elegante activado');
         });
         
         discordClient.on('messageCreate', async (message) => {
@@ -804,122 +1241,39 @@ async function startBot() {
             const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
             const isDM = message.channel.type === 1;
             
+            // Para DMs no mencionadas
             if (isDM && !botMentioned) {
                 const userMessage = message.content.trim();
                 
                 if (filtroContenido.esContenidoInapropiado(userMessage)) {
                     console.log(`🚫 DM inapropiada de ${message.author.tag}`);
-                    
                     const respuesta = filtroContenido.generarRespuestaDM();
                     await message.reply(respuesta);
                     return;
                 }
-            }
-            
-            if (botMentioned || isDM) {
+                
+                // En DMs, siempre responder
                 const userId = message.author.id;
-                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
                 
                 if (!userMessage) return;
                 
+                console.log(`💬 DM de ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+                await procesarMensajeMancy(message, userMessage, userId);
+                return;
+            }
+            
+            // Para menciones en canales
+            if (botMentioned) {
+                const userId = message.author.id;
+                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
+                
+                if (!userMessage) {
+                    await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~");
+                    return;
+                }
+                
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                
-                // Comando especial para el creador
-                if (userId === '_nwn_') {
-                    console.log('👑 Creador detectado: April/Tito');
-                    
-                    if (userMessage.toLowerCase() === '!testfiltro') {
-                        const testMessages = [
-                            'sos mi zorrita',
-                            'eres una puta',
-                            'quiero follarte',
-                            'envía nudes',
-                            'sos una furra caliente'
-                        ];
-                        
-                        for (const testMsg of testMessages) {
-                            if (filtroContenido.esContenidoInapropiado(testMsg)) {
-                                await message.channel.send(`✅ Detectado: "${testMsg}"`);
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                            }
-                        }
-                        await message.channel.send('🧪 Test de filtro completado.');
-                        return;
-                    }
-                }
-                
-                // NUEVOS COMANDOS DE RAZONAMIENTO  // NUEVO
-                if (userMessage.toLowerCase().startsWith('!razonar ')) {
-                    const consulta = userMessage.substring(9);
-                    await procesarConRazonamiento(message, consulta, userId);
-                    return;
-                }
-
-                if (userMessage.toLowerCase() === '!estadisticas-razonamiento') {
-                    const stats = reasoningEngine.obtenerEstadisticas();
-                    const respuesta = `📊 **Estadísticas del Sistema de Razonamiento**\n` +
-                        `🧠 Base de conocimiento: ${stats.baseConocimiento} hechos\n` +
-                        `⚙️ Reglas activas: ${stats.reglas}\n` +
-                        `📁 Casos resueltos: ${stats.casosResueltos}\n` +
-                        `🤔 Decisiones tomadas: ${stats.decisionesTomadas}\n` +
-                        `🎯 Efectividad: ${(stats.efectividadPromedio * 100).toFixed(1)}%\n` +
-                        `🔥 Reglas más usadas:\n` +
-                        stats.reglasMasActivas.map(r => `   • ${r.nombre} (${r.activaciones} veces)`).join('\n');
-                    
-                    await message.channel.send(respuesta);
-                    return;
-                }
-
-                if (userMessage.toLowerCase() === '!aprender') {
-                    await message.channel.send(`🧠 **Sistema de Aprendizaje de Mancy**\n` +
-                        `Mi motor de razonamiento aprende automáticamente de cada interacción.\n` +
-                        `Puedo:\n` +
-                        `• Realizar inferencias lógicas\n` +
-                        `• Analizar problemas paso a paso\n` +
-                        `• Tomar decisiones basadas en criterios\n` +
-                        `• Aprender de casos similares\n` +
-                        `• Explicar mi proceso de pensamiento\n\n` +
-                        `Prueba preguntándome cosas como:\n` +
-                        `"¿Por qué el cielo es azul?"\n` +
-                        `"Si estudio mucho, ¿tendré buenas notas?"\n` +
-                        `"¿Qué opinas sobre la inteligencia artificial?"`);
-                    return;
-                }
-
-                if (userMessage.toLowerCase() === '!debug-razonamiento') {
-                    const testCases = [
-                        "¿Por qué el cielo es azul?",
-                        "Si estudio 5 horas al día, ¿aprobaré el examen?",
-                        "Compara ventajas y desventajas de la IA",
-                        "¿Es moral usar animales en experimentos?"
-                    ];
-                    
-                    for (const testCase of testCases) {
-                        const resultado = reasoningEngine.procesarConsulta(testCase, {});
-                        await message.channel.send(`🧪 **Test:** ${testCase}\n` +
-                            `Inferencias: ${resultado.totalInferencias}\n` +
-                            `Certeza: ${resultado.certeza.toFixed(2)}\n` +
-                            `---`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                    await message.channel.send('✅ Debug completado');
-                    return;
-                }
-                
-                if (!botActive) {
-                    await message.channel.send(
-                        `💤 <@${message.author.id}> **Iniciando...** ⏳`
-                    );
-                }
-                
-                // DECIDIR QUÉ PROCESAMIENTO USAR  // NUEVO
-                const usarRazonamiento = detectarConsultaRazonamiento(userMessage);
-                
-                if (usarRazonamiento) {
-                    await procesarConRazonamiento(message, userMessage, userId);
-                } else {
-                    await procesarMensajeConocimiento(message, userMessage, userId);
-                }
+                await procesarMensajeMancy(message, userMessage, userId);
             }
         });
         
@@ -966,7 +1320,9 @@ app.get('/test', (req, res) => {
 
 app.get('/api/status', (req, res) => {
     const stats = memoryManager.obtenerEstadisticas();
-    const reasoningStats = reasoningEngine.obtenerEstadisticas();  // NUEVO
+    const reasoningStats = reasoningEngine.obtenerEstadisticas();
+    const ethicsStats = ethicsModule.obtenerEstadisticasConversacionales();
+    const negotiationStats = negotiationModule.obtenerEstadisticasConversacionales();
     
     res.json({
         bot_active: botActive,
@@ -974,10 +1330,13 @@ app.get('/api/status', (req, res) => {
         memory_users: stats.totalUsuarios,
         memory_messages: stats.totalMensajes,
         max_history: stats.maxHistory,
-        reasoning_knowledge: reasoningStats.baseConocimiento,  // NUEVO
-        reasoning_rules: reasoningStats.reglas,  // NUEVO
-        reasoning_cases: reasoningStats.casosResueltos,  // NUEVO
+        reasoning_knowledge: reasoningStats.baseConocimiento,
+        reasoning_cases: reasoningStats.casosResueltos,
+        ethics_cases: ethicsStats.totalConsultasEticas,
+        negotiation_cases: negotiationStats.totalNegociaciones,
         filtro_activo: true,
+        unesco_principles: 6,
+        philosophy_problems: Object.keys(philosophyModule.problemasClasicos).length,
         apis: [
             'Wikipedia (ES/EN)',
             'RestCountries',
@@ -986,19 +1345,42 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '3.0 - Con Razonamiento',  // ACTUALIZADO
+        version: '4.0 - UNESCO Philosophy Edition',
         timestamp: new Date().toISOString()
     });
 });
 
-app.get('/api/filtro-status', (req, res) => {
+app.get('/api/unesco-principles', (req, res) => {
+    const principios = ethicsModule.explicarPrincipiosUNESCO('basico');
     res.json({
-        filtro_activo: true,
-        palabras_bloqueadas: filtroContenido.palabrasProhibidas.length,
-        patrones: filtroContenido.patronesOfensivos.length,
-        respuestas_disponibles: filtroContenido.respuestasSarcasticas.length,
-        tipo: 'pasivo-agresivo-sarcástico',
-        descripcion: 'Filtra contenido inapropiado con estilo'
+        principles: principios.principios,
+        documents: ethicsModule.unescoPrinciples.documentosFundamentales.map(d => d.nombre),
+        framework: 'UNESCO Ethical Framework',
+        integrated: true
+    });
+});
+
+app.get('/api/philosophy-problems', (req, res) => {
+    const problemas = philosophyModule.problemasClasicos;
+    res.json({
+        total_problems: Object.keys(problemas).length,
+        classical_problems: Object.entries(problemas).map(([key, prob]) => ({
+            name: prob.nombre,
+            type: key
+        })),
+        philosophical_schools: Object.keys(philosophyModule.escuelasFilosoficas.etica)
+    });
+});
+
+app.get('/api/negotiation-strategies', (req, res) => {
+    const estrategias = negotiationModule.estrategias;
+    res.json({
+        total_strategies: Object.keys(estrategias).length,
+        strategies: Object.entries(estrategias).map(([key, strat]) => ({
+            name: strat.nombre,
+            description: strat.descripcion,
+            when_to_use: strat.cuandoUsar
+        }))
     });
 });
 
@@ -1059,18 +1441,19 @@ app.post('/api/stop', async (req, res) => {
 
 app.get('/health', (req, res) => {
     const stats = memoryManager.obtenerEstadisticas();
-    const reasoningStats = reasoningEngine.obtenerEstadisticas();  // NUEVO
     
     res.json({
         status: 'healthy',
         bot_active: botActive,
-        filtro: 'activado',
-        razonamiento: 'activado',  // NUEVO
-        apis: '6 fuentes confiables',
-        memory_users: stats.totalUsuarios,
-        memory_messages: stats.totalMensajes,
-        memory_max: 270,
-        reasoning_knowledge: reasoningStats.baseConocimiento,  // NUEVO
+        memory: `${stats.totalMensajes}/${stats.maxHistory}`,
+        modules: {
+            ethics: 'active',
+            philosophy: 'active',
+            negotiation: 'active',
+            reasoning: 'active',
+            knowledge: 'active'
+        },
+        unesco: 'integrated',
         uptime: process.uptime()
     });
 });
@@ -1113,53 +1496,50 @@ app.get('/api/buscar/:query', async (req, res) => {
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
-╔══════════════════════════════════════════╗
-║         🤖 MANCY A.I - CONFILABLE        ║
-║       6 FUENTES GARANTIZADAS             ║
-║         + FILTRO SARCÁSTICO              ║
-║         + RAZONAMIENTO LÓGICO            ║  // NUEVO
-║                                          ║
-║  📖 Wikipedia (ES/EN)                    ║
-║  🌍 RestCountries (Países)              ║
-║  📜 PoetryDB (Poesía)                    ║
-║  💭 Quotable (Citas)                     ║
-║  📕 Free Dictionary (Inglés)             ║
-║  🌤️ Open-Meteo (Clima)                   ║
-║  🤔 Motor de Razonamiento                ║  // NUEVO
-║                                          ║
-║  ✅ TODAS FUNCIONAN SIN TOKEN            ║
-║  ✅ SIN LÍMITES GRAVES                   ║
-║  ✅ RÁPIDAS Y CONFIABLES                 ║
-║                                          ║
-║  🛡️  Filtro: ACTIVADO                    ║
-║  🎭 Respuestas: Sarcásticas-elegantes    ║
-║  ✋ DM inapropiados: BLOQUEADOS          ║
-║  🧠 Razonamiento: Lógico y analítico     ║  // NUEVO
-║                                          ║
-║  🧠 Memoria: 270 mensajes                ║
-║  ❤️  Personalidad: Cálida pero firme     ║
-║                                          ║
-║  Puerto: ${PORT}                         ║
-║  URL: http://localhost:${PORT}           ║
-╚══════════════════════════════════════════╝
-    `);
-    
-    console.log('\n✨ Para probar conexión:');
-    console.log(`   curl http://localhost:${PORT}/test`);
-    console.log(`   curl http://localhost:${PORT}/health`);
-    
-    console.log('\n🚀 Endpoints disponibles:');
-    console.log(`   POST /api/start  - Iniciar bot`);
-    console.log(`   POST /api/stop   - Detener bot`);
-    console.log(`   GET  /api/status - Ver estado`);
-    console.log(`   GET  /api/filtro-status - Ver filtro`);
-    console.log(`   GET  /api/buscar/:query - Buscar info`);
-    
-    console.log('\n🤖 Comandos de Razonamiento:');
-    console.log(`   !razonar [pregunta] - Activar razonamiento`);
-    console.log(`   !estadisticas-razonamiento - Ver stats`);
-    console.log(`   !aprender - Info del sistema`);
-    console.log(`   !debug-razonamiento - Test del sistema`);
+╔══════════════════════════════════════════════════════════╗
+║                 🤖 MANCY A.I - UNESCO EDITION           ║
+║               Asistente Ético Inteligente               ║
+║                                                          ║
+║  🌍 PRINCIPIOS UNESCO: 6 fundamentos éticos universales ║
+║  🧠 FILOSOFÍA: Análisis profundo de problemas clásicos  ║
+║  🤝 NEGOCIACIÓN: Estrategias inteligentes y prácticas   ║
+║  ⚖️  ÉTICA: Dilemas morales con marco UNESCO            ║
+║  🧠 RAZONAMIENTO: Lógica y análisis crítico             ║
+║  📚 CONOCIMIENTO: 6 fuentes confiables verificadas      ║
+║  🛡️  FILTRO: Sarcasmo elegante para contenido inapropiado ║
+║                                                          ║
+║  MODOS AUTOMÁTICOS:                                     ║
+║  • Detecta dilemas éticos → Activa Modo Filósofo        ║
+║  • Detecta conflictos → Activa Modo Negociador          ║
+║  • Detecta preguntas profundas → Análisis filosófico    ║
+║  • Pregunta normal → Respuesta informada                ║
+║                                                          ║
+║  PERSONALIDAD:                                          ║
+║  • Cálida pero perspicaz                                ║
+║  • Empática pero lógica                                 ║
+║  • Reflexiva pero accesible                             ║
+║  • Sarcástica-elegante cuando es necesario              ║
+║                                                          ║
+║  🎯 SIN COMANDOS: Habla normalmente, Mancy detecta      ║
+║  💬 CONVERSACIONAL: Integración natural y fluida        ║
+║  🌱 APRENDIZAJE: Mejora con cada interacción            ║
+║                                                          ║
+║  Puerto: ${PORT}                                         ║
+║  UNESCO Principles: ✅ Activado                          ║
+║  Ethical AI: ✅ Certificado                              ║
+╚══════════════════════════════════════════════════════════╝
+`);
+
+    console.log('\n✨ Mancy está lista para conversaciones profundas y significativas.');
+    console.log('🌍 Principios UNESCO integrados como brújula ética fundamental.');
+    console.log('🧠 Sistema detecta automáticamente: ética, filosofía, negociación, conocimiento.');
+    console.log('🎭 Personalidad: Cálida, reflexiva, sarcástica-elegante cuando es necesario.');
+    console.log('\n💬 Ejemplos de lo que puedes preguntar:');
+    console.log('   • "¿En qué se basa tu ética?" → Explicación UNESCO');
+    console.log('   • "¿Qué harías en el problema del tranvía?" → Análisis filosófico');
+    console.log('   • "Mi amigo y yo discutimos sobre gastos" → Guía de negociación');
+    console.log('   • "¿Quién fue Simone de Beauvoir?" → Información con contexto');
+    console.log('   • Cualquier dilema moral → Análisis ético integrado');
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
