@@ -1,4 +1,4 @@
- import express from 'express';
+import express from 'express';
 import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
@@ -58,7 +58,7 @@ const upload = multer({
     }
 });
 
-// ========== PROCESADOR DE ARCHIVOS INTELIGENTE (DEL PRIMER CÓDIGO) ==========
+// ========== PROCESADOR DE ARCHIVOS INTELIGENTE ==========
 class SmartFileProcessor {
     constructor() {
         this.tesseractWorker = null;
@@ -79,7 +79,7 @@ class SmartFileProcessor {
         try {
             await this.initialize();
             
-            // Analizar RÁPIDO si hay texto (sin OCR completo)
+            // Análisis rápido si hay texto
             const { data: quickScan } = await this.tesseractWorker.recognize(imagePath, {
                 rectangle: { top: 0, left: 0, width: 100, height: 100 }
             });
@@ -103,15 +103,23 @@ class SmartFileProcessor {
         try {
             await this.initialize();
             
-            // OCR completo solo si se solicita
+            // OCR completo
             const { data: { text, confidence } } = await this.tesseractWorker.recognize(imagePath);
+            
+            // Limpiar texto: eliminar líneas vacías y espacios extras
+            const cleanText = text
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .join('\n')
+                .trim();
             
             return {
                 success: true,
-                text: text.trim(),
+                text: cleanText,
                 confidence,
-                length: text.length,
-                lines: text.split('\n').filter(l => l.trim()).length
+                length: cleanText.length,
+                lines: cleanText.split('\n').filter(l => l.trim()).length
             };
             
         } catch (error) {
@@ -168,11 +176,11 @@ class SmartFileProcessor {
             
             if (analysis.hasText) {
                 description += "🔤 Parece tener texto visible.\n";
-                description += "💡 Usa: `!leer` para transcribir el texto\n";
+                description += "💡 Usa: `!transcribir` para transcribir el texto\n";
                 description += "     `!resumir` para que te lo explique";
             } else {
                 description += "🖼️ Imagen sin texto aparente.\n";
-                description += "📝 Si es una captura con texto, usa: `!leer`";
+                description += "📝 Si es una captura con texto, usa: `!transcribir`";
             }
             
             return {
@@ -229,7 +237,7 @@ class SmartFileProcessor {
         }
     }
     
-    // Análisis inteligente de contenido (del segundo código, mejorado)
+    // Análisis inteligente de contenido
     analyzeImageContent(text) {
         const analysis = {
             type: 'general',
@@ -239,7 +247,6 @@ class SmartFileProcessor {
         
         const textLower = text.toLowerCase();
         
-        // Detectar tipo de contenido (del segundo código)
         if (textLower.includes('código') || textLower.includes('function') || 
             textLower.includes('const ') || textLower.includes('import ')) {
             analysis.type = 'codigo';
@@ -264,14 +271,12 @@ class SmartFileProcessor {
             analysis.contains.push('contenido_academico');
         }
         
-        // Detectar si es captura de chat
         if (textLower.includes('@') || textLower.includes('http') || 
             textLower.includes('whatsapp') || textLower.includes('mensaje')) {
             analysis.type = 'captura_conversacion';
             analysis.contains.push('conversacion');
         }
         
-        // Detectar si es meme (del primer código mejorado)
         if (textLower.includes('meme') || textLower.includes('lol') || 
             textLower.includes('jajaja') || textLower.includes('xd') ||
             textLower.includes('chiste') || textLower.includes('funny')) {
@@ -322,14 +327,14 @@ setInterval(() => {
     fileProcessor.cleanupOldFiles();
 }, 60 * 60 * 1000);
 
-// ========== MEMORIA DE COMANDOS POR USUARIO (DEL PRIMER CÓDIGO) ==========
+// ========== MEMORIA DE COMANDOS POR USUARIO ==========
 const userFileContext = new Map(); // userId -> {filePath, fileName, type, hasText, timestamp}
 
-// ========== MEMORIA DE CONVERSACIÓN (DEL SEGUNDO CÓDIGO) ==========
+// ========== MEMORIA DE CONVERSACIÓN ==========
 const conversationMemory = new Map();
 const MAX_HISTORY = 270;
 
-// ========== FILTRO DE CONTENIDO (DEL SEGUNDO CÓDIGO MEJORADO) ==========
+// ========== FILTRO DE CONTENIDO ==========
 class ContentFilter {
     constructor() {
         this.badWords = [
@@ -371,7 +376,7 @@ class ContentFilter {
 
 const contentFilter = new ContentFilter();
 
-// ========== SISTEMA DE CONOCIMIENTO (DEL SEGUNDO CÓDIGO) ==========
+// ========== SISTEMA DE CONOCIMIENTO ==========
 class KnowledgeSystem {
     constructor() {
         this.cache = new Map();
@@ -500,7 +505,7 @@ class KnowledgeSystem {
 
 const knowledgeSystem = new KnowledgeSystem();
 
-// ========== PERSONALIDAD DE MANCY (MEJORADA) ==========
+// ========== PERSONALIDAD DE MANCY ==========
 const MANCY_PERSONALITY = `Eres Mancy, una asistente inteligente y útil.
 
 CONOCIMIENTO DISPONIBLE:
@@ -509,25 +514,23 @@ CONOCIMIENTO DISPONIBLE:
 - Citas inspiradoras
 
 CAPACIDADES DE PROCESAMIENTO DE ARCHIVOS:
-- LEO imágenes con OCR inteligente (primero analizo si hay texto)
-- Uso visión AI para describir imágenes
-- Proceso documentos PDF
-- Analizo capturas de pantalla
-- Extraigo información de archivos de texto
+- TRANSCRIBO texto de imágenes (OCR)
+- LEO documentos PDF
+- LEO archivos de texto .txt
+- Analizo capturas de pantalla con texto
+- NO hago "lectura" general de imágenes, solo transcripción de texto
 
 CUANDO ALGUIEN ENVIA UN ARCHIVO:
-1. Primero analizo si tiene texto visible (sin extraerlo completo)
-2. Si es imagen, intento describirla con visión AI
-3. Ofrezco comandos específicos basados en lo que detecto
-4. El usuario decide si quiere extraer texto, resumir, etc.
-5. Los archivos expiran después de 5 minutos sin usar
+1. Si es PDF o TXT: ofrezco leer el contenido
+2. Si es imagen: ofrezco transcribir el texto si lo tiene
+3. Los archivos expiran después de 5 minutos sin usar
 
 COMANDOS DISPONIBLES:
-- !leer - Extraer texto completo
+- !transcribir - Transcribir texto de imágenes
+- !leer - Leer PDFs y archivos de texto
 - !resumir - Resumir el contenido
-- !describir - Descripción más detallada
+- !describir - Descripción de imágenes
 - !que-es - Análisis del tipo de documento
-- !pagina [n] - Leer página específica de PDF
 
 POLÍTICA DE CONTENIDO:
 - No respondo a insinuaciones sexuales
@@ -541,7 +544,7 @@ TU ESTILO:
 - Sarcástica cuando es necesario
 - Ofreces opciones en lugar de imponer`;
 
-// ========== FUNCIONES DE MEMORIA (DEL SEGUNDO CÓDIGO) ==========
+// ========== FUNCIONES DE MEMORIA ==========
 function getConversationHistory(userId) {
     if (!conversationMemory.has(userId)) {
         conversationMemory.set(userId, []);
@@ -558,7 +561,7 @@ function addToHistory(userId, role, content) {
     }
 }
 
-// ========== MANEJAR ARCHIVOS DISCORD (SISTEMA INTELIGENTE DEL PRIMER CÓDIGO) ==========
+// ========== MANEJAR ARCHIVOS DISCORD ==========
 async function handleFileAttachment(message, attachment) {
     try {
         await message.channel.sendTyping();
@@ -582,68 +585,61 @@ async function handleFileAttachment(message, attachment) {
         userFileContext.set(userId, {
             filePath: tempPath,
             fileName: attachment.name,
-            type: ext === '.pdf' ? 'pdf' : 'image',
+            type: ext === '.pdf' ? 'pdf' : (ext === '.txt' ? 'text' : 'image'),
             timestamp: Date.now()
         });
         
         let reply = '';
         
         if (['.png', '.jpg', '.jpeg'].includes(ext)) {
-            // PARA IMÁGENES: Sistema inteligente del primer código
-            
-            // 1. Primero verificar si tiene texto (análisis rápido)
+            // PARA IMÁGENES: Solo transcribir texto, no "leer"
             const textAnalysis = await fileProcessor.analyzeImageForText(tempPath);
-            
-            // 2. Describir la imagen (con o sin visión AI)
             const description = await fileProcessor.describeImage(tempPath);
             
             reply = `📸 **Imagen recibida:** ${attachment.name}\n\n`;
             
             if (description.hasVision) {
-                // Si tenemos visión AI, usar esa descripción
                 reply += `**Descripción:** ${description.description}\n\n`;
             } else {
-                // Descripción básica
                 reply += description.description + '\n\n';
             }
             
-            // 3. Ofrecer opciones basadas en si tiene texto
+            // Ofrecer solo transcripción, no "lectura"
             if (textAnalysis.hasText) {
-                reply += `🔤 **Parece tener texto.** Comandos disponibles:\n`;
-                reply += `\`!leer\` - Transcribir el texto\n`;
+                reply += `🔤 **Parece tener texto.** Comando disponible:\n`;
+                reply += `\`!transcribir\` - Transcribir el texto\n`;
                 reply += `\`!resumir\` - Resumir el contenido\n`;
-                reply += `\`!que-es\` - ¿Qué tipo de documento es?\n`;
             } else {
                 reply += `🖼️ **Sin texto aparente.** ¿Qué te gustaría hacer?\n`;
                 reply += `\`!describir\` - Descripción más detallada\n`;
+                reply += `\`!transcribir\` - Intentar transcribir (por si tiene texto)\n`;
             }
             
             // Guardar si tiene texto en el contexto
             userFileContext.get(userId).hasText = textAnalysis.hasText;
             
         } else if (ext === '.pdf') {
-            // PARA PDFs: Sistema inteligente
+            // PARA PDFs: Leer contenido
             const fileInfo = await fileProcessor.processPDF(tempPath);
             
             reply = `📄 **PDF recibido:** ${attachment.name}\n\n`;
             reply += `📖 ${fileInfo.metadata.pages || '?'} páginas detectadas\n\n`;
             reply += `**Comandos disponibles:**\n`;
-            reply += `\`!leer\` - Extraer texto del PDF\n`;
+            reply += `\`!leer\` - Leer contenido del PDF\n`;
             reply += `\`!resumir\` - Resumir el contenido\n`;
             reply += `\`!pagina [número]\` - Leer página específica\n`;
             
         } else if (ext === '.txt') {
-            // Para archivos de texto: del segundo código
+            // Para archivos de texto: Leer contenido
             const fileInfo = await fileProcessor.processTextFile(tempPath);
             
             reply = `📝 **Archivo de texto recibido:** ${attachment.name}\n\n`;
             reply += `📊 ${fileInfo.lines || 0} líneas, ${fileInfo.textLength || 0} caracteres\n\n`;
             reply += `**Comandos disponibles:**\n`;
-            reply += `\`!leer\` - Ver contenido completo\n`;
+            reply += `\`!leer\` - Leer contenido completo\n`;
             reply += `\`!resumir\` - Resumir el contenido`;
             
             // Guardar en contexto
-            userFileContext.get(userId).type = 'text';
             userFileContext.get(userId).hasText = true;
             
         } else {
@@ -665,13 +661,13 @@ async function handleFileAttachment(message, attachment) {
     }
 }
 
-// ========== MANEJAR COMANDOS DE ARCHIVOS (DEL PRIMER CÓDIGO MEJORADO) ==========
+// ========== MANEJAR COMANDOS DE ARCHIVOS ==========
 async function handleFileCommand(message, command, args) {
     const userId = message.author.id;
     const context = userFileContext.get(userId);
     
     if (!context) {
-        await message.reply('❌ No tienes ningún archivo reciente. Envía una imagen o PDF primero.');
+        await message.reply('❌ No tienes ningún archivo reciente. Envía un archivo primero.');
         return;
     }
     
@@ -690,7 +686,8 @@ async function handleFileCommand(message, command, args) {
         let result;
         
         switch(command) {
-            case 'leer':
+            case 'transcribir':
+                // Solo para imágenes - transcribir texto
                 if (context.type === 'image') {
                     result = await fileProcessor.extractTextFromImage(context.filePath);
                     
@@ -699,14 +696,28 @@ async function handleFileCommand(message, command, args) {
                             ? result.text.substring(0, 1000) + '...' 
                             : result.text;
                         
-                        let reply = `📝 **Texto extraído:**\n\`\`\`\n${textPreview}\n\`\`\``;
-                        reply += `\n📊 **Estadísticas:** ${result.length || result.textLength} caracteres`;
+                        // Mensaje más natural para transcripción
+                        let reply = `📸 **La imagen dice esto:**\n\`\`\`\n${textPreview}\n\`\`\``;
                         
-                        if (result.confidence) {
-                            reply += `, ${Math.round(result.confidence)}% confianza`;
+                        // Estadísticas opcionales
+                        if (result.confidence || result.length) {
+                            reply += `\n📊 `;
+                            
+                            if (result.confidence) {
+                                reply += `Confianza: ${Math.round(result.confidence)}%`;
+                                if (result.length) reply += ` • `;
+                            }
+                            
+                            if (result.length) {
+                                reply += `${result.length} caracteres`;
+                            }
+                            
+                            if (result.lines && result.lines > 1) {
+                                reply += ` • ${result.lines} líneas`;
+                            }
                         }
                         
-                        // Análisis de contenido (del segundo código)
+                        // Análisis de contenido
                         const analysis = fileProcessor.analyzeImageContent(result.text);
                         if (analysis.type !== 'general') {
                             reply += `\n🔍 **Tipo detectado:** ${analysis.type}`;
@@ -716,11 +727,18 @@ async function handleFileCommand(message, command, args) {
                         
                         // Guardar en memoria de conversación
                         addToHistory(userId, 'system', 
-                            `[TEXTO EXTRAÍDO DE IMAGEN - ${analysis.type}]: ${result.text.substring(0, 200)}...`);
+                            `[TEXTO TRANSCRITO DE IMAGEN - ${analysis.type}]: ${result.text.substring(0, 200)}...`);
                     } else {
-                        await message.reply('❌ No pude extraer texto. Puede que no haya texto legible.');
+                        await message.reply('❌ No pude transcribir texto. Puede que no haya texto legible.');
                     }
-                } else if (context.type === 'pdf') {
+                } else {
+                    await message.reply('❌ Este comando solo funciona con imágenes.');
+                }
+                break;
+                
+            case 'leer':
+                // Solo para PDFs y archivos de texto
+                if (context.type === 'pdf') {
                     result = await fileProcessor.processPDF(context.filePath);
                     
                     if (result?.success && result.text) {
@@ -728,16 +746,16 @@ async function handleFileCommand(message, command, args) {
                             ? result.text.substring(0, 1000) + '...' 
                             : result.text;
                         
-                        let reply = `📄 **Texto del PDF:**\n\`\`\`\n${textPreview}\n\`\`\``;
+                        let reply = `📄 **Contenido del PDF:**\n\`\`\`\n${textPreview}\n\`\`\``;
                         reply += `\n📊 ${result.textLength} caracteres, ${result.metadata?.pages || 0} páginas`;
                         
                         await message.reply(reply);
                         
                         // Guardar en memoria de conversación
                         addToHistory(userId, 'system', 
-                            `[TEXTO EXTRAÍDO DE PDF]: ${result.text.substring(0, 200)}...`);
+                            `[CONTENIDO DE PDF]: ${result.text.substring(0, 200)}...`);
                     } else {
-                        await message.reply('❌ No pude extraer texto del PDF.');
+                        await message.reply('❌ No pude leer el PDF.');
                     }
                 } else if (context.type === 'text') {
                     result = await fileProcessor.processTextFile(context.filePath);
@@ -754,12 +772,14 @@ async function handleFileCommand(message, command, args) {
                     } else {
                         await message.reply('❌ No pude leer el archivo de texto.');
                     }
+                } else {
+                    await message.reply('❌ Este comando solo funciona con PDFs y archivos de texto. Para imágenes usa: `!transcribir`');
                 }
                 break;
                 
             case 'resumir':
                 if (context.type === 'image') {
-                    // Primero extraer texto, luego resumir con Groq
+                    // Primero transcribir texto, luego resumir
                     const textResult = await fileProcessor.extractTextFromImage(context.filePath);
                     
                     if (textResult.success && textResult.text) {
@@ -854,7 +874,12 @@ async function handleFileCommand(message, command, args) {
                 break;
                 
             default:
-                await message.reply(`❌ Comando no reconocido. Comandos: !leer, !resumir, !describir, !que-es`);
+                await message.reply(`❌ Comando no reconocido. Comandos disponibles:\n` +
+                    `• \`!transcribir\` - Transcribir texto de imágenes\n` +
+                    `• \`!leer\` - Leer PDFs y archivos de texto\n` +
+                    `• \`!resumir\` - Resumir contenido\n` +
+                    `• \`!describir\` - Descripción de imágenes\n` +
+                    `• \`!que-es\` - Análisis del documento`);
         }
         
         // Limpiar archivo después de usar
@@ -873,7 +898,7 @@ async function handleFileCommand(message, command, args) {
     }
 }
 
-// ========== PROCESAR MENSAJE (DEL SEGUNDO CÓDIGO) ==========
+// ========== PROCESAR MENSAJE ==========
 async function processMessage(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
@@ -1008,26 +1033,25 @@ async function startBot() {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('Procesa imágenes y PDFs | @mencioname');
+            discordClient.user.setActivity('Transcribe y lee archivos | @mencioname');
             
             console.log(`
 ╔══════════════════════════════════════════╗
 ║         🤖 MANCY MEJORADA                ║
 ║   PROCESAMIENTO INTELIGENTE DE ARCHIVOS  ║
 ║                                          ║
-║  📸 Capacidades:                         ║
-║     • OCR inteligente (análisis previo)  ║
-║     • Visión AI para descripciones       ║
-║     • Lectura de PDFs                    ║
-║     • Procesamiento de texto             ║
-║     • Análisis de contenido              ║
+║  📸 CAPACIDADES:                         ║
+║     • Transcribir texto de imágenes      ║
+║     • Leer documentos PDF                ║
+║     • Leer archivos de texto .txt        ║
+║     • NO "leer" imágenes sin texto       ║
 ║                                          ║
-║  📚 Conocimiento:                        ║
+║  📚 CONOCIMIENTO:                        ║
 ║     • Wikipedia ES/EN                    ║
 ║     • Datos de países                    ║
 ║     • Citas inspiradoras                 ║
 ║                                          ║
-║  🛡️  Filtro: ACTIVADO                    ║
+║  🛡️  FILTRO: ACTIVADO                    ║
 ║  🧠 Memoria: 270 mensajes                ║
 ║  ⏰ Archivos: 5 minutos de vida          ║
 ╚══════════════════════════════════════════╝
@@ -1053,7 +1077,7 @@ async function startBot() {
                 const command = content.substring(1).split(' ')[0];
                 const args = content.substring(command.length + 2).split(' ');
                 
-                const fileCommands = ['leer', 'resumir', 'describir', 'que-es', 'pagina'];
+                const fileCommands = ['transcribir', 'leer', 'resumir', 'describir', 'que-es', 'pagina'];
                 
                 if (fileCommands.includes(command)) {
                     await handleFileCommand(message, command, args);
@@ -1168,11 +1192,9 @@ app.get('/api/status', (req, res) => {
         file_contexts: userFileContext.size,
         file_processor: 'smart_processor_active',
         capabilities: [
-            'OCR inteligente (análisis previo)',
-            'Visión AI para imágenes',
-            'Lectura de PDFs',
-            'Procesamiento de texto',
-            'Análisis de contenido',
+            'Transcripción de texto de imágenes (OCR)',
+            'Lectura de documentos PDF',
+            'Lectura de archivos de texto .txt',
             'Wikipedia ES/EN',
             'Datos de países',
             'Citas inspiradoras'
@@ -1222,10 +1244,11 @@ app.listen(PORT, '0.0.0.0', () => {
 ║         🤖 MANCY MEJORADA                ║
 ║   PROCESAMIENTO INTELIGENTE DE ARCHIVOS  ║
 ║                                          ║
-║  📸 LEE INTELIGENTEMENTE:                ║
-║     • Imágenes (PNG, JPG, JPEG)          ║
-║     • Documentos PDF                     ║
-║     • Archivos de texto                  ║
+║  📸 CAPACIDADES:                         ║
+║     • Transcribir texto de imágenes      ║
+║     • Leer documentos PDF                ║
+║     • Leer archivos de texto .txt        ║
+║     • NO "leer" imágenes sin texto       ║
 ║                                          ║
 ║  📚 CONOCIMIENTO:                        ║
 ║     • Wikipedia                          ║
