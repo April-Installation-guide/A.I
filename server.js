@@ -3,7 +3,9 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import axios from 'axios';
-import { MemoryManajer } from './MemoryManager.js';  // ← SOLO AÑADIDO ESTO
+
+// CORREGIDO: Usar el nombre correcto del archivo
+import { MemoryManager } from './MemoryManager.js';  // ← Asegúrate que el archivo se llame MemoryManager.js
 
 dotenv.config();
 
@@ -544,11 +546,11 @@ TU ESTILO:
 
 // ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
-    return memoryManager.obtenerHistorialUsuario(userId);  // ← SOLO CAMBIADO ESTO
+    return memoryManager.obtenerHistorialUsuario(userId);
 }
 
 function agregarAlHistorial(userId, rol, contenido) {
-    return memoryManager.agregarAlHistorial(userId, rol, contenido);  // ← SOLO CAMBIADO ESTO
+    return memoryManager.agregarAlHistorial(userId, rol, contenido);
 }
 
 // ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
@@ -644,7 +646,7 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
             // Agregar respuesta al historial
             agregarAlHistorial(userId, 'assistant', respuesta);
             
-            console.log(`✅ Respondió (historial: ${historial.length}/270)`);  // ← SOLO CAMBIADO: 270 en lugar de MAX_HISTORY
+            console.log(`✅ Respondió (historial: ${historial.length}/270)`);
             
             // Enviar respuesta
             if (respuesta.length > 2000) {
@@ -808,14 +810,14 @@ app.get('/test', (req, res) => {
 });
 
 app.get('/api/status', (req, res) => {
-    const stats = memoryManager.obtenerEstadisticas();  // ← SOLO CAMBIADO ESTO
+    const stats = memoryManager.obtenerEstadisticas();
     
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        memory_users: stats.totalUsuarios,  // ← SOLO CAMBIADO ESTO
-        memory_messages: stats.totalMensajes,  // ← SOLO CAMBIADO ESTO
-        max_history: stats.maxHistory,  // ← SOLO AÑADIDO ESTO
+        memory_users: stats.totalUsuarios,
+        memory_messages: stats.totalMensajes,
+        max_history: stats.maxHistory,
         filtro_activo: true,
         apis: [
             'Wikipedia (ES/EN)',
@@ -897,15 +899,15 @@ app.post('/api/stop', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-    const stats = memoryManager.obtenerEstadisticas();  // ← SOLO AÑADIDO ESTO
+    const stats = memoryManager.obtenerEstadisticas();
     
     res.json({
         status: 'healthy',
         bot_active: botActive,
         filtro: 'activado',
         apis: '6 fuentes confiables',
-        memory_users: stats.totalUsuarios,  // ← SOLO AÑADIDO ESTO
-        memory_messages: stats.totalMensajes,  // ← SOLO AÑADIDO ESTO
+        memory_users: stats.totalUsuarios,
+        memory_messages: stats.totalMensajes,
         memory_max: 270,
         uptime: process.uptime()
     });
