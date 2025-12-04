@@ -1010,3 +1010,353 @@ process.on('SIGTERM', () => {
     
     process.exit(0);
 });
+const fs = require('fs').promises;
+const path = require('path');
+
+class LearningModule {
+    constructor() {
+        this.dataPath = path.join(__dirname, 'learning_data.json');
+        this.learnedData = new Map();
+        this.triggers = new Map();
+    }
+
+    async initialize() {
+        try {
+            await this.loadData();
+            console.log('Módulo de aprendizaje inicializado');
+        } catch (error) {
+            // Si no existe el archivo, crea uno vacío
+            await this.saveData();
+            console.log('Nuevo archivo de aprendizaje creado');
+        }
+    }
+
+    async loadData() {
+        try {
+            const data = await fs.readFile(this.dataPath, 'utf8');
+            const parsed = JSON.parse(data);
+            
+            // Convertir array a Map
+            parsed.forEach(item => {
+                this.learnedData.set(item.trigger, {
+                    response: item.response,
+                    context: item.context || 'general',
+                    usageCount: item.usageCount || 1,
+                    lastUsed: new Date(item.lastUsed),
+                    createdAt: new Date(item.createdAt)
+                });
+                
+                // Indexar triggers
+                this.indexTrigger(item.trigger);
+            });
+            
+            console.log(`Cargados ${parsed.length} conocimientos`);
+        } catch (error) {
+            // Archivo no existe, empezar vacío
+            this.learnedData = new Map();
+        }
+    }
+
+    async saveData() {
+        try {
+            // Convertir Map a array
+            const dataArray = Array.from(this.learnedData.entries()).map(([trigger, data]) => ({
+                trigger,
+                response: data.response,
+                context: data.context,
+                usageCount: data.usageCount,
+                lastUsed: data.lastUsed.toISOString(),
+                createdAt: data.createdAt.toISOString()
+            }));
+            
+            await fs.writeFile(this.dataPath, JSON.stringify(dataArray, null, 2));
+            return true;
+        } catch (error) {
+            console.error('Error guardando datos:', error);
+            return false;
+        }
+    }
+
+    async learn(trigger, response, context = 'general') {
+        const normalizedTrigger = trigger.toLowerCase().trim();
+        
+        if (this.learnedData.has(normalizedTrigger)) {
+            // Actualizar existente
+            const existing = this.learnedData.get(normalizedTrigger);
+            existing.response = response;
+            existing.context = context;
+            existing.usageCount++;
+            existing.lastUsed = new Date();
+        } else {
+            // Crear nuevo
+            this.learnedData.set(normalizedTrigger, {
+                response,
+                context,
+                usageCount: 1,
+                lastUsed: new Date(),
+                createdAt: new Date()
+            });
+            
+            // Indexar nuevo trigger
+            this.indexTrigger(normalizedTrigger);
+        }
+        
+        // Guardar cambios
+        await this.saveData();
+        return true;
+    }
+
+    async recall(trigger) {
+        const normalizedTrigger = trigger.toLowerCase().trim();
+        
+        // Búsqueda exacta
+        if (this.learnedData.has(normalizedTrigger)) {
+            const data = this.learnedData.get(normalizedTrigger);
+            data.usageCount++;
+            data.lastUsed = new Date();
+            await this.saveData(); // Guardar contador actualizado
+            return data.response;
+        }
+        
+        // Búsqueda parcial (opcional)
+        return await this.searchSimilar(trigger, 0.8);
+    }
+
+    async searchSimilar(trigger, threshold = 0.6) {
+        const normalizedTrigger = trigger.toLowerCase().trim();
+        const triggerWords = normalizedTrigger.split(' ').filter(w => w.length > 2);
+        
+        let bestMatch = null;
+        let highestSimilarity = 0;
+        
+        // Buscar en triggers existentes
+        for (const [key, data] of this.learnedData.entries()) {
+            const similarity = this.calculateSimilarity(normalizedTrigger, key);
+            
+            if (similarity > highestSimilarity && similarity >= threshold) {
+                highestSimilarity = similarity;
+                bestMatch = {
+                    trigger: key,
+                    response: data.response,
+                    similarity: similarity,
+                    usageCount: data.usageCount
+                };
+            }
+        }
+        
+        return bestMatch ? bestMatch.response : null;
+    }
+
+    calculateSimilarity(str1, str2) {
+        // Método simple de similitud por palabras comunes
+        const words1 = new Set(str1.split(' ').filter(w => w.length > 2));
+        const words2 = new Set(str2.split(' ').filter(w => w.length > 2));
+        
+        if (words1.size === 0 || words2.size === 0) return 0;
+        
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        
+        return intersection.size / union.size;
+    }
+
+    indexTrigger(trigger) {
+        const words = trigger.toLowerCase().split(' ').filter(w => w.length > 2);
+        words.forEach(word => {
+            if (!this.triggers.has(word)) {
+                this.triggers.set(word, new Set());
+            }
+            this.triggers.get(word).add(trigger);
+        });
+    }
+
+    async forget(trigger) {
+        const normalizedTrigger = trigger.toLowerCase().trim();
+        
+        if (this.learnedData.has(normalizedTrigger)) {
+            this.learnedData.delete(normalizedTrigger);
+            await this.saveData();
+            return true;
+        }
+        
+        return false;
+    }
+
+    async searchByKeyword(keyword) {
+        const normalizedKeyword = keyword.toLowerCase().trim();
+        const results = [];
+        
+        for (const [trigger, data] of this.learnedData.entries()) {
+            if (trigger.includes(normalizedKeyword) || 
+                data.response.toLowerCase().includes(normalizedKeyword)) {
+                results.push({
+                    trigger,
+                    response: data.response,
+                    usageCount: data.usageCount
+                });
+            }
+        }
+        
+        return results.sort((a, b) => b.usageCount - a.usageCount);
+    }
+
+    getStats() {
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        let recentLearned = 0;
+        let totalUsage = 0;
+        
+        for (const data of this.learnedData.values()) {
+            totalUsage += data.usageCount;
+            if (data.createdAt > oneWeekAgo) {
+                recentLearned++;
+            }
+        }
+        
+        return {
+            totalKnowledge: this.learnedData.size,
+            totalTriggers: this.triggers.size,
+            totalUsage: totalUsage,
+            recentLearned: recentLearned,
+            memorySize: JSON.stringify(Array.from(this.learnedData.entries())).length
+        };
+    }
+
+    async backup() {
+        const backupPath = path.join(__dirname, `learning_backup_${Date.now()}.json`);
+        await fs.copyFile(this.dataPath, backupPath);
+        return backupPath;
+    }
+}
+
+module.exports = LearningModule;
+
+// Añade al inicio del archivo:
+const LearningModule = require('./LearningModule.js');
+
+// En tu clase Bot o donde manejas los comandos:
+class Bot {
+    constructor() {
+        this.learning = new LearningModule();
+        // ... resto de tu constructor
+    }
+
+    async start() {
+        await this.learning.initialize();
+        // ... resto de tu inicialización
+        console.log('Mancy está lista para aprender!');
+    }
+
+    async handleMessage(message) {
+        // Evitar que el bot se responda a sí mismo
+        if (message.author.bot) return;
+
+        const content = message.content.trim();
+        
+        // COMANDO APRENDER: !aprender pregunta | respuesta
+        if (content.startsWith('!aprender')) {
+            const args = content.replace('!aprender', '').trim();
+            const parts = args.split('|').map(p => p.trim());
+            
+            if (parts.length >= 2) {
+                const trigger = parts[0];
+                const response = parts[1];
+                const context = parts[2] || 'general';
+                
+                const learned = await this.learning.learn(trigger, response, context);
+                if (learned) {
+                    await message.reply(`✅ Aprendido: **"${trigger}"** → "${response}"`);
+                }
+            } else {
+                await message.reply('Formato: `!aprender pregunta | respuesta | [contexto]`');
+            }
+            return;
+        }
+
+        // COMANDO RECORDAR: !recordar pregunta
+        if (content.startsWith('!recordar')) {
+            const trigger = content.replace('!recordar', '').trim();
+            
+            if (trigger) {
+                const response = await this.learning.recall(trigger);
+                if (response) {
+                    await message.reply(response);
+                } else {
+                    await message.reply(`🤔 No tengo conocimiento sobre **"${trigger}"**`);
+                }
+            } else {
+                await message.reply('Debes especificar qué quieres que recuerde: `!recordar pregunta`');
+            }
+            return;
+        }
+
+        // COMANDO BUSCAR: !buscar palabra
+        if (content.startsWith('!buscar')) {
+            const keyword = content.replace('!buscar', '').trim();
+            
+            if (keyword) {
+                const results = await this.learning.searchByKeyword(keyword);
+                if (results.length > 0) {
+                    const topResults = results.slice(0, 5);
+                    const response = topResults.map(r => 
+                        `**"${r.trigger}"** → ${r.response} (usado ${r.usageCount} veces)`
+                    ).join('\n');
+                    
+                    await message.reply(`🔍 Resultados para **"${keyword}"**:\n${response}`);
+                } else {
+                    await message.reply(`No encontré nada relacionado con **"${keyword}"**`);
+                }
+            }
+            return;
+        }
+
+        // COMANDO OLVIDAR: !olvidar pregunta
+        if (content.startsWith('!olvidar')) {
+            if (!message.member.permissions.has('ADMINISTRATOR')) {
+                await message.reply('❌ Solo administradores pueden usar este comando.');
+                return;
+            }
+            
+            const trigger = content.replace('!olvidar', '').trim();
+            if (trigger) {
+                const forgotten = await this.learning.forget(trigger);
+                if (forgotten) {
+                    await message.reply(`✅ Olvidado: **"${trigger}"**`);
+                } else {
+                    await message.reply(`No encontré **"${trigger}"** en mi memoria`);
+                }
+            }
+            return;
+        }
+
+        // COMANDO STATS: !aprendizaje
+        if (content.startsWith('!aprendizaje')) {
+            const stats = this.learning.getStats();
+            const response = [
+                '📊 **Estadísticas de Aprendizaje**',
+                `• Conocimientos almacenados: ${stats.totalKnowledge}`,
+                `• Palabras clave indexadas: ${stats.totalTriggers}`,
+                `• Uso total: ${stats.totalUsage} veces`,
+                `• Aprendido recientemente: ${stats.recentLearned}`,
+                `• Tamaño de memoria: ${(stats.memorySize / 1024).toFixed(2)} KB`
+            ].join('\n');
+            
+            await message.reply(response);
+            return;
+        }
+
+        // APRENDIZAJE AUTOMÁTICO (opcional - responde automáticamente si sabe)
+        if (content.endsWith('?')) {
+            const response = await this.learning.recall(content.slice(0, -1));
+            if (response) {
+                await message.reply(response);
+                return;
+            }
+        }
+        
+        // ... resto de tu lógica de comandos existente
+    }
+}
+
+module.exports = Bot;
