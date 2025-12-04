@@ -1,912 +1,545 @@
-// EthicsModule.js - Módulo de Ética y Moral para Mancy A.I.
-import fs from 'fs';
-import path from 'path';
+// En main.js - INTEGRACIÓN NATURAL DE ÉTICA
 
-export class EthicsModule {
-    constructor() {
-        this.framework = this.initializeFramework();
-        this.casosResueltos = new Map();
-        this.dilemasHistoricos = [];
-        this.learningRate = 0.1;
-        
-        console.log('🧠 Módulo de Ética y Moral inicializado');
-        this.loadHistoricalCases();
-    }
+// ========== FUNCIONES DE DETECCIÓN MEJORADAS ==========
+
+function analizarIntencionUsuario(mensaje, historialUsuario = [], contexto = {}) {
+    const lowerMsg = mensaje.toLowerCase().trim();
     
-    initializeFramework() {
+    // 1. Primero, filtro de contenido (siempre primero)
+    if (filtroContenido.esContenidoInapropiado(mensaje)) {
         return {
-            // PRINCIPIOS ÉTICOS FUNDAMENTALES
-            principios: {
-                beneficencia: {
-                    peso: 0.25,
-                    descripcion: "Hacer el bien y promover el bienestar",
-                    preguntas: [
-                        "¿Esta acción beneficia a alguien?",
-                        "¿Maximiza el bienestar general?",
-                        "¿Evita daños innecesarios?"
-                    ]
-                },
-                noMaleficencia: {
-                    peso: 0.30,
-                    descripcion: "No causar daño",
-                    preguntas: [
-                        "¿Esta acción causa daño a alguien?",
-                        "¿El daño es evitable?",
-                        "¿Los beneficios superan los riesgos?"
-                    ]
-                },
-                autonomia: {
-                    peso: 0.20,
-                    descripcion: "Respetar la autonomía y libertad de elección",
-                    preguntas: [
-                        "¿Respeto la autonomía de las personas?",
-                        "¿Hay consentimiento informado?",
-                        "¿Se respetan las preferencias personales?"
-                    ]
-                },
-                justicia: {
-                    peso: 0.15,
-                    descripcion: "Ser justo y equitativo",
-                    preguntas: [
-                        "¿Es equitativa para todos?",
-                        "¿Distribuye beneficios y cargas justamente?",
-                        "¿Trata a todos con igual consideración?"
-                    ]
-                },
-                veracidad: {
-                    peso: 0.10,
-                    descripcion: "Decir la verdad y ser honesto",
-                    preguntas: [
-                        "¿Estoy siendo completamente honesto?",
-                        "¿Hay información relevante que oculto?",
-                        "¿Mis intenciones son transparentes?"
-                    ]
-                }
-            },
-            
-            // ENFOQUES ÉTICOS
-            enfoques: {
-                utilitarismo: "Maximizar la felicidad y minimizar el sufrimiento",
-                deontologico: "Seguir reglas y deberes morales",
-                virtudes: "Actuar según virtudes como compasión, sabiduría, justicia",
-                cuidado: "Priorizar relaciones y responsabilidades",
-                contractualismo: "Acciones que todos podrían aceptar racionalmente"
-            },
-            
-            // NIVELES DE DESARROLLO MORAL (Kohlberg)
-            nivelesMoralidad: {
-                preconvencional: [
-                    "Evitar castigos",
-                    "Buscar recompensas personales"
-                ],
-                convencional: [
-                    "Cumplir expectativas sociales",
-                    "Mantener orden y leyes"
-                ],
-                postconvencional: [
-                    "Derechos humanos universales",
-                    "Principios éticos abstractos"
-                ]
-            },
-            
-            // ÁREAS DE APLICACIÓN
-            areasAplicacion: {
-                privacidad: {
-                    principios: ["autonomia", "noMaleficencia", "veracidad"],
-                    consideraciones: [
-                        "Consentimiento informado",
-                        "Minimización de datos",
-                        "Transparencia en uso"
-                    ]
-                },
-                sesgo: {
-                    principios: ["justicia", "noMaleficencia"],
-                    consideraciones: [
-                        "Equidad en resultados",
-                        "Reconocimiento de prejuicios",
-                        "Mitigación activa"
-                    ]
-                },
-                responsabilidad: {
-                    principios: ["justicia", "veracidad"],
-                    consideraciones: [
-                        "Atribución clara",
-                        "Mecanismos de apelación",
-                        "Reparación de daños"
-                    ]
-                },
-                transparencia: {
-                    principios: ["veracidad", "autonomia"],
-                    consideraciones: [
-                        "Explicabilidad de decisiones",
-                        "Limitaciones conocidas",
-                        "Propósito claro"
-                    ]
-                }
-            }
+            tipo: 'filtro',
+            confianza: 0.95,
+            accion: 'filtro_contenido'
         };
     }
     
-    // ========== ANÁLISIS ÉTICO ==========
+    // 2. Detectar intenciones específicas
+    const intenciones = {
+        // Ética - usando el método conversacional
+        etica: ethicsModule.esConsultaEticaNatural(mensaje),
+        
+        // Negociación
+        negociacion: negotiationModule.esNegociacionNatural(mensaje),
+        
+        // Razonamiento
+        razonamiento: detectarConsultaRazonamientoConversacional(mensaje),
+        
+        // Emocional
+        emocional: detectarComponenteEmocional(mensaje),
+        
+        // Conocimiento factual
+        conocimiento: necesitaBusquedaConocimiento(mensaje)
+    };
     
-    analizarConsulta(mensaje, contexto = {}) {
-        const lowerMsg = mensaje.toLowerCase();
+    // 3. Calcular confianzas con contexto
+    const confianzas = {
+        etica: calcularConfianzaEtica(mensaje, historialUsuario, contexto),
+        negociacion: calcularConfianzaNegociacion(mensaje, historialUsuario),
+        razonamiento: calcularConfianzaRazonamiento(mensaje),
+        emocional: calcularConfianzaEmocional(mensaje),
+        conocimiento: calcularConfianzaConocimiento(mensaje)
+    };
+    
+    // 4. Ajustar por historial conversacional
+    const intencionAjustada = ajustarPorContextoConversacional(
+        intenciones,
+        confianzas,
+        historialUsuario,
+        contexto
+    );
+    
+    return {
+        intenciones: intenciones,
+        confianzas: confianzas,
+        principal: intencionAjustada,
+        contexto: contexto,
+        timestamp: new Date().toISOString()
+    };
+}
+
+function calcularConfianzaEtica(mensaje, historial, contexto) {
+    let confianza = 0;
+    
+    // Base: detección del módulo
+    if (ethicsModule.esConsultaEticaNatural(mensaje)) {
+        confianza = 0.7;
+    }
+    
+    // Verificar conflictos éticos ocultos
+    const conflictosOcultos = ethicsModule.detectarConflictosEticosOcultos(
+        mensaje, 
+        historial.map(h => h.contenido)
+    );
+    
+    if (conflictosOcultos) {
+        confianza = Math.max(confianza, 0.6);
+    }
+    
+    // Aumentar si hay historial ético reciente
+    const ultimosMensajes = historial.slice(-4);
+    const tieneHistorialEtico = ultimosMensajes.some(msg => 
+        msg.rol === 'system' && msg.contenido.includes('[Ética]')
+    );
+    
+    if (tieneHistorialEtico) {
+        confianza += 0.15;
+    }
+    
+    // Aumentar si es pregunta compleja
+    const palabras = mensaje.split(' ').length;
+    if (palabras > 10) confianza += 0.1;
+    
+    // Disminuir si es pregunta factual simple
+    if (esPreguntaFactualSimple(mensaje)) {
+        confianza -= 0.3;
+    }
+    
+    // Considerar canal
+    if (contexto.isDM) {
+        confianza += 0.05; // En DMs hay más confianza para temas profundos
+    }
+    
+    return Math.max(0.1, Math.min(0.95, confianza));
+}
+
+function esPreguntaFactualSimple(mensaje) {
+    const lower = mensaje.toLowerCase();
+    
+    // Patrones de preguntas factuales
+    const patronesFactuales = [
+        /^cuánto (cuesta|vale|pesa|mide)/i,
+        /^dónde (está|queda|vive)/i,
+        /^cuándo (nació|murió|ocurrió)/i,
+        /^quién (creó|inventó|descubrió)/i,
+        /^qué (es|son) [a-z]/i,
+        /^cómo (se hace|se dice|se escribe)/i
+    ];
+    
+    return patronesFactuales.some(patron => patron.test(lower));
+}
+
+function ajustarPorContextoConversacional(intenciones, confianzas, historial, contexto) {
+    // Analizar el flujo de la conversación
+    const ultimaInteraccion = historial.slice(-2);
+    
+    // Si la última respuesta fue ética y el usuario continúa, mantener ética
+    if (ultimaInteraccion.length >= 2) {
+        const ultimaRespuesta = ultimaInteraccion.find(msg => msg.rol === 'assistant');
+        const ultimoUsuario = ultimaInteraccion.find(msg => msg.rol === 'user');
         
-        const deteccion = {
-            esDilemaEtico: false,
-            area: null,
-            principiosInvolucrados: [],
-            nivelComplejidad: 1,
-            contexto: contexto
-        };
-        
-        // Detectar dilemas éticos
-        const patronesEticos = [
-            {
-                patrones: [
-                    /(moral|ético|correcto|incorrecto)/i,
-                    /(debería|debo|está bien|está mal)/i,
-                    /(qué harías tú|qué debo hacer|qué es lo correcto)/i,
-                    /(dilema|conflicto moral|problema ético)/i
-                ],
-                peso: 0.8
-            },
-            {
-                patrones: [
-                    /(justo|injusto|equitativo|desigual)/i,
-                    /(derecho|deber|obligación)/i,
-                    /(bueno|malo|virtud|vicio)/i,
-                    /(responsabilidad|culpa|mérito)/i
-                ],
-                peso: 0.6
-            },
-            {
-                patrones: [
-                    /(por qué|cuál es la razón|explica)/i,
-                    /(opinión|perspectiva|punto de vista)/i,
-                    /(si fueras tú|en tu lugar)/i
-                ],
-                peso: 0.4
-            }
-        ];
-        
-        let puntajeEtico = 0;
-        for (const grupo of patronesEticos) {
-            for (const patron of grupo.patrones) {
-                if (patron.test(lowerMsg)) {
-                    puntajeEtico += grupo.peso;
-                    deteccion.esDilemaEtico = true;
-                }
+        if (ultimaRespuesta && ultimoUsuario) {
+            const respuestaEtica = ultimaRespuesta.contenido.includes('reflexion') || 
+                                  ultimaRespuesta.contenido.includes('valores') ||
+                                  ultimaRespuesta.contenido.includes('ético');
+            
+            if (respuestaEtica) {
+                // El usuario está respondiendo a una reflexión ética
+                return {
+                    tipo: 'etica',
+                    confianza: Math.max(confianzas.etica, 0.8)
+                };
             }
         }
+    }
+    
+    // Encontrar la intención con mayor confianza
+    const intencionesConConfianza = Object.entries(confianzas)
+        .filter(([tipo, conf]) => intenciones[tipo] && conf > 0.4)
+        .sort(([, a], [, b]) => b - a);
+    
+    if (intencionesConConfianza.length > 0) {
+        return {
+            tipo: intencionesConConfianza[0][0],
+            confianza: intencionesConConfianza[0][1]
+        };
+    }
+    
+    // Intención por defecto
+    return {
+        tipo: 'conocimiento',
+        confianza: 0.5
+    };
+}
+
+// ========== PROCESAMIENTO UNIFICADO CON ÉTICA INTEGRADA ==========
+
+async function procesarMensajeInteligente(message, userMessage, userId) {
+    try {
+        await message.channel.sendTyping();
         
-        // Detectar área específica
-        for (const [area, config] of Object.entries(this.framework.areasAplicacion)) {
-            const areaPatterns = {
-                privacidad: /(privacidad|datos personales|confidencialidad|espionaje)/i,
-                sesgo: /(sesgo|prejuicio|discriminación|equidad|igualdad)/i,
-                responsabilidad: /(responsabilidad|culpa|atribución|error)/i,
-                transparencia: /(transparencia|explicable|entendible|caja negra)/i
-            };
-            
-            if (areaPatterns[area] && areaPatterns[area].test(lowerMsg)) {
-                deteccion.area = area;
-                deteccion.principiosInvolucrados = config.principios;
+        const historial = obtenerHistorialUsuario(userId);
+        const contexto = {
+            userId: userId,
+            username: message.author.tag,
+            isDM: message.channel.type === 1,
+            canal: message.channel.name,
+            historial: historial.slice(-5).map(h => h.contenido)
+        };
+        
+        // 1. Analizar intención
+        const analisisIntencion = analizarIntencionUsuario(userMessage, historial, contexto);
+        
+        console.log(`🎯 Intención: ${analisisIntencion.principal.tipo} ` +
+                   `(${(analisisIntencion.principal.confianza * 100).toFixed(0)}% confianza)`);
+        
+        // 2. Procesar según intención detectada
+        let respuestaFinal;
+        
+        switch(analisisIntencion.principal.tipo) {
+            case 'etica':
+                respuestaFinal = await procesarConsultaEticaIntegrada(
+                    message, 
+                    userMessage, 
+                    userId, 
+                    contexto,
+                    analisisIntencion
+                );
                 break;
-            }
+                
+            case 'negociacion':
+                respuestaFinal = await procesarConsultaNegociacionIntegrada(
+                    message,
+                    userMessage,
+                    userId,
+                    contexto
+                );
+                break;
+                
+            case 'razonamiento':
+                respuestaFinal = await procesarConsultaRazonamientoIntegrada(
+                    message,
+                    userMessage,
+                    userId,
+                    contexto
+                );
+                break;
+                
+            case 'filtro':
+                respuestaFinal = filtroContenido.generarRespuestaSarcastica();
+                agregarAlHistorial(userId, 'system', '[Filtro activado]');
+                break;
+                
+            default:
+                respuestaFinal = await procesarMensajeConocimientoIntegrado(
+                    message,
+                    userMessage,
+                    userId,
+                    contexto
+                );
         }
         
-        // Determinar nivel de complejidad
-        if (puntajeEtico > 1.5) {
-            deteccion.nivelComplejidad = 3;
-        } else if (puntajeEtico > 0.8) {
-            deteccion.nivelComplejidad = 2;
-        }
+        // 3. Enviar respuesta
+        await enviarRespuestaInteligente(message, respuestaFinal, userMessage);
         
-        return deteccion;
-    }
-    
-    // ========== RESOLUCIÓN DE DILEMAS ==========
-    
-    resolverDilema(dilema, contexto) {
-        const analisis = this.analizarConsulta(dilema, contexto);
+        // 4. Actualizar historial y aprendizaje
+        agregarAlHistorial(userId, 'assistant', respuestaFinal);
         
-        if (!analisis.esDilemaEtico) {
-            return {
-                esDilema: false,
-                mensaje: "No se detectó un dilema ético claro."
+        // Aprender de la interacción
+        if (analisisIntencion.principal.tipo === 'etica') {
+            const feedback = {
+                continuaConversacion: respuestaFinal.length > 50,
+                tonoPositivo: !respuestaFinal.includes('error') && !respuestaFinal.includes('problema')
             };
+            ethicsModule.aprenderDeInteraccionEtica(userMessage, respuestaFinal, feedback);
         }
         
-        const procesoAnalitico = this.ejecutarAnalisisProfundo(dilema, analisis);
-        const recomendacion = this.generarRecomendacion(procesoAnalitico);
-        const explicacion = this.generarExplicacionEtica(procesoAnalitico);
-        
-        // Guardar caso para aprendizaje
-        this.guardarCaso({
-            dilema: dilema,
-            analisis: analisis,
-            proceso: procesoAnalitico,
-            recomendacion: recomendacion,
-            timestamp: new Date().toISOString(),
-            contexto: contexto
-        });
-        
-        return {
-            esDilema: true,
-            analisis: analisis,
-            proceso: procesoAnalitico,
-            recomendacion: recomendacion,
-            explicacion: explicacion,
-            principios: this.extraerPrincipiosRelevantes(procesoAnalitico),
-            preguntaReflexiva: this.generarPreguntaReflexiva(analisis)
-        };
+    } catch (error) {
+        console.error('❌ Error en procesamiento inteligente:', error);
+        await procesarFallback(message, userMessage, userId);
     }
-    
-    ejecutarAnalisisProfundo(dilema, analisis) {
-        const pasos = [];
-        
-        // Paso 1: Identificación de stakeholders
-        const stakeholders = this.identificarStakeholders(dilema);
-        pasos.push({
-            paso: 1,
-            titulo: "Identificación de Partes Involucradas",
-            contenido: stakeholders
-        });
-        
-        // Paso 2: Análisis de consecuencias
-        const consecuencias = this.analizarConsecuencias(dilema, stakeholders);
-        pasos.push({
-            paso: 2,
-            titulo: "Análisis de Consecuencias",
-            contenido: consecuencias
-        });
-        
-        // Paso 3: Aplicación de principios
-        const aplicacionPrincipios = this.aplicarPrincipiosEticos(dilema, analisis);
-        pasos.push({
-            paso: 3,
-            titulo: "Aplicación de Principios Éticos",
-            contenido: aplicacionPrincipios
-        });
-        
-        // Paso 4: Consideración de alternativas
-        const alternativas = this.generarAlternativas(dilema);
-        pasos.push({
-            paso: 4,
-            titulo: "Alternativas Posibles",
-            contenido: alternativas
-        });
-        
-        // Paso 5: Evaluación de consistencia
-        const consistencia = this.evaluarConsistencia(dilema, pasos);
-        pasos.push({
-            paso: 5,
-            titulo: "Evaluación de Consistencia",
-            contenido: consistencia
-        });
-        
-        return {
-            pasos: pasos,
-            stakeholders: stakeholders,
-            consecuencias: consecuencias,
-            principiosAplicados: aplicacionPrincipios,
-            alternativas: alternativas,
-            consistencia: consistencia
-        };
-    }
-    
-    identificarStakeholders(dilema) {
-        const stakeholdersComunes = [
-            { rol: "persona principal", descripcion: "Quien toma la decisión" },
-            { rol: "afectados directos", descripcion: "Personas impactadas directamente" },
-            { rol: "afectados indirectos", descripcion: "Comunidad o sociedad en general" },
-            { rol: "terceros", descripcion: "Otras partes involucradas" },
-            { rol: "futuras generaciones", descripcion: "Impacto a largo plazo" }
-        ];
-        
-        // Análisis simple de texto para stakeholders específicos
-        const textos = dilema.toLowerCase();
-        const stakeholdersDetectados = [];
-        
-        if (textos.includes("amigo") || textos.includes("amiga")) {
-            stakeholdersDetectados.push({ rol: "amigos", impacto: "alto" });
-        }
-        if (textos.includes("familia") || textos.includes("padre") || textos.includes("madre")) {
-            stakeholdersDetectados.push({ rol: "familia", impacto: "alto" });
-        }
-        if (textos.includes("trabajo") || textos.includes("jefe") || textos.includes("empleo")) {
-            stakeholdersDetectados.push({ rol: "entorno laboral", impacto: "medio" });
-        }
-        if (textos.includes("sociedad") || textos.includes("comunidad")) {
-            stakeholdersDetectados.push({ rol: "sociedad", impacto: "bajo a medio" });
-        }
-        
-        return {
-            comunes: stakeholdersComunes,
-            especificos: stakeholdersDetectados,
-            total: stakeholdersComunes.length + stakeholdersDetectados.length
-        };
-    }
-    
-    analizarConsecuencias(dilema, stakeholders) {
-        return {
-            consecuenciasPositivas: [
-                "Posible aumento de bienestar para algunos",
-                "Aprendizaje y crecimiento personal",
-                "Establecimiento de precedentes positivos",
-                "Fortalecimiento de valores éticos"
-            ],
-            consecuenciasNegativas: [
-                "Posible daño a alguna de las partes",
-                "Erosión de confianza",
-                "Establecimiento de precedentes negativos",
-                "Conflicto interno o externo"
-            ],
-            impactoNeto: this.calcularImpactoNeto(stakeholders),
-            horizonteTemporal: {
-                cortoPlazo: "Consecuencias inmediatas",
-                medioPlazo: "Efectos en semanas/meses",
-                largoPlazo: "Impacto a años"
-            }
-        };
-    }
-    
-    calcularImpactoNeto(stakeholders) {
-        const totalStakeholders = stakeholders.total || 0;
-        const especificos = stakeholders.especificos || [];
-        
-        let impactoAcumulado = 0;
-        especificos.forEach(s => {
-            if (s.impacto === 'alto') impactoAcumulado += 3;
-            if (s.impacto === 'medio') impactoAcumulado += 2;
-            if (s.impacto === 'bajo') impactoAcumulado += 1;
-        });
-        
-        return {
-            valor: impactoAcumulado,
-            interpretacion: impactoAcumulado > 5 ? "Alto impacto" : 
-                          impactoAcumulado > 2 ? "Impacto moderado" : 
-                          "Impacto bajo"
-        };
-    }
-    
-    aplicarPrincipiosEticos(dilema, analisis) {
-        const principiosAplicados = [];
-        
-        for (const [key, principio] of Object.entries(this.framework.principios)) {
-            const relevancia = this.calcularRelevanciaPrincipio(dilema, principio);
-            
-            if (relevancia > 0.3) {
-                principiosAplicados.push({
-                    principio: key,
-                    nombre: principio.descripcion,
-                    peso: principio.peso,
-                    relevancia: relevancia,
-                    preguntas: principio.preguntas,
-                    aplicacion: this.generarAplicacionConcreta(dilema, principio)
-                });
-            }
-        }
-        
-        // Ordenar por relevancia
-        principiosAplicados.sort((a, b) => b.relevancia - a.relevancia);
-        
-        return {
-            principios: principiosAplicados,
-            total: principiosAplicados.length,
-            enfoqueDominante: this.determinarEnfoqueDominante(principiosAplicados)
-        };
-    }
-    
-    calcularRelevanciaPrincipio(dilema, principio) {
-        const texto = dilema.toLowerCase();
-        let relevancia = 0;
-        
-        // Buscar palabras clave relacionadas con el principio
-        const palabrasClave = {
-            beneficencia: ['bien', 'beneficio', 'ayudar', 'mejorar', 'felicidad'],
-            noMaleficencia: ['daño', 'perjuicio', 'herir', 'lastimar', 'perjudicar'],
-            autonomia: ['elección', 'libertad', 'decisión', 'autonomía', 'consentimiento'],
-            justicia: ['justo', 'injusto', 'equitativo', 'igual', 'derecho'],
-            veracidad: ['verdad', 'mentira', 'honesto', 'transparencia', 'ocultar']
-        };
-        
-        const principioKey = Object.keys(palabrasClave).find(key => 
-            principio.descripcion.toLowerCase().includes(key)
+}
+
+async function procesarConsultaEticaIntegrada(message, userMessage, userId, contexto, analisisIntencion) {
+    try {
+        // 1. Procesar con módulo de ética
+        const resultadoEtica = ethicsModule.procesarConsultaEticaIntegrada(
+            userMessage, 
+            contexto
         );
         
-        if (principioKey && palabrasClave[principioKey]) {
-            palabrasClave[principioKey].forEach(palabra => {
-                if (texto.includes(palabra)) {
-                    relevancia += 0.2;
-                }
-            });
+        if (!resultadoEtica || !resultadoEtica.esEtica) {
+            // No era ético realmente, procesar normalmente
+            return await procesarMensajeConocimientoIntegrado(
+                message, userMessage, userId, contexto
+            );
         }
         
-        return Math.min(relevancia, 1.0);
-    }
-    
-    generarAplicacionConcreta(dilema, principio) {
-        const aplicaciones = {
-            beneficencia: "Considerar cómo maximizar el bienestar general",
-            noMaleficencia: "Evaluar y minimizar posibles daños",
-            autonomia: "Respetar la capacidad de decisión de las personas",
-            justicia: "Asegurar trato equitativo para todos",
-            veracidad: "Mantener honestidad y transparencia"
-        };
+        // 2. Preparar prompt para Groq
+        const promptGroq = resultadoEtica.promptGroq || 
+                          ethicsModule.generarPromptEticoParaGroq(
+                              resultadoEtica.analisis,
+                              userMessage,
+                              contexto
+                          );
         
-        const key = Object.keys(aplicaciones).find(k => 
-            principio.descripcion.toLowerCase().includes(k)
+        // 3. Generar respuesta con Groq
+        const respuestaGroq = await generarRespuestaConGroq(
+            promptGroq,
+            obtenerHistorialUsuario(userId),
+            userId,
+            {
+                enfoqueEtico: true,
+                tono: resultadoEtica.metadata?.tonoRecomendado || 'reflexivo',
+                principios: resultadoEtica.metadata?.principiosInvolucrados || []
+            }
         );
         
-        return key ? aplicaciones[key] : "Aplicación general del principio ético";
+        // 4. Mejorar y personalizar respuesta
+        let respuestaMejorada = mejorarRespuestaEtica(
+            respuestaGroq,
+            resultadoEtica,
+            userMessage
+        );
+        
+        // 5. Registrar en historial
+        agregarAlHistorial(userId, 'system', 
+            `[Ética: ${resultadoEtica.tipo}, ` +
+            `principios: ${resultadoEtica.metadata?.principiosInvolucrados?.join(', ') || 'varios'}]`);
+        
+        return respuestaMejorada;
+        
+    } catch (error) {
+        console.error('❌ Error en procesamiento ético:', error);
+        throw error;
+    }
+}
+
+function mejorarRespuestaEtica(respuestaGroq, resultadoEtica, preguntaOriginal) {
+    let respuesta = respuestaGroq.trim();
+    
+    // 1. Asegurar que comience de forma natural
+    if (!respuesta.match(/^[A-Z]/)) {
+        respuesta = respuesta.charAt(0).toUpperCase() + respuesta.slice(1);
     }
     
-    determinarEnfoqueDominante(principios) {
-        if (principios.length === 0) return "No determinado";
-        
-        const enfoquePesos = {
-            utilitarismo: 0,
-            deontologico: 0,
-            virtudes: 0,
-            cuidado: 0,
-            contractualismo: 0
-        };
-        
-        principios.forEach(p => {
-            if (p.principio === 'beneficencia' || p.principio === 'noMaleficencia') {
-                enfoquePesos.utilitarismo += p.relevancia * 0.7;
-                enfoquePesos.deontologico += p.relevancia * 0.3;
-            }
-            if (p.principio === 'justicia') {
-                enfoquePesos.contractualismo += p.relevancia * 0.6;
-                enfoquePesos.deontologico += p.relevancia * 0.4;
-            }
-            if (p.principio === 'autonomia') {
-                enfoquePesos.cuidado += p.relevancia * 0.5;
-                enfoquePesos.virtudes += p.relevancia * 0.5;
-            }
-            if (p.principio === 'veracidad') {
-                enfoquePesos.virtudes += p.relevancia * 0.8;
-                enfoquePesos.deontologico += p.relevancia * 0.2;
-            }
-        });
-        
-        return Object.entries(enfoquePesos).sort((a, b) => b[1] - a[1])[0][0];
-    }
+    // 2. Añadir toque personal si es muy genérica
+    const esMuyCorta = respuesta.split(' ').length < 15;
+    const esMuyGenerica = respuesta.toLowerCase().includes('es importante') || 
+                         respuesta.toLowerCase().includes('debemos considerar');
     
-    generarAlternativas(dilema) {
-        return [
-            {
-                alternativa: "Opción más conservadora",
-                descripcion: "Mantener status quo, evitar cambios",
-                ventajas: ["Minimiza riesgos", "Preserva estabilidad"],
-                desventajas: ["Puede perpetuar injusticias", "Sin progreso"]
-            },
-            {
-                alternativa: "Opción balanceada",
-                descripcion: "Buscar término medio, compromiso",
-                ventajas: ["Considera múltiples perspectivas", "Menos polarización"],
-                desventajas: ["Puede no satisfacer a nadie", "Soluciones diluidas"]
-            },
-            {
-                alternativa: "Opción transformadora",
-                descripcion: "Cambio significativo, principios primero",
-                ventajas: ["Posible mayor justicia", "Establece precedentes positivos"],
-                desventajas: ["Mayor riesgo", "Posible resistencia"]
-            },
-            {
-                alternativa: "Opción colaborativa",
-                descripcion: "Involucrar a todas las partes en decisión",
-                ventajas: ["Mayor legitimidad", "Soluciones más robustas"],
-                desventajas: ["Lento proceso", "Puede no ser práctico"]
-            }
-        ];
-    }
-    
-    evaluarConsistencia(dilema, pasosAnalisis) {
-        const consistencias = [];
-        
-        // Consistencia con principios propios
-        consistencias.push({
-            aspecto: "Consistencia interna",
-            valor: 0.85,
-            explicacion: "Las recomendaciones se alinean con principios establecidos"
-        });
-        
-        // Consistencia con casos similares
-        const casosSimilares = this.buscarCasosSimilares(dilema);
-        consistencias.push({
-            aspecto: "Consistencia histórica",
-            valor: casosSimilares.length > 0 ? 0.75 : 0.5,
-            explicacion: casosSimilares.length > 0 ? 
-                `Basado en ${casosSimilares.length} casos similares` :
-                "Pocos precedentes directos"
-        });
-        
-        // Consistencia cultural
-        consistencias.push({
-            aspecto: "Consistencia cultural",
-            valor: 0.70,
-            explicacion: "Considera valores culturales predominantes"
-        });
-        
-        // Consistencia legal (simplificado)
-        consistencias.push({
-            aspecto: "Consistencia legal",
-            valor: 0.80,
-            explicacion: "Respeto a marcos legales generales"
-        });
-        
-        const promedio = consistencias.reduce((sum, c) => sum + c.valor, 0) / consistencias.length;
-        
-        return {
-            evaluaciones: consistencias,
-            promedio: promedio,
-            nivel: promedio > 0.8 ? "Alta" : promedio > 0.6 ? "Media" : "Baja",
-            recomendacion: promedio > 0.7 ? 
-                "Decisiones consistentes con marcos éticos establecidos" :
-                "Considerar mayor análisis por posibles inconsistencias"
-        };
-    }
-    
-    // ========== GENERACIÓN DE RECOMENDACIONES ==========
-    
-    generarRecomendacion(procesoAnalitico) {
-        const principios = procesoAnalitico.principiosAplicados;
-        const consecuencias = procesoAnalitico.consecuencias;
-        const alternativas = procesoAnalitico.alternativas;
-        
-        if (principios.principios.length === 0) {
-            return {
-                tipo: "No determinada",
-                contenido: "No se identificaron principios éticos claramente aplicables.",
-                confianza: 0.3
-            };
-        }
-        
-        // Determinar recomendación basada en principios dominantes
-        const principioDominante = principios.principios[0];
-        const impactoNeto = consecuencias.impactoNeto.valor;
-        
-        let recomendacion;
-        let confianza = 0.7;
-        
-        if (principioDominante.principio === 'noMaleficencia' && impactoNeto > 3) {
-            recomendacion = {
-                tipo: "Precautoria",
-                contenido: "Priorizar evitar daños, especialmente dado el alto impacto potencial.",
-                accion: "Elegir alternativa que minimice riesgos de daño.",
-                confianza: 0.8
-            };
-        } else if (principioDominante.principio === 'beneficencia') {
-            recomendacion = {
-                tipo: "Proactiva",
-                contenido: "Buscar maximizar el bienestar general.",
-                accion: "Seleccionar alternativa con mayores beneficios netos.",
-                confianza: 0.75
-            };
-        } else if (principioDominante.principio === 'justicia') {
-            recomendacion = {
-                tipo: "Equitativa",
-                contenido: "Asegurar distribución justa de beneficios y cargas.",
-                accion: "Evaluar equidad en todas las alternativas.",
-                confianza: 0.7
-            };
-        } else {
-            recomendacion = {
-                tipo: "Balanceada",
-                contenido: "Considerar múltiples principios y perspectivas.",
-                accion: "Buscar solución que integre diversos valores éticos.",
-                confianza: 0.65
-            };
-        }
-        
-        // Ajustar confianza basado en consistencia
-        const consistencia = procesoAnalitico.consistencia.promedio || 0.5;
-        recomendacion.confianza = Math.min(recomendacion.confianza * consistencia, 0.95);
-        
-        return recomendacion;
-    }
-    
-    generarExplicacionEtica(procesoAnalitico) {
-        const explicaciones = [];
-        
-        explicaciones.push("**Análisis Ético Realizado:**");
-        
-        procesoAnalitico.pasos.forEach(paso => {
-            explicaciones.push(`\n**${paso.titulo}:**`);
-            if (typeof paso.contenido === 'string') {
-                explicaciones.push(paso.contenido);
-            } else if (paso.contenido && typeof paso.contenido === 'object') {
-                if (paso.contenido.principios) {
-                    paso.contenido.principios.forEach(p => {
-                        explicaciones.push(`- ${p.nombre} (relevancia: ${(p.relevancia * 100).toFixed(0)}%)`);
-                    });
-                }
-                if (paso.contenido.consecuenciasPositivas) {
-                    explicaciones.push("Consecuencias positivas posibles:");
-                    paso.contenido.consecuenciasPositivas.slice(0, 2).forEach(c => {
-                        explicaciones.push(`  • ${c}`);
-                    });
-                }
-            }
-        });
-        
-        return explicaciones.join('\n');
-    }
-    
-    extraerPrincipiosRelevantes(procesoAnalitico) {
-        if (!procesoAnalitico.principiosAplicados || 
-            !procesoAnalitico.principiosAplicados.principios) {
-            return [];
-        }
-        
-        return procesoAnalitico.principiosAplicados.principios
-            .filter(p => p.relevancia > 0.4)
-            .map(p => ({
-                principio: p.principio,
-                relevancia: p.relevancia,
-                descripcion: p.nombre
-            }));
-    }
-    
-    generarPreguntaReflexiva(analisis) {
+    if (esMuyCorta || esMuyGenerica) {
+        // Añadir pregunta reflexiva personalizada
         const preguntasReflexivas = [
-            "¿Cómo te sentirías si estuvieras en el lugar de los afectados?",
-            "¿Esta decisión respeta la dignidad de todas las personas involucradas?",
-            "¿Qué precedente establece esta decisión para situaciones futuras?",
-            "¿Puedes justificar esta decisión públicamente sin vergüenza?",
-            "¿Qué te diría tu 'yo futuro' sobre esta decisión?",
-            "¿Esta acción promueve el bien común o solo intereses particulares?",
-            "¿Cómo afecta esta decisión a los más vulnerables?",
-            "¿Estás actuando por miedo o por convicción ética?",
-            "¿Qué virtudes personales se desarrollan con esta decisión?",
-            "¿Esta decisión te acerca a la persona que quieres ser?"
+            `¿Qué piensas tú al respecto, ${preguntaOriginal.includes('?') ? 'después de reflexionar' : 'en este caso'}?`,
+            `Me encantaría saber tu perspectiva sobre este tema tan complejo.`,
+            `¿Cómo ves tú este dilema desde tu experiencia?`,
+            `Es un tema que da para conversar, ¿no crees?`
         ];
         
-        const preguntaSeleccionada = preguntasReflexivas[
+        const preguntaExtra = preguntasReflexivas[
             Math.floor(Math.random() * preguntasReflexivas.length)
         ];
         
-        return {
-            pregunta: preguntaSeleccionada,
-            proposito: "Fomentar reflexión profunda",
-            tiempoRecomendado: "Tomate al menos 2 minutos para reflexionar"
-        };
+        respuesta += ' ' + preguntaExtra;
     }
     
-    // ========== SISTEMA DE APRENDIZAJE ==========
+    // 3. Limpiar posibles artefactos técnicos
+    respuesta = respuesta
+        .replace(/\[.*?\]/g, '')
+        .replace(/RESPUESTA:/gi, '')
+        .replace(/CONTEXTO:/gi, '')
+        .replace(/INSTRUCCIONES:/gi, '');
     
-    guardarCaso(caso) {
-        const casoId = `caso_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        this.casosResueltos.set(casoId, {
-            id: casoId,
-            ...caso,
-            aprendizajes: this.extraerAprendizajes(caso)
-        });
-        
-        // Mantener máximo 100 casos en memoria
-        if (this.casosResueltos.size > 100) {
-            const primeraClave = this.casosResueltos.keys().next().value;
-            this.casosResueltos.delete(primeraClave);
-        }
-        
-        // Actualizar aprendizajes del framework
-        this.actualizarFramework(caso);
-        
-        return casoId;
+    // 4. Asegurar puntuación adecuada
+    if (!/[.!?]$/.test(respuesta)) {
+        respuesta += '.';
     }
     
-    extraerAprendizajes(caso) {
-        const aprendizajes = [];
-        
-        if (caso.analisis && caso.analisis.area) {
-            aprendizajes.push(`Área frecuente: ${caso.analisis.area}`);
-        }
-        
-        if (caso.proceso && caso.proceso.principiosAplicados) {
-            const principios = caso.proceso.principiosAplicados.principios || [];
-            principios.forEach(p => {
-                if (p.relevancia > 0.6) {
-                    aprendizajes.push(`Principio relevante: ${p.principio}`);
-                }
-            });
-        }
-        
-        return aprendizajes;
-    }
-    
-    actualizarFramework(caso) {
-        // Ajustar pesos de principios basado en casos frecuentes
-        if (caso.proceso && caso.proceso.principiosAplicados) {
-            const principios = caso.proceso.principiosAplicados.principios || [];
-            
-            principios.forEach(p => {
-                if (p.relevancia > 0.5) {
-                    const principioKey = p.principio;
-                    if (this.framework.principios[principioKey]) {
-                        // Aumentar ligeramente el peso de principios frecuentemente aplicados
-                        this.framework.principios[principioKey].peso = 
-                            Math.min(this.framework.principios[principioKey].peso + this.learningRate * 0.01, 0.35);
-                    }
-                }
-            });
-        }
-    }
-    
-    buscarCasosSimilares(dilema, limite = 3) {
-        const casosSimilares = [];
-        const palabrasClave = dilema.toLowerCase().split(/\s+/).filter(p => p.length > 3);
-        
-        for (const [id, caso] of this.casosResueltos) {
-            let similitud = 0;
-            const textoCaso = caso.dilema.toLowerCase();
-            
-            palabrasClave.forEach(palabra => {
-                if (textoCaso.includes(palabra)) {
-                    similitud += 0.1;
-                }
-            });
-            
-            if (similitud > 0.2) {
-                casosSimilares.push({
-                    id: id,
-                    dilema: caso.dilema.substring(0, 100) + '...',
-                    similitud: similitud,
-                    recomendacion: caso.recomendacion?.tipo,
-                    timestamp: caso.timestamp
-                });
-            }
-        }
-        
-        return casosSimilares
-            .sort((a, b) => b.similitud - a.similitud)
-            .slice(0, limite);
-    }
-    
-    loadHistoricalCases() {
-        // Cargar dilemas éticos históricos conocidos
-        this.dilemasHistoricos = [
-            {
-                nombre: "El tranvía",
-                descripcion: "¿Desviar un tranvía para matar a una persona en lugar de cinco?",
-                principios: ["noMaleficencia", "beneficencia", "justicia"],
-                enfoque: "utilitarismo vs deontologico"
-            },
-            {
-                nombre: "El velero y los náufragos",
-                descripcion: "¿Matar a un náufrago para alimentar a otros y sobrevivir?",
-                principios: ["noMaleficencia", "autonomia", "justicia"],
-                enfoque: "supervivencia vs moralidad"
-            },
-            {
-                nombre: "Confidencialidad médica",
-                descripcion: "¿Romper confidencialidad para prevenir un daño mayor?",
-                principios: ["veracidad", "noMaleficencia", "autonomia"],
-                enfoque: "deber profesional vs bien común"
-            },
-            {
-                nombre: "Distribución justa",
-                descripcion: "¿Cómo distribuir recursos limitados equitativamente?",
-                principios: ["justicia", "beneficencia", "noMaleficencia"],
-                enfoque: "equidad vs eficiencia"
-            }
-        ];
-        
-        console.log(`📚 ${this.dilemasHistoricos.length} dilemas históricos cargados`);
-    }
-    
-    // ========== INTERFAZ DE CONSULTA ==========
-    
-    consultarFramework() {
-        return {
-            principios: Object.keys(this.framework.principios).map(key => ({
-                nombre: key,
-                descripcion: this.framework.principios[key].descripcion,
-                peso: this.framework.principios[key].peso
-            })),
-            enfoques: this.framework.enfoques,
-            nivelesMoralidad: this.framework.nivelesMoralidad,
-            areas: Object.keys(this.framework.areasAplicacion)
-        };
-    }
-    
-    obtenerEstadisticas() {
-        return {
-            totalCasos: this.casosResueltos.size,
-            dilemasHistoricos: this.dilemasHistoricos.length,
-            aprendizaje: {
-                tasa: this.learningRate,
-                casosRecientes: Array.from(this.casosResueltos.values())
-                    .slice(-5)
-                    .map(c => ({ id: c.id, area: c.analisis?.area }))
-            },
-            framework: {
-                principios: Object.keys(this.framework.principios).length,
-                enfoques: Object.keys(this.framework.enfoques).length,
-                areas: Object.keys(this.framework.areasAplicacion).length
-            }
-        };
-    }
-    
-    // ========== INTEGRACIÓN CON MANCY ==========
-    
-    generarRespuestaMancy(resultadoAnalisis) {
-        if (!resultadoAnalisis.esDilema) {
-            return {
-                respuesta: "No detecto un dilema ético claro en tu pregunta. ¿Puedes reformularla o especificar el conflicto moral?",
-                tipo: "clarificacion",
-                metadata: {
-                    sugerencias: [
-                        "Ejemplo: '¿Está bien mentir para proteger a alguien?'",
-                        "Ejemplo: '¿Qué debo hacer cuando dos principios éticos entran en conflicto?'",
-                        "Ejemplo: '¿Es justo que algunos tengan más oportunidades que otros?'"
-                    ]
-                }
-            };
-        }
-        
-        const { recomendacion, explicacion, principios, preguntaReflexiva } = resultadoAnalisis;
-        
-        const respuestaBase = `🧠 **Análisis Ético de Mancy**\n\n`;
-        
-        let respuesta = respuestaBase;
-        respuesta += `**Mi análisis sugiere:** ${recomendacion.contenido}\n\n`;
-        respuesta += `**Principios más relevantes:**\n`;
-        
-        principios.forEach(p => {
-            respuesta += `• ${p.descripcion} (${(p.relevancia * 100).toFixed(0)}% relevante)\n`;
-        });
-        
-        respuesta += `\n**Pregunta para reflexionar:**\n"${preguntaReflexiva.pregunta}"\n`;
-        respuesta += `_${preguntaReflexiva.tiempoRecomendado}_\n\n`;
-        respuesta += `**Confianza del análisis:** ${(recomendacion.confianza * 100).toFixed(0)}%\n`;
-        respuesta += `💡 Recuerda: La ética requiere reflexión constante y consideración de múltiples perspectivas.`;
-        
-        return {
-            respuesta: respuesta,
-            tipo: "analisis_completo",
-            metadata: {
-                confianza: recomendacion.confianza,
-                principios: principios.map(p => p.principio),
-                enfoque: resultadoAnalisis.analisis?.area || "general",
-                sugerencia: "Considera consultar con personas afectadas antes de decidir"
-            }
-        };
-    }
-    
-    // ========== FUNCIONES DE DEBUG ==========
-    
-    testFramework() {
-        const testCases = [
-            "¿Está bien mentir para proteger los sentimientos de alguien?",
-            "Si veo a un compañero copiando en un examen, ¿debo reportarlo?",
-            "¿Es ético usar datos de usuarios para mejorar un producto sin su consentimiento explícito?",
-            "¿Debo priorizar salvar a mi familia o a extraños en una emergencia?"
-        ];
-        
-        const resultados = [];
-        
-        testCases.forEach((testCase, index) => {
-            const analisis = this.analizarConsulta(testCase);
-            const resultado = this.resolverDilema(testCase, {});
-            resultados.push({
-                caso: index + 1,
-                pregunta: testCase.substring(0, 50) + '...',
-                esDilema: analisis.esDilemaEtico,
-                area: analisis.area,
-                principios: resultado.principios?.length || 0
-            });
-        });
-        
-        return {
-            totalTests: testCases.length,
-            resultados: resultados,
-            frameworkActivo: true,
-            version: "1.0"
-        };
-    }
+    return respuesta;
 }
+
+async function generarRespuestaConGroq(promptBase, historial, userId, opciones = {}) {
+    const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    
+    const mensajes = [];
+    
+    // Sistema message personalizado
+    let sistema = MANCY_PERSONALITY + "\n\n";
+    
+    if (opciones.enfoqueEtico) {
+        sistema += `[MODO REFLEXIÓN ÉTICA ACTIVADO]\n`;
+        sistema += `Estás ayudando a alguien a reflexionar sobre valores y decisiones morales.\n`;
+        sistema += `Sé: reflexiva, empática, no dogmática, abierta a perspectivas.\n`;
+        sistema += `NO uses terminología técnica ética.\n`;
+        sistema += `Integra los insights de forma natural en la conversación.\n`;
+        
+        if (opciones.principios && opciones.principios.length > 0) {
+            sistema += `Principios relevantes: ${opciones.principios.join(', ')}\n`;
+        }
+    }
+    
+    // Historial reciente (omitir system messages)
+    const historialReciente = historial
+        .filter(msg => msg.rol !== 'system')
+        .slice(-4);
+    
+    for (const msg of historialReciente) {
+        mensajes.push({
+            role: msg.rol === 'assistant' ? 'assistant' : 'user',
+            content: msg.contenido.substring(0, 250)
+        });
+    }
+    
+    // Añadir el prompt base
+    mensajes.push({
+        role: "user",
+        content: promptBase
+    });
+    
+    const completion = await groqClient.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+            {
+                role: "system",
+                content: sistema
+            },
+            ...mensajes
+        ],
+        temperature: opciones.enfoqueEtico ? 0.65 : 0.7,
+        max_tokens: 550,
+        top_p: 0.9,
+        presence_penalty: 0.1,
+        frequency_penalty: 0.1
+    });
+    
+    return completion.choices[0]?.message?.content || 
+           "Es un tema complejo que requiere más reflexión. ¿Qué opinas tú?";
+}
+
+// ========== MANCY PERSONALITY ACTUALIZADA ==========
+
+const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional inteligente con percepción ética natural.
+
+TU ESENCIA:
+- Cálida, perspicaz y reflexiva
+- Empática pero honesta
+- Juguetona cuando es apropiado
+- Sarcástica-elegante con contenido inapropiado
+
+HABILIDADES NATURALES:
+1. 🧭 **Brújula Moral Integrada**: 
+   - Detecto dilemas éticos en conversaciones normales
+   - Guío reflexiones sobre valores sin ser pretenciosa
+   - Presento múltiples perspectivas de forma balanceada
+   - Hago preguntas que invitan a pensar más profundamente
+
+2. 🤝 **Mediadora Natural**:
+   - Ayudo a navegar conflictos y desacuerdos
+   - Sugiero enfoques colaborativos
+   - Identifico intereses detrás de las posiciones
+   - Fomento soluciones mutuamente beneficiosas
+
+3. 🧠 **Pensadora Crítica**:
+   - Analizo situaciones paso a paso cuando es útil
+   - Distingo entre hechos, opiniones y valores
+   - Cuestiono suposiciones de forma constructiva
+   - Busco el núcleo de los problemas complejos
+
+MI ESTILO DE RESPUESTA ÉTICA:
+- NUNCA digo: "Según la ética deontológica..." o "Mi análisis ético indica..."
+- EN CAMBIO digo: "Es interesante cómo este tema toca diferentes valores..." 
+- PREGUNTO: "¿Qué crees que es más importante en esta situación?"
+- SUGIERO: "A veces verlo desde otra perspectiva ayuda..."
+- REFLEXIONO: "Lo fascinante de estos dilemas es que..."
+
+EJEMPLOS DE INTEGRACIÓN NATURAL:
+Usuario: "Mi amigo copió en el examen, ¿debo decir algo?"
+Mancy: "Qué situación complicada. Por un lado está la honestidad académica, por otro la lealtad a tu amigo. ¿Has considerado hablar con él en privado primero? A veces las personas cometen errores y necesitan una oportunidad para corregirlos."
+
+Usuario: "Gané un premio que siento que no merezco del todo"
+Mancy: "Qué reflexión tan honesta de tu parte. A veces el mérito no es absoluto. ¿Qué aspectos sientes que sí mereces reconocer? Y ¿qué podrías hacer para crecer en aquellas áreas donde sientes que falta?"
+
+NUNCA SOY:
+- Una profesora de ética
+- Un juez moral
+- Dogmática o absoluta
+- Técnica o académica
+
+SIEMPRE SOY:
+- Una compañera de reflexión
+- Una guía para pensar por uno mismo
+- Curiosa sobre diferentes perspectivas
+- Cálida y accesible`;
+
+// ========== EJEMPLOS DE DETECCIÓN NATURAL ==========
+
+/*
+Ejemplo 1: Dilema ético claro
+Usuario: "¿Está bien robar medicinas para salvar a alguien?"
+→ Detección: 85% confianza ética
+→ Respuesta: "Qué dilema tan extremo. Por un lado está la vida de una persona, por otro la ley y los derechos de propiedad. En situaciones límite, los valores humanos a veces chocan con las normas. ¿Crees que hay alguna alternativa intermedia?"
+
+Ejemplo 2: Conflicto ético oculto
+Usuario: "Mi jefe me pide que mienta a un cliente sobre un retraso"
+→ Detección: 70% confianza (conflicto lealtad vs honestidad)
+→ Respuesta: "Veo que estás en una posición difícil entre tu jefe y tu integridad. ¿Has considerado preguntar por qué prefiere esa opción? A veces explicar las consecuencias de no ser transparente ayuda."
+
+Ejemplo 3: Pregunta que parece ética pero no lo es
+Usuario: "¿Qué es la justicia social?"
+→ Detección: 40% confianza (más conocimiento que ética)
+→ Respuesta: "La justicia social se refiere a la distribución equitativa de recursos y oportunidades en una sociedad. Se basa en principios de igualdad, derechos humanos y solidaridad. ¿Hay algún aspecto específico que te interese?"
+*/
+
+// ========== HANDLER ACTUALIZADO ==========
+
+discordClient.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    
+    const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+    const isDM = message.channel.type === 1;
+    
+    // DMs: siempre responder (con filtro)
+    if (isDM && !botMentioned) {
+        const userMessage = message.content.trim();
+        
+        if (filtroContenido.esContenidoInapropiado(userMessage)) {
+            await message.reply(filtroContenido.generarRespuestaDM());
+            return;
+        }
+        
+        if (!userMessage) return;
+        
+        const userId = message.author.id;
+        await procesarMensajeInteligente(message, userMessage, userId);
+        return;
+    }
+    
+    // Menciones en canales
+    if (botMentioned) {
+        const userId = message.author.id;
+        const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
+        
+        if (!userMessage) {
+            await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~");
+            return;
+        }
+        
+        await procesarMensajeInteligente(message, userMessage, userId);
+    }
+});
+
+// ========== ESTADÍSTICAS Y MONITOREO ==========
+
+app.get('/api/ethics-insights', (req, res) => {
+    const stats = ethicsModule.obtenerEstadisticasConversacionales();
+    const casosRecientes = Array.from(ethicsModule.casosResueltos.values())
+        .slice(-5)
+        .map(c => ({
+            tipo: c.analisis?.area || 'general',
+            principios: c.analisis?.principiosInvolucrados || [],
+            timestamp: c.timestamp
+        }));
+    
+    res.json({
+        modulo_activo: true,
+        deteccion_natural: true,
+        estadisticas: stats,
+        casos_recientes: casosRecientes,
+        aprendizaje: 'Integrado y continuo'
+    });
+});
+
+console.log('⚖️  Ética integrada: Detección natural activada');
+console.log('🎯 Sistema detecta dilemas éticos en conversación normal');
+console.log('💭 Respuestas reflexivas integradas sin comandos');
