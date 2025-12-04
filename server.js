@@ -1,4 +1,4 @@
-import express from 'express';
+ import express from 'express';
 import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
@@ -435,10 +435,6 @@ class KnowledgeSystem {
             return await this.searchCountry(query);
         }
         
-        if (this.isWeatherQuery(query)) {
-            return await this.searchWeather(query);
-        }
-        
         if (this.isQuoteQuery(query)) {
             return await this.searchQuote(query);
         }
@@ -449,10 +445,6 @@ class KnowledgeSystem {
     
     isCountryQuery(query) {
         return /\b(país|capital|bandera|población|continente)\b/i.test(query);
-    }
-    
-    isWeatherQuery(query) {
-        return /\b(clima|tiempo|temperatura|lluvia|grados)\b/i.test(query);
     }
     
     isQuoteQuery(query) {
@@ -482,64 +474,6 @@ class KnowledgeSystem {
         }
         
         return null;
-    }
-    
-    async searchWeather(query) {
-        try {
-            // Extraer nombre de ciudad
-            const cityMatch = query.match(/\b(en|de|para)\s+([a-zA-ZáéíóúñÁÉÍÓÚÑ\s]+)/i);
-            const city = cityMatch ? cityMatch[2] : query;
-            
-            const geoResponse = await axios.get(
-                `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=es`,
-                { timeout: 5000 }
-            );
-            
-            if (geoResponse.data.results && geoResponse.data.results.length > 0) {
-                const { latitude, longitude, name } = geoResponse.data.results[0];
-                
-                const weatherResponse = await axios.get(
-                    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
-                    { timeout: 5000 }
-                );
-                
-                const weather = weatherResponse.data.current_weather;
-                const condition = this.getWeatherCondition(weather.weathercode);
-                
-                return {
-                    source: 'openmeteo',
-                    city: name,
-                    temperature: `${weather.temperature}°C`,
-                    wind: `${weather.windspeed} km/h`,
-                    condition: condition
-                };
-            }
-        } catch (error) {
-            console.log('❌ Weather error:', error.message);
-        }
-        
-        return null;
-    }
-    
-    getWeatherCondition(code) {
-        const conditions = {
-            0: 'Despejado ☀️',
-            1: 'Mayormente despejado 🌤️',
-            2: 'Parcialmente nublado ⛅',
-            3: 'Nublado ☁️',
-            45: 'Niebla 🌫️',
-            48: 'Niebla con escarcha ❄️',
-            51: 'Llovizna ligera 🌦️',
-            53: 'Llovizna moderada 🌧️',
-            61: 'Lluvia ligera 🌦️',
-            63: 'Lluvia moderada 🌧️',
-            65: 'Lluvia fuerte ☔',
-            71: 'Nieve ligera ❄️',
-            73: 'Nieve moderada 🌨️',
-            95: 'Tormenta ⛈️'
-        };
-        
-        return conditions[code] || 'Condición desconocida';
     }
     
     async searchQuote(query) {
@@ -572,7 +506,6 @@ const MANCY_PERSONALITY = `Eres Mancy, una asistente inteligente y útil.
 CONOCIMIENTO DISPONIBLE:
 - Wikipedia (información general)
 - Datos de países
-- Información meteorológica
 - Citas inspiradoras
 
 CAPACIDADES DE PROCESAMIENTO DE ARCHIVOS:
@@ -1044,8 +977,6 @@ function formatSearchResult(result) {
             return `${result.summary.substring(0, 200)}...`;
         case 'restcountries':
             return `${result.name} - Capital: ${result.capital}, Población: ${result.population}`;
-        case 'openmeteo':
-            return `En ${result.city}: ${result.temperature}, ${result.condition}`;
         case 'quotable':
             return `"${result.quote}" - ${result.author}`;
         default:
@@ -1094,8 +1025,7 @@ async function startBot() {
 ║  📚 Conocimiento:                        ║
 ║     • Wikipedia ES/EN                    ║
 ║     • Datos de países                    ║
-║     • Clima                              ║
-║     • Citas                              ║
+║     • Citas inspiradoras                 ║
 ║                                          ║
 ║  🛡️  Filtro: ACTIVADO                    ║
 ║  🧠 Memoria: 270 mensajes                ║
@@ -1245,7 +1175,6 @@ app.get('/api/status', (req, res) => {
             'Análisis de contenido',
             'Wikipedia ES/EN',
             'Datos de países',
-            'Información meteorológica',
             'Citas inspiradoras'
         ]
     });
@@ -1298,11 +1227,10 @@ app.listen(PORT, '0.0.0.0', () => {
 ║     • Documentos PDF                     ║
 ║     • Archivos de texto                  ║
 ║                                          ║
-║  🧠 CONOCIMIENTO:                        ║
+║  📚 CONOCIMIENTO:                        ║
 ║     • Wikipedia                          ║
 ║     • Datos de países                    ║
-║     • Clima actual                       ║
-║     • Citas                              ║
+║     • Citas inspiradoras                 ║
 ║                                          ║
 ║  🛡️  FILTRO: ACTIVADO                    ║
 ║  💾 MEMORIA: 270 mensajes                ║
