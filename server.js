@@ -3,7 +3,7 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import axios from 'axios';
-import { MemoryManager } from '.A.I/MemoryManajer.js';  // ← SOLO AÑADIDO ESTO
+import { MemoryManager } from './MemoryManajer.js';  // ← SOLO AÑADIDO ESTO
 
 dotenv.config();
 
