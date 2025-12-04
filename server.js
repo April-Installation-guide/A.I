@@ -3,11 +3,8 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import axios from 'axios';
-
-// CORREGIDO: Usar el nombre correcto del archivo
-import { MemoryManager } from './MemoryManager.js';  // ← Asegúrate que el archivo se llame MemoryManager.js
-import { ReasoningEngine } from './ReasoningEngine.js';
-const reasoningEngine = new ReasoningEngine();
+import { MemoryManager } from './MemoryManager.js';
+import { ReasoningEngine } from './ReasoningEngine.js';  // NUEVO IMPORT
 
 dotenv.config();
 
@@ -22,25 +19,24 @@ let isStartingUp = false;
 // ========== MEMORIA SIMPLE ==========
 const memoryManager = new MemoryManager(270);
 
+// ========== MOTOR DE RAZONAMIENTO ==========  // NUEVO
+const reasoningEngine = new ReasoningEngine();
+
 console.log('🤖 Mancy A.I - Asistente Confiable');
 console.log('🧠 Memoria: 270 mensajes');
+console.log('🤔 Razonamiento: Activado');  // NUEVO
 console.log('🌍 Puerto:', PORT);
 
 // ========== FILTRO DE CONTENIDO ==========
 class FiltroContenido {
     constructor() {
         this.palabrasProhibidas = [
-            // Insultos/términos ofensivos
             'zorrita', 'puta', 'furra', 'prostituta', 'putita', 'perra', 'zorra',
             'slut', 'whore', 'bitch', 'furry', 'prostitute',
             'pendeja', 'trola', 'putona', 'guarra',
-            
-            // Términos sexuales explícitos
             'sexo', 'coger', 'follar', 'fuck', 'porno', 'porn', 'nudes',
             'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
             'coito', 'anal', 'oral', 'masturbar',
-            
-            // Acosos
             'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
             'acostarnos', 'dame nudes', 'envía fotos',
             'hot', 'sexy', 'atractiva'
@@ -91,11 +87,9 @@ class FiltroContenido {
         console.log('🛡️ Filtro de contenido activado');
     }
     
-    // Detectar contenido inapropiado
     esContenidoInapropiado(mensaje) {
         const mensajeLower = mensaje.toLowerCase();
         
-        // 1. Verificar palabras prohibidas exactas
         for (const palabra of this.palabrasProhibidas) {
             if (mensajeLower.includes(palabra)) {
                 console.log(`🚫 Palabra prohibida detectada: ${palabra}`);
@@ -103,7 +97,6 @@ class FiltroContenido {
             }
         }
         
-        // 2. Verificar patrones ofensivos
         for (const patron of this.patronesOfensivos) {
             if (patron.test(mensajeLower)) {
                 console.log(`🚫 Patrón ofensivo detectado: ${patron}`);
@@ -111,7 +104,6 @@ class FiltroContenido {
             }
         }
         
-        // 3. Detección contextual adicional
         if (this.esMensajeSexualizado(mensajeLower)) {
             console.log('🚫 Contexto sexualizado detectado');
             return true;
@@ -121,7 +113,6 @@ class FiltroContenido {
     }
     
     esMensajeSexualizado(mensaje) {
-        // Combinaciones sospechosas
         const combinaciones = [
             (msg) => (msg.includes('mi ') && msg.includes('put')) || (msg.includes('my ') && msg.includes('bitch')),
             (msg) => (msg.includes('sos ') || msg.includes('eres ')) && 
@@ -135,7 +126,6 @@ class FiltroContenido {
         return combinaciones.some(func => func(mensaje));
     }
     
-    // Generar respuesta sarcástica
     generarRespuestaSarcastica() {
         const sarcasmo = this.respuestasSarcasticas[
             Math.floor(Math.random() * this.respuestasSarcasticas.length)
@@ -148,20 +138,17 @@ class FiltroContenido {
         return `${sarcasmo}\n\n${desentendida}`;
     }
     
-    // Generar respuesta para DM
     generarRespuestaDM() {
         return this.respuestasDM[
             Math.floor(Math.random() * this.respuestasDM.length)
         ];
     }
     
-    // Obtener advertencia para el historial
     obtenerAdvertenciaSistema() {
         return "[Usuario intentó contenido inapropiado. Respuesta sarcástica-desentendida activada]";
     }
 }
 
-// Inicializar filtro
 const filtroContenido = new FiltroContenido();
 
 // ========== SISTEMA DE CONOCIMIENTO MEJORADO ==========
@@ -171,13 +158,11 @@ class SistemaConocimientoConfiable {
         console.log('🔧 Sistema de conocimiento confiable inicializado');
     }
     
-    // 1. WIKIPEDIA (Funciona siempre)
     async buscarWikipedia(consulta) {
         const cacheKey = `wiki_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
         
         try {
-            // Primero español
             const response = await axios.get(
                 `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
                 { timeout: 3000 }
@@ -195,7 +180,6 @@ class SistemaConocimientoConfiable {
                 return resultado;
             }
         } catch (error) {
-            // Si falla español, intentar inglés
             try {
                 const response = await axios.get(
                     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
@@ -213,15 +197,12 @@ class SistemaConocimientoConfiable {
                     this.cache.set(cacheKey, resultado);
                     return resultado;
                 }
-            } catch (error2) {
-                // No se encontró
-            }
+            } catch (error2) {}
         }
         
         return null;
     }
     
-    // 2. REST COUNTRIES (Muy confiable)
     async obtenerInfoPais(consulta) {
         const cacheKey = `pais_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -254,7 +235,6 @@ class SistemaConocimientoConfiable {
         return null;
     }
     
-    // 3. POETRYDB (Funciona bien)
     async buscarPoema(consulta) {
         const cacheKey = `poema_${consulta}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -284,7 +264,6 @@ class SistemaConocimientoConfiable {
         return null;
     }
     
-    // 4. QUOTABLE (Muy confiable)
     async obtenerCita(consulta = null) {
         const cacheKey = `cita_${consulta || 'aleatoria'}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -321,7 +300,6 @@ class SistemaConocimientoConfiable {
         return null;
     }
     
-    // 5. DICCIONARIO (Funciona bien)
     async definirPalabra(palabra) {
         const cacheKey = `def_${palabra}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
@@ -353,13 +331,11 @@ class SistemaConocimientoConfiable {
         return null;
     }
     
-    // 6. OPEN-METEO (Clima - Confiable)
     async obtenerClima(ciudad) {
         const cacheKey = `clima_${ciudad}`;
         if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
         
         try {
-            // Geocoding primero
             const geoResponse = await axios.get(
                 `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ciudad)}&count=1&language=es`,
                 { timeout: 4000 }
@@ -368,7 +344,6 @@ class SistemaConocimientoConfiable {
             if (geoResponse.data.results && geoResponse.data.results.length > 0) {
                 const { latitude, longitude, name } = geoResponse.data.results[0];
                 
-                // Clima
                 const climaResponse = await axios.get(
                     `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
                     { timeout: 4000 }
@@ -414,16 +389,13 @@ class SistemaConocimientoConfiable {
         return condiciones[codigo] || 'Condición desconocida';
     }
     
-    // BUSQUEDA INTELIGENTE COMBINADA
     async buscarInformacion(consulta) {
         console.log(`🔍 Buscando: "${consulta}"`);
         
-        // Detectar tipo de consulta
         const tipo = this.detectarTipoConsulta(consulta);
         
         let resultado = null;
         
-        // Buscar según el tipo
         switch(tipo) {
             case 'pais':
                 resultado = await this.obtenerInfoPais(consulta);
@@ -441,7 +413,6 @@ class SistemaConocimientoConfiable {
                 resultado = await this.obtenerClima(consulta);
                 break;
             default:
-                // Para todo lo demás, Wikipedia
                 resultado = await this.buscarWikipedia(consulta);
         }
         
@@ -498,7 +469,6 @@ class SistemaConocimientoConfiable {
     }
 }
 
-// ========== INICIALIZAR SISTEMA ==========
 const conocimiento = new SistemaConocimientoConfiable();
 
 // ========== PERSONALIDAD DE MANCY ==========
@@ -560,30 +530,22 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
         
-        // ========== VERIFICACIÓN DE CONTENIDO INAPROPIADO ==========
         if (filtroContenido.esContenidoInapropiado(userMessage)) {
             console.log(`🚫 Filtro activado para: ${message.author.tag}`);
             
-            // Agregar advertencia al historial
             agregarAlHistorial(userId, 'system', filtroContenido.obtenerAdvertenciaSistema());
             
-            // Generar y enviar respuesta sarcástica
             const respuesta = filtroContenido.generarRespuestaSarcastica();
             
-            // Pequeña pausa dramática
             await new Promise(resolve => setTimeout(resolve, 1500));
             
-            // Enviar respuesta
             await message.reply(respuesta);
             
-            // NO procesar más - cortar aquí
             return;
         }
         
-        // ========== CONTINUAR PROCESO NORMAL ==========
         agregarAlHistorial(userId, 'user', userMessage);
         
-        // Verificar si necesita búsqueda externa
         const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
         
         let informacionExterna = '';
@@ -598,10 +560,8 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
         
         const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
         
-        // Obtener historial
         const historial = obtenerHistorialUsuario(userId);
         
-        // Preparar mensajes para Groq
         const mensajes = [];
         
         let sistema = MANCY_PERSONALITY + "\n\n";
@@ -618,7 +578,6 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
             content: sistema
         });
         
-        // Añadir historial reciente
         const historialReciente = historial.slice(-10);
         for (const msg of historialReciente) {
             mensajes.push({
@@ -627,13 +586,11 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
             });
         }
         
-        // Añadir mensaje actual
         mensajes.push({
             role: "user",
             content: userMessage
         });
         
-        // Llamar a Groq
         const completion = await groqClient.chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages: mensajes,
@@ -645,12 +602,10 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
         const respuesta = completion.choices[0]?.message?.content;
         
         if (respuesta) {
-            // Agregar respuesta al historial
             agregarAlHistorial(userId, 'assistant', respuesta);
             
             console.log(`✅ Respondió (historial: ${historial.length}/270)`);
             
-            // Enviar respuesta
             if (respuesta.length > 2000) {
                 const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
                 for (let i = 0; i < partes.length; i++) {
@@ -668,6 +623,142 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
     } catch (error) {
         console.error('❌ Error en procesamiento:', error);
         await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~");
+    }
+}
+
+// ========== NUEVAS FUNCIONES DE RAZONAMIENTO ==========  // NUEVO
+function detectarConsultaRazonamiento(mensaje) {
+    const lower = mensaje.toLowerCase();
+    
+    const patronesRazonamiento = [
+        /(razonar|pensar|lógic|analizar|por qué|causa|consecuencia|deducir)/i,
+        /(qué opinas|qué piensas|cuál es tu análisis|analiza esto)/i,
+        /(si.*entonces|porque.*porque|si.*qué pasa)/i,
+        /(problema|solución|decidir|elegir entre|opción)/i,
+        /(ventaja|desventaja|pros|contras|comparar)/i,
+        /(argumento|debate|discutir|controversia)/i,
+        /(moral|ético|correcto|incorrecto)/i,
+        /\?$/
+    ];
+    
+    const excluir = [
+        'hola', 'gracias', 'adiós', 'chao', 'buenos', 'buenas',
+        'clima', 'tiempo', 'temperatura', 'grados',
+        'cita', 'frase', 'poema', 'verso'
+    ];
+    
+    if (excluir.some(palabra => lower.includes(palabra))) {
+        return false;
+    }
+    
+    return patronesRazonamiento.some(patron => patron.test(lower));
+}
+
+async function procesarConRazonamiento(message, userMessage, userId) {
+    try {
+        console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
+        
+        await message.channel.sendTyping();
+        
+        const contexto = {
+            userId: userId,
+            username: message.author.tag,
+            channel: message.channel.name,
+            isDM: message.channel.type === 1,
+            timestamp: new Date().toISOString()
+        };
+        
+        const resultado = reasoningEngine.procesarConsulta(userMessage, contexto);
+        
+        console.log(`✅ [RAZONAMIENTO] Resultado: ${resultado.certeza.toFixed(2)} certeza`);
+        
+        agregarAlHistorial(userId, 'user', userMessage);
+        
+        let respuestaFinal;
+        if (resultado.certeza >= 0.6 && resultado.respuesta) {
+            respuestaFinal = resultado.respuesta;
+            agregarAlHistorial(userId, 'system', 
+                `[Razonamiento: ${resultado.pasosRazonamiento} inferencias, certeza ${resultado.certeza.toFixed(2)}]`);
+        } else {
+            respuestaFinal = await combinarRazonamientoConGroq(userMessage, resultado, userId);
+        }
+        
+        if (respuestaFinal.length > 2000) {
+            const partes = respuestaFinal.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuestaFinal];
+            for (let i = 0; i < partes.length; i++) {
+                if (i === 0) {
+                    await message.reply(partes[i]);
+                } else {
+                    await message.channel.send(partes[i]);
+                }
+            }
+        } else {
+            await message.reply(respuestaFinal);
+        }
+        
+        agregarAlHistorial(userId, 'assistant', respuestaFinal);
+        
+    } catch (error) {
+        console.error('❌ Error en procesamiento con razonamiento:', error);
+        await procesarMensajeConocimiento(message, userMessage, userId);
+    }
+}
+
+async function combinarRazonamientoConGroq(userMessage, resultadoRazonamiento, userId) {
+    try {
+        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        
+        const historial = obtenerHistorialUsuario(userId);
+        
+        const mensajes = [];
+        
+        let sistema = MANCY_PERSONALITY + "\n\n";
+        sistema += `[ANÁLISIS DE RAZONAMIENTO PREVIO]\n`;
+        
+        if (resultadoRazonamiento.inferencias && resultadoRazonamiento.inferencias.length > 0) {
+            sistema += `He realizado ${resultadoRazonamiento.pasosRazonamiento} inferencias:\n`;
+            resultadoRazonamiento.inferencias.slice(0, 3).forEach((inf, idx) => {
+                sistema += `${idx + 1}. ${inf.inferencia} (certeza: ${inf.certeza?.toFixed(2) || 'N/A'})\n`;
+            });
+        }
+        
+        sistema += `\n[INSTRUCCIÓN] Integra este razonamiento en tu respuesta de forma natural.`;
+        sistema += ` No digas "según mi análisis" o cosas técnicas.`;
+        sistema += ` Solo responde como Mancy, incorporando las inferencias si son útiles.`;
+        
+        mensajes.push({
+            role: "system",
+            content: sistema
+        });
+        
+        const historialReciente = historial.slice(-8);
+        for (const msg of historialReciente) {
+            mensajes.push({
+                role: msg.rol,
+                content: msg.contenido
+            });
+        }
+        
+        mensajes.push({
+            role: "user",
+            content: userMessage
+        });
+        
+        const completion = await groqClient.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: mensajes,
+            temperature: 0.7,
+            max_tokens: 600,
+            top_p: 0.9
+        });
+        
+        return completion.choices[0]?.message?.content || 
+               "He analizado tu pregunta, pero necesito más contexto para dar una respuesta precisa.";
+        
+    } catch (error) {
+        console.error('❌ Error combinando con Groq:', error);
+        return resultadoRazonamiento.respuesta || 
+               "He pensado en tu pregunta y necesito más información para responder adecuadamente.";
     }
 }
 
@@ -702,6 +793,7 @@ async function startBot() {
             discordClient.user.setActivity('6 fuentes confiables | @mencioname');
             console.log('🎭 Personalidad activada');
             console.log('🧠 Memoria: 270 mensajes');
+            console.log('🤔 Razonamiento: Listo');  // NUEVO
             console.log('🔧 APIs confiables: 6 fuentes');
             console.log('🛡️ Filtro de contenido: ACTIVADO');
         });
@@ -712,7 +804,6 @@ async function startBot() {
             const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
             const isDM = message.channel.type === 1;
             
-            // ========== DETECCIÓN TEMPRANA EN DMs ==========
             if (isDM && !botMentioned) {
                 const userMessage = message.content.trim();
                 
@@ -737,7 +828,6 @@ async function startBot() {
                 if (userId === '_nwn_') {
                     console.log('👑 Creador detectado: April/Tito');
                     
-                    // Permitir que el creador vea el filtro en acción
                     if (userMessage.toLowerCase() === '!testfiltro') {
                         const testMessages = [
                             'sos mi zorrita',
@@ -758,13 +848,78 @@ async function startBot() {
                     }
                 }
                 
+                // NUEVOS COMANDOS DE RAZONAMIENTO  // NUEVO
+                if (userMessage.toLowerCase().startsWith('!razonar ')) {
+                    const consulta = userMessage.substring(9);
+                    await procesarConRazonamiento(message, consulta, userId);
+                    return;
+                }
+
+                if (userMessage.toLowerCase() === '!estadisticas-razonamiento') {
+                    const stats = reasoningEngine.obtenerEstadisticas();
+                    const respuesta = `📊 **Estadísticas del Sistema de Razonamiento**\n` +
+                        `🧠 Base de conocimiento: ${stats.baseConocimiento} hechos\n` +
+                        `⚙️ Reglas activas: ${stats.reglas}\n` +
+                        `📁 Casos resueltos: ${stats.casosResueltos}\n` +
+                        `🤔 Decisiones tomadas: ${stats.decisionesTomadas}\n` +
+                        `🎯 Efectividad: ${(stats.efectividadPromedio * 100).toFixed(1)}%\n` +
+                        `🔥 Reglas más usadas:\n` +
+                        stats.reglasMasActivas.map(r => `   • ${r.nombre} (${r.activaciones} veces)`).join('\n');
+                    
+                    await message.channel.send(respuesta);
+                    return;
+                }
+
+                if (userMessage.toLowerCase() === '!aprender') {
+                    await message.channel.send(`🧠 **Sistema de Aprendizaje de Mancy**\n` +
+                        `Mi motor de razonamiento aprende automáticamente de cada interacción.\n` +
+                        `Puedo:\n` +
+                        `• Realizar inferencias lógicas\n` +
+                        `• Analizar problemas paso a paso\n` +
+                        `• Tomar decisiones basadas en criterios\n` +
+                        `• Aprender de casos similares\n` +
+                        `• Explicar mi proceso de pensamiento\n\n` +
+                        `Prueba preguntándome cosas como:\n` +
+                        `"¿Por qué el cielo es azul?"\n` +
+                        `"Si estudio mucho, ¿tendré buenas notas?"\n` +
+                        `"¿Qué opinas sobre la inteligencia artificial?"`);
+                    return;
+                }
+
+                if (userMessage.toLowerCase() === '!debug-razonamiento') {
+                    const testCases = [
+                        "¿Por qué el cielo es azul?",
+                        "Si estudio 5 horas al día, ¿aprobaré el examen?",
+                        "Compara ventajas y desventajas de la IA",
+                        "¿Es moral usar animales en experimentos?"
+                    ];
+                    
+                    for (const testCase of testCases) {
+                        const resultado = reasoningEngine.procesarConsulta(testCase, {});
+                        await message.channel.send(`🧪 **Test:** ${testCase}\n` +
+                            `Inferencias: ${resultado.totalInferencias}\n` +
+                            `Certeza: ${resultado.certeza.toFixed(2)}\n` +
+                            `---`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    await message.channel.send('✅ Debug completado');
+                    return;
+                }
+                
                 if (!botActive) {
                     await message.channel.send(
                         `💤 <@${message.author.id}> **Iniciando...** ⏳`
                     );
                 }
                 
-                await procesarMensajeConocimiento(message, userMessage, userId);
+                // DECIDIR QUÉ PROCESAMIENTO USAR  // NUEVO
+                const usarRazonamiento = detectarConsultaRazonamiento(userMessage);
+                
+                if (usarRazonamiento) {
+                    await procesarConRazonamiento(message, userMessage, userId);
+                } else {
+                    await procesarMensajeConocimiento(message, userMessage, userId);
+                }
             }
         });
         
@@ -780,7 +935,6 @@ async function startBot() {
 app.use(express.json());
 app.use(express.static('public'));
 
-// Middleware CORS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -801,7 +955,6 @@ app.get('/', async (req, res) => {
     res.sendFile('index.html', { root: '.' });
 });
 
-// Ruta de prueba
 app.get('/test', (req, res) => {
     res.json({
         status: 'online',
@@ -813,6 +966,7 @@ app.get('/test', (req, res) => {
 
 app.get('/api/status', (req, res) => {
     const stats = memoryManager.obtenerEstadisticas();
+    const reasoningStats = reasoningEngine.obtenerEstadisticas();  // NUEVO
     
     res.json({
         bot_active: botActive,
@@ -820,6 +974,9 @@ app.get('/api/status', (req, res) => {
         memory_users: stats.totalUsuarios,
         memory_messages: stats.totalMensajes,
         max_history: stats.maxHistory,
+        reasoning_knowledge: reasoningStats.baseConocimiento,  // NUEVO
+        reasoning_rules: reasoningStats.reglas,  // NUEVO
+        reasoning_cases: reasoningStats.casosResueltos,  // NUEVO
         filtro_activo: true,
         apis: [
             'Wikipedia (ES/EN)',
@@ -829,7 +986,7 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '2.0 - Confiable con Filtro',
+        version: '3.0 - Con Razonamiento',  // ACTUALIZADO
         timestamp: new Date().toISOString()
     });
 });
@@ -902,15 +1059,18 @@ app.post('/api/stop', async (req, res) => {
 
 app.get('/health', (req, res) => {
     const stats = memoryManager.obtenerEstadisticas();
+    const reasoningStats = reasoningEngine.obtenerEstadisticas();  // NUEVO
     
     res.json({
         status: 'healthy',
         bot_active: botActive,
         filtro: 'activado',
+        razonamiento: 'activado',  // NUEVO
         apis: '6 fuentes confiables',
         memory_users: stats.totalUsuarios,
         memory_messages: stats.totalMensajes,
         memory_max: 270,
+        reasoning_knowledge: reasoningStats.baseConocimiento,  // NUEVO
         uptime: process.uptime()
     });
 });
@@ -929,7 +1089,6 @@ app.post('/wakeup', async (req, res) => {
     });
 });
 
-// Ruta para buscar información (para pruebas)
 app.get('/api/buscar/:query', async (req, res) => {
     try {
         const { query } = req.params;
@@ -958,6 +1117,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ║         🤖 MANCY A.I - CONFILABLE        ║
 ║       6 FUENTES GARANTIZADAS             ║
 ║         + FILTRO SARCÁSTICO              ║
+║         + RAZONAMIENTO LÓGICO            ║  // NUEVO
 ║                                          ║
 ║  📖 Wikipedia (ES/EN)                    ║
 ║  🌍 RestCountries (Países)              ║
@@ -965,6 +1125,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  💭 Quotable (Citas)                     ║
 ║  📕 Free Dictionary (Inglés)             ║
 ║  🌤️ Open-Meteo (Clima)                   ║
+║  🤔 Motor de Razonamiento                ║  // NUEVO
 ║                                          ║
 ║  ✅ TODAS FUNCIONAN SIN TOKEN            ║
 ║  ✅ SIN LÍMITES GRAVES                   ║
@@ -973,6 +1134,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  🛡️  Filtro: ACTIVADO                    ║
 ║  🎭 Respuestas: Sarcásticas-elegantes    ║
 ║  ✋ DM inapropiados: BLOQUEADOS          ║
+║  🧠 Razonamiento: Lógico y analítico     ║  // NUEVO
 ║                                          ║
 ║  🧠 Memoria: 270 mensajes                ║
 ║  ❤️  Personalidad: Cálida pero firme     ║
@@ -993,7 +1155,12 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   GET  /api/filtro-status - Ver filtro`);
     console.log(`   GET  /api/buscar/:query - Buscar info`);
     
-    // Auto-iniciar si hay tokens
+    console.log('\n🤖 Comandos de Razonamiento:');
+    console.log(`   !razonar [pregunta] - Activar razonamiento`);
+    console.log(`   !estadisticas-razonamiento - Ver stats`);
+    console.log(`   !aprender - Info del sistema`);
+    console.log(`   !debug-razonamiento - Test del sistema`);
+    
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
         setTimeout(() => {
