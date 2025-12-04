@@ -58,12 +58,12 @@ const upload = multer({
     }
 });
 
-// ========== SISTEMA DE PROCESAMIENTO ==========
-class FileProcessor {
+// ========== PROCESADOR DE ARCHIVOS INTELIGENTE (DEL PRIMER CÓDIGO) ==========
+class SmartFileProcessor {
     constructor() {
         this.tesseractWorker = null;
         this.initialized = false;
-        console.log('📄 Procesador de archivos inicializado');
+        console.log('📄 Procesador de archivos inteligente inicializado');
     }
     
     async initialize() {
@@ -75,65 +75,133 @@ class FileProcessor {
         }
     }
     
-    async processImage(imagePath) {
+    async analyzeImageForText(imagePath) {
         try {
-            console.log(`📷 Procesando imagen: ${path.basename(imagePath)}`);
-            
             await this.initialize();
             
-            // Leer texto de la imagen
-            const { data: { text } } = await this.tesseractWorker.recognize(imagePath);
+            // Analizar RÁPIDO si hay texto (sin OCR completo)
+            const { data: quickScan } = await this.tesseractWorker.recognize(imagePath, {
+                rectangle: { top: 0, left: 0, width: 100, height: 100 }
+            });
             
-            // Analizar contenido
-            const analysis = this.analyzeImageContent(text);
+            // Si hay más de 10 caracteres detectados, probablemente tenga texto
+            const hasText = quickScan.text.trim().length > 10;
+            
+            return {
+                hasText,
+                confidence: quickScan.confidence,
+                quickText: quickScan.text.substring(0, 50)
+            };
+            
+        } catch (error) {
+            console.error('❌ Error analizando imagen:', error.message);
+            return { hasText: false, confidence: 0, quickText: '' };
+        }
+    }
+    
+    async extractTextFromImage(imagePath) {
+        try {
+            await this.initialize();
+            
+            // OCR completo solo si se solicita
+            const { data: { text, confidence } } = await this.tesseractWorker.recognize(imagePath);
             
             return {
                 success: true,
-                type: 'image',
                 text: text.trim(),
-                analysis,
-                textLength: text.length,
+                confidence,
+                length: text.length,
                 lines: text.split('\n').filter(l => l.trim()).length
             };
             
         } catch (error) {
-            console.error('❌ Error procesando imagen:', error.message);
+            console.error('❌ Error en OCR:', error.message);
+            return { success: false, error: 'Error en reconocimiento de texto' };
+        }
+    }
+    
+    async describeImage(imagePath) {
+        try {
+            // Usar Groq Vision para describir la imagen
+            const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+            
+            // Leer imagen como base64
+            const imageBuffer = fs.readFileSync(imagePath);
+            const base64Image = imageBuffer.toString('base64');
+            
+            const completion = await groqClient.chat.completions.create({
+                model: "llama-3.2-11b-vision-preview",
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: "Describe esta imagen en español. Si tiene texto visible, menciónalo pero NO lo transcribas completo. Solo di qué tipo de texto es (ej: 'tiene texto que parece un meme', 'hay subtítulos', 'hay letreros'). Sé conciso."
+                            },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: `data:image/jpeg;base64,${base64Image}`
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens: 150,
+                temperature: 0.7
+            });
+            
             return {
-                success: false,
-                type: 'image',
-                error: 'No pude leer el contenido de la imagen'
+                success: true,
+                description: completion.choices[0]?.message?.content,
+                hasVision: true
+            };
+            
+        } catch (visionError) {
+            console.log('⚠️ Vision AI no disponible, usando análisis básico');
+            
+            // Fallback: analizar rápidamente
+            const analysis = await this.analyzeImageForText(imagePath);
+            
+            let description = "📸 **Imagen recibida**\n";
+            
+            if (analysis.hasText) {
+                description += "🔤 Parece tener texto visible.\n";
+                description += "💡 Usa: `!leer` para transcribir el texto\n";
+                description += "     `!resumir` para que te lo explique";
+            } else {
+                description += "🖼️ Imagen sin texto aparente.\n";
+                description += "📝 Si es una captura con texto, usa: `!leer`";
+            }
+            
+            return {
+                success: true,
+                description,
+                hasVision: false,
+                hasText: analysis.hasText
             };
         }
     }
     
     async processPDF(pdfPath) {
         try {
-            console.log(`📄 Procesando PDF: ${path.basename(pdfPath)}`);
-            
-            // Leer archivo PDF
             const dataBuffer = fs.readFileSync(pdfPath);
             const data = await pdfParse(dataBuffer);
             
             return {
                 success: true,
-                type: 'pdf',
                 text: data.text,
                 metadata: {
                     pages: data.numpages,
-                    info: data.info || {},
-                    version: data.version || 'desconocido'
+                    info: data.info || {}
                 },
-                textLength: data.text.length,
-                lines: data.text.split('\n').length
+                textLength: data.text.length
             };
             
         } catch (error) {
             console.error('❌ Error procesando PDF:', error.message);
-            return {
-                success: false,
-                type: 'pdf',
-                error: 'No pude leer el contenido del PDF'
-            };
+            return { success: false, error: 'Error leyendo PDF' };
         }
     }
     
@@ -161,6 +229,7 @@ class FileProcessor {
         }
     }
     
+    // Análisis inteligente de contenido (del segundo código, mejorado)
     analyzeImageContent(text) {
         const analysis = {
             type: 'general',
@@ -170,7 +239,7 @@ class FileProcessor {
         
         const textLower = text.toLowerCase();
         
-        // Detectar tipo de contenido
+        // Detectar tipo de contenido (del segundo código)
         if (textLower.includes('código') || textLower.includes('function') || 
             textLower.includes('const ') || textLower.includes('import ')) {
             analysis.type = 'codigo';
@@ -202,10 +271,17 @@ class FileProcessor {
             analysis.contains.push('conversacion');
         }
         
+        // Detectar si es meme (del primer código mejorado)
+        if (textLower.includes('meme') || textLower.includes('lol') || 
+            textLower.includes('jajaja') || textLower.includes('xd') ||
+            textLower.includes('chiste') || textLower.includes('funny')) {
+            analysis.type = 'meme_chiste';
+            analysis.contains.push('humor');
+        }
+        
         return analysis;
     }
     
-    // Limpiar archivos temporales
     cleanupFile(filePath) {
         try {
             if (fs.existsSync(filePath)) {
@@ -238,19 +314,22 @@ class FileProcessor {
     }
 }
 
-// Inicializar procesador
-const fileProcessor = new FileProcessor();
+// Inicializar procesador INTELIGENTE
+const fileProcessor = new SmartFileProcessor();
 
 // Limpiar archivos antiguos cada hora
 setInterval(() => {
     fileProcessor.cleanupOldFiles();
 }, 60 * 60 * 1000);
 
-// ========== MEMORIA SIMPLE ==========
+// ========== MEMORIA DE COMANDOS POR USUARIO (DEL PRIMER CÓDIGO) ==========
+const userFileContext = new Map(); // userId -> {filePath, fileName, type, hasText, timestamp}
+
+// ========== MEMORIA DE CONVERSACIÓN (DEL SEGUNDO CÓDIGO) ==========
 const conversationMemory = new Map();
 const MAX_HISTORY = 270;
 
-// ========== FILTRO DE CONTENIDO ==========
+// ========== FILTRO DE CONTENIDO (DEL SEGUNDO CÓDIGO MEJORADO) ==========
 class ContentFilter {
     constructor() {
         this.badWords = [
@@ -292,7 +371,7 @@ class ContentFilter {
 
 const contentFilter = new ContentFilter();
 
-// ========== SISTEMA DE CONOCIMIENTO ==========
+// ========== SISTEMA DE CONOCIMIENTO (DEL SEGUNDO CÓDIGO) ==========
 class KnowledgeSystem {
     constructor() {
         this.cache = new Map();
@@ -487,7 +566,7 @@ class KnowledgeSystem {
 
 const knowledgeSystem = new KnowledgeSystem();
 
-// ========== PERSONALIDAD DE MANCY ==========
+// ========== PERSONALIDAD DE MANCY (MEJORADA) ==========
 const MANCY_PERSONALITY = `Eres Mancy, una asistente inteligente y útil.
 
 CONOCIMIENTO DISPONIBLE:
@@ -496,17 +575,26 @@ CONOCIMIENTO DISPONIBLE:
 - Información meteorológica
 - Citas inspiradoras
 
-CAPACIDADES NUEVAS:
-- Puedo leer texto de imágenes (OCR)
+CAPACIDADES DE PROCESAMIENTO DE ARCHIVOS:
+- LEO imágenes con OCR inteligente (primero analizo si hay texto)
+- Uso visión AI para describir imágenes
 - Proceso documentos PDF
 - Analizo capturas de pantalla
-- Extraigo información de archivos
+- Extraigo información de archivos de texto
 
 CUANDO ALGUIEN ENVIA UN ARCHIVO:
-1. Lo proceso automáticamente
-2. Extraigo el texto si es posible
-3. Te digo qué tipo de contenido es
-4. Luego puedes preguntarme sobre él
+1. Primero analizo si tiene texto visible (sin extraerlo completo)
+2. Si es imagen, intento describirla con visión AI
+3. Ofrezco comandos específicos basados en lo que detecto
+4. El usuario decide si quiere extraer texto, resumir, etc.
+5. Los archivos expiran después de 5 minutos sin usar
+
+COMANDOS DISPONIBLES:
+- !leer - Extraer texto completo
+- !resumir - Resumir el contenido
+- !describir - Descripción más detallada
+- !que-es - Análisis del tipo de documento
+- !pagina [n] - Leer página específica de PDF
 
 POLÍTICA DE CONTENIDO:
 - No respondo a insinuaciones sexuales
@@ -518,13 +606,9 @@ TU ESTILO:
 - Curiosa y juguetona
 - Directa pero amable
 - Sarcástica cuando es necesario
+- Ofreces opciones en lugar de imponer`;
 
-EJEMPLOS:
-- "¿Qué dice esta imagen?" → "La imagen contiene: [texto extraído]"
-- "Resume este PDF" → "El PDF trata sobre: [resumen]"
-- A groserías → "Vaya, qué vocabulario..." → cambio de tema`;
-
-// ========== FUNCIONES DE MEMORIA ==========
+// ========== FUNCIONES DE MEMORIA (DEL SEGUNDO CÓDIGO) ==========
 function getConversationHistory(userId) {
     if (!conversationMemory.has(userId)) {
         conversationMemory.set(userId, []);
@@ -541,7 +625,322 @@ function addToHistory(userId, role, content) {
     }
 }
 
-// ========== PROCESAR MENSAJE ==========
+// ========== MANEJAR ARCHIVOS DISCORD (SISTEMA INTELIGENTE DEL PRIMER CÓDIGO) ==========
+async function handleFileAttachment(message, attachment) {
+    try {
+        await message.channel.sendTyping();
+        
+        console.log(`📎 Archivo recibido: ${attachment.name}`);
+        
+        // Descargar archivo
+        const response = await axios.get(attachment.url, { 
+            responseType: 'arraybuffer',
+            timeout: 10000
+        });
+        
+        // Guardar temporalmente
+        const tempPath = path.join(UPLOADS_DIR, `${Date.now()}_${attachment.name}`);
+        fs.writeFileSync(tempPath, Buffer.from(response.data));
+        
+        const ext = path.extname(attachment.name).toLowerCase();
+        const userId = message.author.id;
+        
+        // Guardar contexto del archivo para este usuario
+        userFileContext.set(userId, {
+            filePath: tempPath,
+            fileName: attachment.name,
+            type: ext === '.pdf' ? 'pdf' : 'image',
+            timestamp: Date.now()
+        });
+        
+        let reply = '';
+        
+        if (['.png', '.jpg', '.jpeg'].includes(ext)) {
+            // PARA IMÁGENES: Sistema inteligente del primer código
+            
+            // 1. Primero verificar si tiene texto (análisis rápido)
+            const textAnalysis = await fileProcessor.analyzeImageForText(tempPath);
+            
+            // 2. Describir la imagen (con o sin visión AI)
+            const description = await fileProcessor.describeImage(tempPath);
+            
+            reply = `📸 **Imagen recibida:** ${attachment.name}\n\n`;
+            
+            if (description.hasVision) {
+                // Si tenemos visión AI, usar esa descripción
+                reply += `**Descripción:** ${description.description}\n\n`;
+            } else {
+                // Descripción básica
+                reply += description.description + '\n\n';
+            }
+            
+            // 3. Ofrecer opciones basadas en si tiene texto
+            if (textAnalysis.hasText) {
+                reply += `🔤 **Parece tener texto.** Comandos disponibles:\n`;
+                reply += `\`!leer\` - Transcribir el texto\n`;
+                reply += `\`!resumir\` - Resumir el contenido\n`;
+                reply += `\`!que-es\` - ¿Qué tipo de documento es?\n`;
+            } else {
+                reply += `🖼️ **Sin texto aparente.** ¿Qué te gustaría hacer?\n`;
+                reply += `\`!describir\` - Descripción más detallada\n`;
+            }
+            
+            // Guardar si tiene texto en el contexto
+            userFileContext.get(userId).hasText = textAnalysis.hasText;
+            
+        } else if (ext === '.pdf') {
+            // PARA PDFs: Sistema inteligente
+            const fileInfo = await fileProcessor.processPDF(tempPath);
+            
+            reply = `📄 **PDF recibido:** ${attachment.name}\n\n`;
+            reply += `📖 ${fileInfo.metadata.pages || '?'} páginas detectadas\n\n`;
+            reply += `**Comandos disponibles:**\n`;
+            reply += `\`!leer\` - Extraer texto del PDF\n`;
+            reply += `\`!resumir\` - Resumir el contenido\n`;
+            reply += `\`!pagina [número]\` - Leer página específica\n`;
+            
+        } else if (ext === '.txt') {
+            // Para archivos de texto: del segundo código
+            const fileInfo = await fileProcessor.processTextFile(tempPath);
+            
+            reply = `📝 **Archivo de texto recibido:** ${attachment.name}\n\n`;
+            reply += `📊 ${fileInfo.lines || 0} líneas, ${fileInfo.textLength || 0} caracteres\n\n`;
+            reply += `**Comandos disponibles:**\n`;
+            reply += `\`!leer\` - Ver contenido completo\n`;
+            reply += `\`!resumir\` - Resumir el contenido`;
+            
+            // Guardar en contexto
+            userFileContext.get(userId).type = 'text';
+            userFileContext.get(userId).hasText = true;
+            
+        } else {
+            // Tipo no soportado
+            reply = `❌ Tipo de archivo no soportado: ${ext}\n`;
+            reply += `Soporto: PNG, JPG, JPEG, PDF, TXT`;
+            fileProcessor.cleanupFile(tempPath);
+            userFileContext.delete(userId);
+        }
+        
+        // Agregar tiempo límite (5 minutos)
+        reply += `\n⏰ *Tienes 5 minutos para usar comandos con este archivo*`;
+        
+        await message.reply(reply);
+        
+    } catch (error) {
+        console.error('❌ Error manejando archivo:', error);
+        await message.reply('❌ Error procesando el archivo. ¿Podrías intentar con otro?');
+    }
+}
+
+// ========== MANEJAR COMANDOS DE ARCHIVOS (DEL PRIMER CÓDIGO MEJORADO) ==========
+async function handleFileCommand(message, command, args) {
+    const userId = message.author.id;
+    const context = userFileContext.get(userId);
+    
+    if (!context) {
+        await message.reply('❌ No tienes ningún archivo reciente. Envía una imagen o PDF primero.');
+        return;
+    }
+    
+    // Verificar si el archivo es muy viejo (>5 minutos)
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    if (context.timestamp < fiveMinutesAgo) {
+        await message.reply('⏰ El archivo ha expirado (más de 5 minutos). Envía uno nuevo.');
+        userFileContext.delete(userId);
+        fileProcessor.cleanupFile(context.filePath);
+        return;
+    }
+    
+    try {
+        await message.channel.sendTyping();
+        
+        let result;
+        
+        switch(command) {
+            case 'leer':
+                if (context.type === 'image') {
+                    result = await fileProcessor.extractTextFromImage(context.filePath);
+                    
+                    if (result?.success && result.text) {
+                        const textPreview = result.text.length > 1000 
+                            ? result.text.substring(0, 1000) + '...' 
+                            : result.text;
+                        
+                        let reply = `📝 **Texto extraído:**\n\`\`\`\n${textPreview}\n\`\`\``;
+                        reply += `\n📊 **Estadísticas:** ${result.length || result.textLength} caracteres`;
+                        
+                        if (result.confidence) {
+                            reply += `, ${Math.round(result.confidence)}% confianza`;
+                        }
+                        
+                        // Análisis de contenido (del segundo código)
+                        const analysis = fileProcessor.analyzeImageContent(result.text);
+                        if (analysis.type !== 'general') {
+                            reply += `\n🔍 **Tipo detectado:** ${analysis.type}`;
+                        }
+                        
+                        await message.reply(reply);
+                        
+                        // Guardar en memoria de conversación
+                        addToHistory(userId, 'system', 
+                            `[TEXTO EXTRAÍDO DE IMAGEN - ${analysis.type}]: ${result.text.substring(0, 200)}...`);
+                    } else {
+                        await message.reply('❌ No pude extraer texto. Puede que no haya texto legible.');
+                    }
+                } else if (context.type === 'pdf') {
+                    result = await fileProcessor.processPDF(context.filePath);
+                    
+                    if (result?.success && result.text) {
+                        const textPreview = result.text.length > 1000 
+                            ? result.text.substring(0, 1000) + '...' 
+                            : result.text;
+                        
+                        let reply = `📄 **Texto del PDF:**\n\`\`\`\n${textPreview}\n\`\`\``;
+                        reply += `\n📊 ${result.textLength} caracteres, ${result.metadata?.pages || 0} páginas`;
+                        
+                        await message.reply(reply);
+                        
+                        // Guardar en memoria de conversación
+                        addToHistory(userId, 'system', 
+                            `[TEXTO EXTRAÍDO DE PDF]: ${result.text.substring(0, 200)}...`);
+                    } else {
+                        await message.reply('❌ No pude extraer texto del PDF.');
+                    }
+                } else if (context.type === 'text') {
+                    result = await fileProcessor.processTextFile(context.filePath);
+                    
+                    if (result?.success && result.text) {
+                        const textPreview = result.text.length > 1000 
+                            ? result.text.substring(0, 1000) + '...' 
+                            : result.text;
+                        
+                        let reply = `📝 **Contenido del archivo:**\n\`\`\`\n${textPreview}\n\`\`\``;
+                        reply += `\n📊 ${result.textLength} caracteres, ${result.lines} líneas`;
+                        
+                        await message.reply(reply);
+                    } else {
+                        await message.reply('❌ No pude leer el archivo de texto.');
+                    }
+                }
+                break;
+                
+            case 'resumir':
+                if (context.type === 'image') {
+                    // Primero extraer texto, luego resumir con Groq
+                    const textResult = await fileProcessor.extractTextFromImage(context.filePath);
+                    
+                    if (textResult.success && textResult.text) {
+                        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+                        
+                        // Primero analizar el tipo
+                        const analysis = fileProcessor.analyzeImageContent(textResult.text);
+                        
+                        const completion = await groqClient.chat.completions.create({
+                            model: "llama-3.1-8b-instant",
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: analysis.type === 'meme_chiste' 
+                                        ? "Explica este meme o chiste de forma divertida pero breve en español."
+                                        : "Resume el siguiente texto de forma concisa en español. Destaca los puntos principales."
+                                },
+                                {
+                                    role: "user",
+                                    content: textResult.text.substring(0, 2000)
+                                }
+                            ],
+                            max_tokens: 200
+                        });
+                        
+                        let reply = `📋 **Resumen:**\n${completion.choices[0]?.message?.content}`;
+                        
+                        if (analysis.type !== 'general') {
+                            reply += `\n\n🔍 **Categoría:** ${analysis.type}`;
+                        }
+                        
+                        await message.reply(reply);
+                    } else {
+                        await message.reply('❌ No hay texto para resumir en esta imagen.');
+                    }
+                } else if (context.type === 'pdf' || context.type === 'text') {
+                    // Para PDFs y archivos de texto
+                    const textResult = context.type === 'pdf' 
+                        ? await fileProcessor.processPDF(context.filePath)
+                        : await fileProcessor.processTextFile(context.filePath);
+                    
+                    if (textResult.success && textResult.text) {
+                        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+                        
+                        const completion = await groqClient.chat.completions.create({
+                            model: "llama-3.1-8b-instant",
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: "Resume el siguiente texto de forma concisa en español. Destaca los puntos principales."
+                                },
+                                {
+                                    role: "user",
+                                    content: textResult.text.substring(0, 3000)
+                                }
+                            ],
+                            max_tokens: 250
+                        });
+                        
+                        await message.reply(`📋 **Resumen:**\n${completion.choices[0]?.message?.content}`);
+                    }
+                }
+                break;
+                
+            case 'describir':
+                if (context.type === 'image') {
+                    const description = await fileProcessor.describeImage(context.filePath);
+                    await message.reply(`🎨 **Descripción:**\n${description.description}`);
+                } else {
+                    await message.reply('❌ Este comando solo funciona con imágenes.');
+                }
+                break;
+                
+            case 'que-es':
+                if (context.type === 'image') {
+                    const textAnalysis = await fileProcessor.analyzeImageForText(context.filePath);
+                    let analysis = `🔍 **Análisis de la imagen:**\n`;
+                    
+                    if (textAnalysis.hasText) {
+                        analysis += `• Tiene texto legible (${Math.round(textAnalysis.confidence)}% confianza)\n`;
+                        analysis += `• Fragmento: "${textAnalysis.quickText}"\n`;
+                        analysis += `• Posiblemente: documento, captura, meme o letrero`;
+                    } else {
+                        analysis += `• Sin texto detectable\n`;
+                        analysis += `• Probablemente: paisaje, foto, ilustración o imagen abstracta`;
+                    }
+                    
+                    await message.reply(analysis);
+                } else {
+                    await message.reply(`📄 **Tipo de archivo:** ${context.type.toUpperCase()}`);
+                }
+                break;
+                
+            default:
+                await message.reply(`❌ Comando no reconocido. Comandos: !leer, !resumir, !describir, !que-es`);
+        }
+        
+        // Limpiar archivo después de usar
+        fileProcessor.cleanupFile(context.filePath);
+        userFileContext.delete(userId);
+        
+    } catch (error) {
+        console.error('❌ Error en comando de archivo:', error);
+        await message.reply('❌ Error procesando el comando.');
+        
+        // Limpiar en caso de error
+        if (context?.filePath) {
+            fileProcessor.cleanupFile(context.filePath);
+        }
+        userFileContext.delete(userId);
+    }
+}
+
+// ========== PROCESAR MENSAJE (DEL SEGUNDO CÓDIGO) ==========
 async function processMessage(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
@@ -567,7 +966,7 @@ async function processMessage(message, userMessage, userId) {
         if (needsSearch) {
             const searchResult = await knowledgeSystem.searchInformation(userMessage);
             if (searchResult) {
-                externalInfo = this.formatSearchResult(searchResult);
+                externalInfo = formatSearchResult(searchResult);
                 console.log(`✅ Información de ${searchResult.source}`);
             }
         }
@@ -654,76 +1053,6 @@ function formatSearchResult(result) {
     }
 }
 
-// ========== MANEJAR ARCHIVOS DISCORD ==========
-async function handleFileAttachment(message, attachment) {
-    try {
-        await message.channel.sendTyping();
-        
-        console.log(`📎 Procesando archivo: ${attachment.name}`);
-        
-        // Descargar archivo
-        const response = await axios.get(attachment.url, { 
-            responseType: 'arraybuffer' 
-        });
-        
-        // Guardar temporalmente
-        const tempPath = path.join(UPLOADS_DIR, `${Date.now()}_${attachment.name}`);
-        fs.writeFileSync(tempPath, Buffer.from(response.data));
-        
-        // Procesar según tipo
-        const ext = path.extname(attachment.name).toLowerCase();
-        let result;
-        
-        if (['.png', '.jpg', '.jpeg'].includes(ext)) {
-            result = await fileProcessor.processImage(tempPath);
-        } else if (ext === '.pdf') {
-            result = await fileProcessor.processPDF(tempPath);
-        } else if (ext === '.txt') {
-            result = await fileProcessor.processTextFile(tempPath);
-        } else {
-            await message.reply('❌ Tipo de archivo no soportado. Solo: PNG, JPG, PDF, TXT');
-            fileProcessor.cleanupFile(tempPath);
-            return;
-        }
-        
-        // Enviar resultados
-        if (result.success) {
-            let reply = `✅ **Archivo procesado:** ${attachment.name}\n`;
-            reply += `📄 **Tipo:** ${result.type.toUpperCase()}\n`;
-            
-            if (result.analysis) {
-                reply += `📊 **Análisis:** ${result.analysis.type}\n`;
-            }
-            
-            if (result.text && result.text.length > 0) {
-                const preview = result.text.length > 500 
-                    ? result.text.substring(0, 500) + '...' 
-                    : result.text;
-                
-                reply += `\n**Contenido extraído:**\n\`\`\`\n${preview}\n\`\`\``;
-                reply += `\n**Longitud:** ${result.text.length} caracteres, ${result.lines || 0} líneas`;
-            }
-            
-            // Guardar texto extraído en historial
-            if (result.text && result.text.length > 10) {
-                addToHistory(message.author.id, 'system', 
-                    `[ARCHIVO PROCESADO - ${result.type.toUpperCase()}]: ${result.text.substring(0, 200)}...`);
-            }
-            
-            await message.reply(reply);
-        } else {
-            await message.reply(`❌ No pude procesar el archivo: ${result.error || 'Error desconocido'}`);
-        }
-        
-        // Limpiar archivo temporal
-        fileProcessor.cleanupFile(tempPath);
-        
-    } catch (error) {
-        console.error('❌ Error procesando archivo:', error);
-        await message.reply('❌ Error procesando el archivo. ¿Podrías intentar con otro?');
-    }
-}
-
 // ========== INICIAR BOT DISCORD ==========
 async function startBot() {
     if (isStartingUp) return;
@@ -748,27 +1077,29 @@ async function startBot() {
             console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('Lee imágenes y PDFs | @mencioname');
+            discordClient.user.setActivity('Procesa imágenes y PDFs | @mencioname');
             
             console.log(`
 ╔══════════════════════════════════════════╗
-║         🤖 MANCY - PROCESADOR DE         ║
-║           IMÁGENES Y PDFs                ║
+║         🤖 MANCY MEJORADA                ║
+║   PROCESAMIENTO INTELIGENTE DE ARCHIVOS  ║
 ║                                          ║
 ║  📸 Capacidades:                         ║
-║     • OCR de imágenes (Tesseract)        ║
+║     • OCR inteligente (análisis previo)  ║
+║     • Visión AI para descripciones       ║
 ║     • Lectura de PDFs                    ║
 ║     • Procesamiento de texto             ║
 ║     • Análisis de contenido              ║
 ║                                          ║
 ║  📚 Conocimiento:                        ║
-║     • Wikipedia                          ║
+║     • Wikipedia ES/EN                    ║
 ║     • Datos de países                    ║
 ║     • Clima                              ║
 ║     • Citas                              ║
 ║                                          ║
 ║  🛡️  Filtro: ACTIVADO                    ║
 ║  🧠 Memoria: 270 mensajes                ║
+║  ⏰ Archivos: 5 minutos de vida          ║
 ╚══════════════════════════════════════════╝
             `);
         });
@@ -779,13 +1110,28 @@ async function startBot() {
             const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
             const isDM = message.channel.type === 1;
             
-            // Verificar archivos adjuntos primero
+            // 1. Manejar archivos adjuntos primero
             if (message.attachments.size > 0) {
                 const attachment = message.attachments.first();
                 await handleFileAttachment(message, attachment);
                 return;
             }
             
+            // 2. Manejar comandos de archivos (¡NO requiere mención!)
+            const content = message.content.toLowerCase().trim();
+            if (content.startsWith('!')) {
+                const command = content.substring(1).split(' ')[0];
+                const args = content.substring(command.length + 2).split(' ');
+                
+                const fileCommands = ['leer', 'resumir', 'describir', 'que-es', 'pagina'];
+                
+                if (fileCommands.includes(command)) {
+                    await handleFileCommand(message, command, args);
+                    return;
+                }
+            }
+            
+            // 3. Conversación normal (solo si mencionan o es DM)
             if (botMentioned || isDM) {
                 const userId = message.author.id;
                 const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
@@ -833,7 +1179,28 @@ app.post('/api/process', upload.single('file'), async (req, res) => {
         let result;
         
         if (['.png', '.jpg', '.jpeg'].includes(ext)) {
-            result = await fileProcessor.processImage(req.file.path);
+            // Usar sistema inteligente
+            const textAnalysis = await fileProcessor.analyzeImageForText(req.file.path);
+            const description = await fileProcessor.describeImage(req.file.path);
+            const ocrResult = await fileProcessor.extractTextFromImage(req.file.path);
+            
+            result = {
+                success: ocrResult.success,
+                filename: req.file.originalname,
+                type: 'image',
+                text: ocrResult.text,
+                analysis: {
+                    hasText: textAnalysis.hasText,
+                    confidence: textAnalysis.confidence,
+                    description: description.description,
+                    hasVision: description.hasVision
+                },
+                metadata: {
+                    textLength: ocrResult.length,
+                    confidence: ocrResult.confidence
+                }
+            };
+            
         } else if (ext === '.pdf') {
             result = await fileProcessor.processPDF(req.file.path);
         } else if (ext === '.txt') {
@@ -868,11 +1235,14 @@ app.get('/api/status', (req, res) => {
         starting_up: isStartingUp,
         memory_users: conversationMemory.size,
         memory_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
-        file_processor: 'active',
+        file_contexts: userFileContext.size,
+        file_processor: 'smart_processor_active',
         capabilities: [
-            'OCR de imágenes (Tesseract)',
+            'OCR inteligente (análisis previo)',
+            'Visión AI para imágenes',
             'Lectura de PDFs',
             'Procesamiento de texto',
+            'Análisis de contenido',
             'Wikipedia ES/EN',
             'Datos de países',
             'Información meteorológica',
@@ -920,10 +1290,10 @@ app.get('/', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════╗
-║         🤖 MANCY - PROCESADOR            ║
-║         DE ARCHIVOS                      ║
+║         🤖 MANCY MEJORADA                ║
+║   PROCESAMIENTO INTELIGENTE DE ARCHIVOS  ║
 ║                                          ║
-║  📸 LEE:                                 ║
+║  📸 LEE INTELIGENTEMENTE:                ║
 ║     • Imágenes (PNG, JPG, JPEG)          ║
 ║     • Documentos PDF                     ║
 ║     • Archivos de texto                  ║
@@ -936,6 +1306,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ║                                          ║
 ║  🛡️  FILTRO: ACTIVADO                    ║
 ║  💾 MEMORIA: 270 mensajes                ║
+║  ⏰ ARCHIVOS: 5 minutos de vida          ║
 ║                                          ║
 ║  🌐 Puerto: ${PORT}                     ║
 ║  📁 Uploads: ${UPLOADS_DIR}             ║
@@ -943,7 +1314,7 @@ app.listen(PORT, '0.0.0.0', () => {
     `);
     
     console.log('\n🚀 Endpoints:');
-    console.log(`   POST /api/process    - Procesar archivo`);
+    console.log(`   POST /api/process    - Procesar archivo (sistema inteligente)`);
     console.log(`   GET  /api/status     - Ver estado`);
     console.log(`   POST /api/start      - Iniciar bot`);
     console.log(`   POST /api/stop       - Detener bot`);
