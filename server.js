@@ -3,6 +3,7 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import axios from 'axios';
+import { MemoryManager } from './MemoryManager.js';  // ← SOLO AÑADIDO ESTO
 
 dotenv.config();
 
@@ -67,7 +68,7 @@ class FiltroContenido {
             "Bueno, dejando a un lado ese... *momento peculiar*... ¿en qué puedo ayudarte realmente?",
             "Vale, momento incómodo superado. Siguiente tema, por favor. ⏭️",
             "Interesante interrupción. Retomemos la conversación productiva, ¿sí?",
-            "Ignoro elegantemente eso y continúo siendo útil. ¿Algo más? 😌",
+            "Ignoro eleganteente eso y continúo siendo útil. ¿Algo más? 😌",
             "Como si nada hubiera pasado... ¿Hablabas de algo importante?",
             "Error 404: Relevancia no encontrada. Continuemos. 💻",
             "Ahora que has sacado eso de tu sistema... ¿necesitas ayuda con algo real?",
@@ -543,19 +544,11 @@ TU ESTILO:
 
 // ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
-    if (!conversationMemory.has(userId)) {
-        conversationMemory.set(userId, []);
-    }
-    return conversationMemory.get(userId);
+    return memoryManager.obtenerHistorialUsuario(userId);  // ← SOLO CAMBIADO ESTO
 }
 
 function agregarAlHistorial(userId, rol, contenido) {
-    const historial = obtenerHistorialUsuario(userId);
-    historial.push({ rol, contenido, timestamp: Date.now() });
-    
-    if (historial.length > MAX_HISTORY) {
-        historial.splice(0, historial.length - MAX_HISTORY);
-    }
+    return memoryManager.agregarAlHistorial(userId, rol, contenido);  // ← SOLO CAMBIADO ESTO
 }
 
 // ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
@@ -651,7 +644,7 @@ async function procesarMensajeConocimiento(message, userMessage, userId) {
             // Agregar respuesta al historial
             agregarAlHistorial(userId, 'assistant', respuesta);
             
-            console.log(`✅ Respondió (historial: ${historial.length}/${MAX_HISTORY})`);
+            console.log(`✅ Respondió (historial: ${historial.length}/270)`);  // ← SOLO CAMBIADO: 270 en lugar de MAX_HISTORY
             
             // Enviar respuesta
             if (respuesta.length > 2000) {
@@ -815,11 +808,14 @@ app.get('/test', (req, res) => {
 });
 
 app.get('/api/status', (req, res) => {
+    const stats = memoryManager.obtenerEstadisticas();  // ← SOLO CAMBIADO ESTO
+    
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
-        memory_users: conversationMemory.size,
-        memory_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
+        memory_users: stats.totalUsuarios,  // ← SOLO CAMBIADO ESTO
+        memory_messages: stats.totalMensajes,  // ← SOLO CAMBIADO ESTO
+        max_history: stats.maxHistory,  // ← SOLO AÑADIDO ESTO
         filtro_activo: true,
         apis: [
             'Wikipedia (ES/EN)',
@@ -901,12 +897,16 @@ app.post('/api/stop', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
+    const stats = memoryManager.obtenerEstadisticas();  // ← SOLO AÑADIDO ESTO
+    
     res.json({
         status: 'healthy',
         bot_active: botActive,
         filtro: 'activado',
         apis: '6 fuentes confiables',
-        memory: '270 mensajes',
+        memory_users: stats.totalUsuarios,  // ← SOLO AÑADIDO ESTO
+        memory_messages: stats.totalMensajes,  // ← SOLO AÑADIDO ESTO
+        memory_max: 270,
         uptime: process.uptime()
     });
 });
