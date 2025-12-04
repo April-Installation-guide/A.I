@@ -15,8 +15,7 @@ let botActive = false;
 let isStartingUp = false;
 
 // ========== MEMORIA SIMPLE ==========
-const conversationMemory = new Map();
-const MAX_HISTORY = 270;
+const memoryManager = new MemoryManager(270);
 
 console.log('🤖 Mancy A.I - Asistente Confiable');
 console.log('🧠 Memoria: 270 mensajes');
