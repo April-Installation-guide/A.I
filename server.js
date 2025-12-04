@@ -6,6 +6,8 @@ import axios from 'axios';
 
 // CORREGIDO: Usar el nombre correcto del archivo
 import { MemoryManager } from './MemoryManager.js';  // ← Asegúrate que el archivo se llame MemoryManager.js
+import { ReasoningEngine } from './ReasoningEngine.js';
+const reasoningEngine = new ReasoningEngine();
 
 dotenv.config();
 
