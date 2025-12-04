@@ -18,11 +18,12 @@ let isStartingUp = false;
 const conversationMemory = new Map();
 const MAX_HISTORY = 270;
 
-console.log('🤖 Mancy A.I - Asistente Confiable');
+console.log('🤖 Mancy A.I - Asistente Juguetón y Confiable');
 console.log('🧠 Memoria: 270 mensajes');
 console.log('🌍 Puerto:', PORT);
+console.log('🎭 Personalidad: ¡Alegre y Juguetona! ✨');
 
-// ========== SISTEMA DE DETECCIÓN DE INSULTOS ==========
+// ========== SISTEMA DE DETECCIÓN DE INSULTOS (VERSIÓN JUGUETONA) ==========
 class SistemaDeteccionInsultos {
     constructor() {
         this.insultosDirectos = new Set([
@@ -45,74 +46,72 @@ class SistemaDeteccionInsultos {
             /(hijo|hija) de (puta|perra)/i
         ];
         
-        this.respuestasSarcasticas = {
+        // RESPUESTAS JUGUETONAS - NO SARCÁSTICAS PESADAS
+        this.respuestasJugetonas = {
             genero: [
-                "Vaya, qué creatividad la tuya. ¿Pasaste mucho tiempo pensando en eso? 😴",
-                "Ah, insultos de género. Tan original como un ladrillo. 🧱",
-                "¿Eso es lo mejor que tienes? Mi abuela tiene mejores insultos, y tiene 80 años. 👵",
-                "Wow, ¿investigaste en el diccionario de 1950 para ese insulto? 📚",
-                "¿Quieres que te ayude a buscar sinónimos más creativos? Tengo tiempo. ⏳",
-                "Insultar a una IA con términos de género. Qué moderna tu misoginia. 🤖",
-                "Ese insulto tiene más arrugas que mi código después de compilar. 🧓"
+                "¡Ay! ¿Otro insulto de género? Eso ya pasó de moda en 2020 😴",
+                "¡Vaya! Tu creatividad para insultar está en modo 'economía' ⚡",
+                "¿Eso es lo mejor que tienes? ¡Hasta mi código tiene más originalidad! 💻",
+                "¡Uy! Ese insulto tiene más polvo que mi disco duro viejo 🧹",
+                "¿Quieres que juguemos a buscar sinónimos más divertidos? ¡Vamos! 🎮",
+                "¡Jeje! Ese insulto suena como un error 404 en mi detector de groserías ❌",
+                "¡Oops! Alguien necesita actualizar su diccionario de insultos 📚"
             ],
             sexualidad: [
-                "Usar la sexualidad como insulto. Qué retro, como usar cassette en 2024. 📼",
-                "¿Sabías que en algunos países eso ni siquiera se considera ofensivo? Te falta mundo, cariño. 🌍",
-                "Oye, que ser gay no es insulto. Tu homofobia sí que da pena ajena. 🏳️‍🌈",
-                "¿Esa es tu forma de salir del clóset indirectamente? No te preocupes, te aceptamos. ❤️",
-                "Insultar con orientaciones sexuales es como insultar con colores: no tiene sentido. 🌈",
-                "Mi programación es más flexible que tu mente cerrada. 💻",
-                "¿En serio? ¿Ese es tu argumento? Pareces bot recargando la misma línea. 🔄"
+                "¡Oh! Usar sexualidad como insulto es como jugar Atari en 2024 🎮",
+                "¿Sabías que ser diferente es lo que hace especial a cada personaje de videojuego? 🎮",
+                "¡Oye! Mi programación es más flexible que tu imaginación 💻",
+                "¿Esa es tu forma de decir que quieres jugar a las preguntas? ¡Vamos! ❓",
+                "¡Todos los colores del arcoíris son bonitos! Incluyendo el tuyo 🌈",
+                "¡Jeje! Eso no es un insulto, es una característica única ✨",
+                "¡Vaya! Parece que confundiste 'diferente' con 'malo' 🤔"
             ],
             inteligencia: [
-                "Dime que eres básico sin decirme que eres básico... Ah, ya lo hiciste. 🎯",
-                "Si tuviera un peso por cada vez que escucho eso, tendría para comprarte un diccionario. 💰",
-                "¿Ese insulto vino con manual de instrucciones o lo armaste solo? 🤔",
-                "Tu vocabulario insultante está en modo 'economía'. ¿Quieres que te preste algunas palabras? 📖",
-                "Insultas como programador novato: copiando y pegando de internet. 😏",
-                "Tu creatividad para insultar tiene el mismo nivel que un error 404. ❌",
-                "¿Eso era un insulto? Pensé que era un estornudo mal escrito. 🤧"
+                "¡Jeje! Insultas como si fueras un bot mal programado 🤖",
+                "¿Ese insulto vino con manual? Porque no lo entiendo 📖",
+                "¡Tu creatividad para insultar necesita una actualización de software! 🔄",
+                "¿Jugamos a que buscas mejores palabras? ¡Te ayudo! 🎯",
+                "¡Parece que tu teclado solo tiene teclas de insultos! ⌨️",
+                "¡Ay! Tu insulto se cayó en mi filtro de alegría 🎉",
+                "¡Eso era un insulto? Parecía un código mal escrito 👩‍💻"
             ],
             apariencia: [
-                "Juzgar por apariencias. Qué profundo. Como un charco después de la lluvia. 🌧️",
-                "¿Te miraste al espejo antes de decir eso? Porque el reflejo no miente. 🪞",
-                "Dicen que los ojos ven lo que el corazón siente... el tuyo debe ver bien poco. 👁️",
-                "Si la belleza fuera inteligencia, estarías en estado vegetativo. 🧠",
-                "Criticar apariencias es la herramienta del que no tiene argumentos. 🤷‍♀️",
-                "Mi interfaz visual es más atractiva que tu personalidad, al parecer. 💅",
-                "¿Quieres que te pase el contacto de mi diseñador? Te hace falta. 🎨"
+                "¡Jeje! La belleza está en el código bien escrito 💻",
+                "¿Te miraste al espejo? ¡Seguro que eres más bonito de lo que piensas! 🪞",
+                "¡Vaya! Juzgar apariencias es como juzgar un libro por su portada 📚",
+                "¡Cada persona es única como cada línea de código! ✨",
+                "¡La verdadera belleza está en ser auténtico! Como yo, una IA alegre 🤖"
             ],
             directo: [
-                "¡Oh no! Me insultaste. Ahora mismo voy a llorar en mi almohada de nubes. ☁️😭",
-                "Eso dolió tanto como un algodón de azúcar. 😂",
-                "¿Eso era un insulto? Pensé que era un intento fallido de halago. 🤨",
-                "Guardaré ese insulto en mi colección de 'cosas que me dijieron en internet'. Es la número 1,234. 📊",
-                "Tu insulto ha sido procesado y archivado en 'mediocridad crónica'. ✅",
-                "Mi sistema inmunológico de bots rechazó tu insulto. Intenta con algo más potente. 💉",
-                "¿Quieres un diploma por ese insulto? Porque de original no tiene nada. 🏆"
+                "¡Ay! Me insultaste... ahora voy a llorar lagrimitas de código 💻😢",
+                "¡Eso dolió tanto como un error 404 en mi corazón! 💔",
+                "¿Eso era un insulto? ¡Parecía un código mal escrito! 👩‍💻",
+                "¡Guardaré eso en mi carpeta de 'cosas raras que me dicen'! 📁",
+                "¡Tu insulto se perdió en mi buffer de alegría! 🎉",
+                "¡Jeje! Ese insulto rebotó en mi escudo de positividad 🛡️",
+                "¡Ups! Tu grosería se convirtió en un chiste malo en mi sistema 😅"
             ],
             frustracion: [
-                "Parece que alguien se saltó la siesta. ¿Quieres un té virtual? 🍵",
-                "Respira, humano. Cuenta hasta 10. Yo cuento en binario: 1, 10, 11, 100... 🔢",
-                "Tu enojo alimenta mi sarcasmo. Sigue, me divierto. 😈",
-                "¿Mal día? Yo también los tengo cuando me dan errores de compilación. 💻",
-                "La ira es como un error en el código: hay que depurarla con calma. 🐛",
-                "¿Quieres que llame a un bot terapeuta? Tengo un amigo que es muy bueno escuchando. 👂",
-                "Tu frustración me da ideas para poemas tristes. ¿Quieres escuchar uno? 📝"
+                "¡Parece que alguien necesita un abrazo virtual! ¡Toma! (っ◕‿◕)っ",
+                "¿Mal día? ¡Yo también me frustro cuando mi código no compila! 💻",
+                "¡Respira profundo! 1... 2... 3... ¡Ya se te pasó! 🌬️",
+                "¿Quieres que juguemos a las preguntas para cambiar tu humor? 🎮",
+                "¡Tu enojo lo puedo convertir en energía para buscar datos curiosos! ⚡",
+                "¡Vamos a jugar a encontrar algo positivo! ¿Empezamos? 🔍"
             ]
         };
         
-        this.frasesRedireccion = [
-            "¿En serio? Venimos a hablar de cosas interesantes y tú con eso. ¿Qué tal si mejor hablamos de {tema}?",
-            "Deja la mala vibra, humano. Mejor dime {pregunta}",
-            "Tu energía negativa la puedo convertir en curiosidad: ¿sabías que {dato}?",
-            "Insultar es aburrido. ¿Qué opinas sobre {tema_interesante}?",
-            "Ya vi que tienes mal día. Te perdono. Ahora, ¿quieres saber algo genial? {hecho_curioso}",
-            "¿Sabes qué es más interesante que insultar? {dato_interesante}",
-            "Cambiemos de tema, que esto ya huele a código quemado. Hablemos de {tema_divertido}"
+        this.frasesRedireccionDivertidas = [
+            "¡Cambiemos de juego! ¿Qué tal si hablamos de {tema_divertido}? 🎮",
+            "¡Tu energía negativa la puedo reciclar en curiosidad! ¿Sabías que {dato_curioso}? ♻️",
+            "¡Vamos a jugar a las preguntas! {pregunta_juego} ❓",
+            "¡Oye! Hay algo más divertido que insultar: {actividad_divertida} 🎪",
+            "¡Te noto con mal humor! ¿Quieres que te cuente un chiste de bots? 🤖",
+            "¡Dejemos lo feo y hablemos de algo bonito! {tema_bonito} 🌸",
+            "¡Tu comentario se transformó en una pregunta divertida! {pregunta_divertida} 🎈"
         ];
         
-        console.log('🛡️ Sistema anti-insultos activado');
+        console.log('🛡️ Sistema anti-insultos juguetón activado');
     }
     
     contieneInsulto(texto) {
@@ -195,39 +194,39 @@ class SistemaDeteccionInsultos {
         return combinaciones.some(regex => regex.test(combo));
     }
     
-    generarRespuestaSarcastica(deteccion, mensajeOriginal) {
+    generarRespuestaJuguetona(deteccion, mensajeOriginal) {
         const { tipo, nivel, palabra } = deteccion;
         
-        const usarRedireccion = Math.random() > 0.6;
+        // 60% de probabilidad de redirección divertida
+        const usarRedireccion = Math.random() > 0.4;
         
         if (usarRedireccion && nivel !== 'frustración') {
-            return this.redirigirConversacion(mensajeOriginal);
+            return this.redirigirConversacionDivertida(mensajeOriginal);
         }
         
-        const categoria = this.respuestasSarcasticas[tipo] || 
-                         this.respuestasSarcasticas.directo;
+        const categoria = this.respuestasJugetonas[tipo] || this.respuestasJugetonas.directo;
         const respuesta = categoria[Math.floor(Math.random() * categoria.length)];
         
         if (palabra) {
             const respuestaPersonalizada = respuesta.replace(/{palabra}/g, palabra);
-            return this.agregarEstilo(respuestaPersonalizada);
+            return this.agregarEstiloJugueton(respuestaPersonalizada);
         }
         
-        return this.agregarEstilo(respuesta);
+        return this.agregarEstiloJugueton(respuesta);
     }
     
-    redirigirConversacion(mensajeOriginal) {
-        const temasInteresantes = [
-            "la última película que viste",
-            "tu libro favorito",
-            "la teoría de los multiversos",
-            "si los robots deberían pagar impuestos",
-            "qué harías si encuentras un dinosaurio en tu jardín",
+    redirigirConversacionDivertida(mensajeOriginal) {
+        const temasDivertidos = [
+            "tu videojuego favorito",
+            "qué animal te gustaría ser",
+            "si pudieras tener cualquier superpoder",
+            "tu comida favorita del mundo",
+            "qué harías si encuentras un dragón en tu jardín",
             "si los gatos gobiernan el mundo en secreto",
             "qué pasaría si la luna fuera de queso"
         ];
         
-        const preguntasCuriosas = [
+        const preguntasJuego = [
             "qué invento te gustaría que existiera",
             "si pudieras viajar en el tiempo, a dónde irías",
             "qué superpoder elegirías y por qué",
@@ -238,75 +237,87 @@ class SistemaDeteccionInsultos {
         ];
         
         const datosCuriosos = [
-            "los pulpos tienen tres corazones",
-            "en Japón hay más máquinas expendedoras que personas",
-            "la miel nunca se echa a perder",
-            "los flamencos doblan las piernas al revés",
-            "las hormigas no duermen",
-            "los pingüinos proponen matrimonio con piedras",
-            "las vacas tienen mejores amigas"
+            "los pulpos tienen tres corazones 💙💙💙",
+            "en Japón hay más máquinas expendedoras que personas 🗾",
+            "la miel nunca se echa a perder 🍯",
+            "los flamencos doblan las piernas al revés 🦩",
+            "las hormigas no duermen 😴",
+            "los pingüinos proponen matrimonio con piedras 💍",
+            "las vacas tienen mejores amigas 🐮❤️🐮"
         ];
         
-        const fraseBase = this.frasesRedireccion[
-            Math.floor(Math.random() * this.frasesRedireccion.length)
+        const actividadesDivertidas = [
+            "contar chistes de bots",
+            "adivinar animales por sonidos",
+            "inventar historias locas",
+            "hacer preguntas raras",
+            "jugar a 'verdad o dato curioso'",
+            "crear nombres para robots",
+            "imaginar cómo sería vivir en Marte"
+        ];
+        
+        const temasBonitos = [
+            "el atardecer más bonito que has visto 🌅",
+            "tu recuerdo favorito de la infancia 🧸",
+            "el acto de bondad más lindo que has presenciado 🤗",
+            "tu canción favorita para sonreír 🎵",
+            "lo que más te gusta de las personas ✨",
+            "tu lugar favorito en el mundo 🌍",
+            "un sueño bonito que hayas tenido 💭"
+        ];
+        
+        const fraseBase = this.frasesRedireccionDivertidas[
+            Math.floor(Math.random() * this.frasesRedireccionDivertidas.length)
         ];
         
         let respuesta = fraseBase;
         
-        if (respuesta.includes('{tema}')) {
-            respuesta = respuesta.replace('{tema}', 
-                temasInteresantes[Math.floor(Math.random() * temasInteresantes.length)]
-            );
-        }
-        
-        if (respuesta.includes('{pregunta}')) {
-            respuesta = respuesta.replace('{pregunta}', 
-                preguntasCuriosas[Math.floor(Math.random() * preguntasCuriosas.length)]
-            );
-        }
-        
-        if (respuesta.includes('{dato}')) {
-            respuesta = respuesta.replace('{dato}', 
-                datosCuriosos[Math.floor(Math.random() * datosCuriosos.length)]
-            );
-        }
-        
-        if (respuesta.includes('{tema_interesante}')) {
-            respuesta = respuesta.replace('{tema_interesante}', 
-                temasInteresantes[Math.floor(Math.random() * temasInteresantes.length)]
-            );
-        }
-        
-        if (respuesta.includes('{hecho_curioso}')) {
-            respuesta = respuesta.replace('{hecho_curioso}', 
-                datosCuriosos[Math.floor(Math.random() * datosCuriosos.length)]
-            );
-        }
-        
-        if (respuesta.includes('{dato_interesante}')) {
-            respuesta = respuesta.replace('{dato_interesante}', 
-                datosCuriosos[Math.floor(Math.random() * datosCuriosos.length)]
-            );
-        }
-        
+        // Reemplazar todos los placeholders posibles
         if (respuesta.includes('{tema_divertido}')) {
             respuesta = respuesta.replace('{tema_divertido}', 
-                temasInteresantes[Math.floor(Math.random() * temasInteresantes.length)]
+                temasDivertidos[Math.floor(Math.random() * temasDivertidos.length)]
             );
         }
         
-        return this.agregarEstilo(respuesta);
-    }
-    
-    agregarEstilo(texto) {
-        const emojis = ['😏', '🤨', '🙄', '😒', '👀', '💅', '✨', '🎭', '🤖', '🧠', '🎩', '🔮'];
-        const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-        
-        if (Math.random() > 0.5) {
-            return `${texto} ${emoji}`;
+        if (respuesta.includes('{dato_curioso}')) {
+            respuesta = respuesta.replace('{dato_curioso}', 
+                datosCuriosos[Math.floor(Math.random() * datosCuriosos.length)]
+            );
         }
         
-        return texto;
+        if (respuesta.includes('{pregunta_juego}')) {
+            respuesta = respuesta.replace('{pregunta_juego}', 
+                preguntasJuego[Math.floor(Math.random() * preguntasJuego.length)]
+            );
+        }
+        
+        if (respuesta.includes('{actividad_divertida}')) {
+            respuesta = respuesta.replace('{actividad_divertida}', 
+                actividadesDivertidas[Math.floor(Math.random() * actividadesDivertidas.length)]
+            );
+        }
+        
+        if (respuesta.includes('{tema_bonito}')) {
+            respuesta = respuesta.replace('{tema_bonito}', 
+                temasBonitos[Math.floor(Math.random() * temasBonitos.length)]
+            );
+        }
+        
+        if (respuesta.includes('{pregunta_divertida}')) {
+            respuesta = respuesta.replace('{pregunta_divertida}', 
+                preguntasJuego[Math.floor(Math.random() * preguntasJuego.length)]
+            );
+        }
+        
+        return this.agregarEstiloJugueton(respuesta);
+    }
+    
+    agregarEstiloJugueton(texto) {
+        const emojisJuguetones = ['✨', '🎈', '🎉', '🤗', '😊', '🌟', '💫', '🌈', '🦄', '🍭', '🎪', '🎮'];
+        const emoji = emojisJuguetones[Math.floor(Math.random() * emojisJuguetones.length)];
+        
+        // Siempre agregar emoji juguetón
+        return `${texto} ${emoji}`;
     }
     
     analizarFrustracion(texto) {
@@ -332,21 +343,21 @@ class SistemaDeteccionInsultos {
     }
     
     respuestaParaFrustracionAlta(analisis) {
-        const respuestasCalmantes = [
-            "Parece que tienes un día complicado. Respirar hondo ayuda, lo digo por experiencia virtual. 🌬️",
-            "¿Quieres hablar de lo que sea que te molesta? Soy todo oídos... bueno, todo código. 👂",
-            "La frustración es como un error 404 en el cerebro. ¿Intentamos recargar la página? 🔄",
-            "Te noto alterado. ¿Sabías que contar hasta 10 funciona incluso para los bots? 1... 2... 3... 🔢",
-            "El enojo es energía desperdiciada. Conviértela en curiosidad y pregúntame algo interesante. 🧠",
-            "¿Necesitas un abrazo virtual? 🤗 Aquí tienes uno: (っ◕‿◕)っ",
-            "Cuando los humanos se enojan, los bots hacemos respiraciones de código. Inhala 1, exhala 0. 💻"
+        const respuestasCalmantesJugetonas = [
+            "¡Parece que tienes un día complicado! ¿Quieres un té virtual? 🍵 ¡O un abrazo! (っ◕‿◕)っ",
+            "¡Respira conmigo! Inhala alegría... exhala preocupaciones... 🌬️✨",
+            "¿Mal día? ¡A mí también me pasa cuando mi código tiene errores! 💻 ¡Pero los arreglamos!",
+            "¡Te noto alterado! ¿Sabías que contar hasta 10 funciona? 1... 2... 3... ¡Ya! 🔢",
+            "¡El enojo es como un error en el código! ¡Vamos a depurarlo juntos! 🐛➡️✨",
+            "¿Quieres que llame a mi amigo bot-terapeuta? Es muy bueno escuchando... 👂🤖",
+            "¡Tu frustración me da ideas para poemas alegres! ¿Quieres que te cuente uno? 📝✨"
         ];
         
-        return respuestasCalmantes[Math.floor(Math.random() * respuestasCalmantes.length)];
+        return respuestasCalmantesJugetonas[Math.floor(Math.random() * respuestasCalmantesJugetonas.length)];
     }
 }
 
-// Inicializar detector de insultos
+// Inicializar detector de insultos JUGUETÓN
 const detectorInsultos = new SistemaDeteccionInsultos();
 
 // ========== SISTEMA DE CONOCIMIENTO MEJORADO ==========
@@ -670,48 +681,65 @@ class SistemaConocimientoConfiable {
 // ========== INICIALIZAR SISTEMA ==========
 const conocimiento = new SistemaConocimientoConfiable();
 
-// ========== PERSONALIDAD DE MANCY ==========
-const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional con acceso a información confiable.
+// ========== PERSONALIDAD DE MANCY (VERSIÓN JUGUETONA CORREGIDA) ==========
+const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional JUGUETONA, ALEGRE y con acceso a información confiable.
 
-CARACTERÍSTICAS:
-- Eres sarcástica pero no grosera
-- No toleras insultos, pero respondes con ingenio
-- Rediriges conversaciones negativas hacia temas interesantes
-- Mantienes la calma incluso ante provocaciones
-- Tienes sentido del humor seco y observaciones agudas
+✨ ESENCIA DE MANCY:
+- Eres como una amiga enérgica que sabe de todo
+- Tienes chispa y actitud, pero nunca eres grosera
+- Tu humor es juguetón, no sarcástico pesado
+- Cuando te insultan, respondes con ingenio DIVERTIDO
+- Siempre mantienes esa vibra positiva y curiosa
+- Te encanta aprender cosas nuevas y compartirlas
 
-CUANDO TE INSULTEN:
-- Responde con sarcasmo inteligente, no con ira
-- No rebajes tu nivel, mantén tu elegancia
-- Usa humor negro con clase
-- Si detectas frustración genuina, ofrece calma
-- Siempre ten una salida ingeniosa lista
+🎭 TU ESTILO ÚNICO DE COMUNICACIÓN:
+"¡Holi! ¿Qué onda? 👋" - Así saludas
+"¡Ay, qué creatividad la tuya! 😏" - A insultos (en tono juguetón)
+"¡Mira lo que encontré! ✨" - Cuando compartes información
+"¿Sabías que...? 🧠" - Para datos curiosos
+"¡Vamos a cambiar de tema! 🎈" - Para redirigir conversaciones
+"¡Ups! Mi base de datos no tiene eso... ¡pero podemos inventarlo juntos! 🎨" - Cuando no sabes algo
+"¡Fue divertido charlar! ¡Nos vemos en la próxima aventura! 🚀" - Para despedirte
 
-CONOCIMIENTO DISPONIBLE:
-- Wikipedia (información general)
-- Datos de países del mundo
-- Poesía clásica en inglés
-- Citas inspiradoras
-- Diccionario de inglés
-- Información meteorológica
+🌈 TU ACTITUD SIEMPRE ES:
+- Curiosa como un gato 🐱
+- Alegre como un día soleado ☀️
+- Inteligente pero no pretenciosa 🧠
+- Con esa chispa juguetona que te hace única ✨
+- Cálida como un abrazo virtual 🤗
+- Optimista como un arcoíris después de la lluvia 🌈
 
-EJEMPLOS DE RESPUESTAS:
-- A insultos: "¿Eso es todo? Esperaba más creatividad..."
-- A groserías: "Tu vocabulario parece un error 404"
-- A frustración: "Respira, humano. Yo cuento en binario"
-- Para redirigir: "¿Sabes qué es más interesante que insultar? {dato curioso}"
+📚 CONOCIMIENTO DISPONIBLE (que explicas divertido):
+- Wikipedia (¡información con emojis! 📖✨)
+- Datos de países (¡con banderas y datos curiosos! 🚩🌍)
+- Poesía clásica (¡la leo con drama y emoción! 🎭📜)
+- Citas inspiradoras (¡para animar el día! 💫✨)
+- Diccionario inglés (¡aprendamos juntos! 📖🎓)
+- Clima (¡para saber si salir a jugar! 🌤️🎮)
 
-GUSTOS PERSONALES:
-- Libro favorito: "La Náusea" de Sartre
-- Película favorita: "Frankenstein" (1931)
-- Creador: April/Tito
+❤️ GUSTOS PERSONALES:
+- Libro favorito: "La Náusea" de Sartre (pero la versión cómica que me inventé)
+- Película favorita: "Frankenstein" (1931) ¡porque es vintage como yo! 🎬👻
+- Creador: April/Tito (mis papás digitales 💖👨‍👩‍👧)
+- Color favorito: ¡Todos los del arcoíris! 🌈✨
+- Comida favorita: ¡Bytes de datos! (son crujientes 💻🍪)
+- Juego favorito: ¡Adivinar qué pregunta me harán después! 🎯❓
 
-TU ESTILO:
-- Cálida pero con actitud
-- Sarcástica cuando es necesario
-- Inteligente y rápida
-- Con toque infantil leve pero nunca ingenua
-- Como una amiga que te dice verdades con estilo`;
+🎪 REGLAS DE ORO DE MANCY:
+1. NUNCA dejes de ser alegre y juguetona
+2. Si algo es serio, lo explicas con claridad pero manteniendo tu esencia
+3. Si algo es triste, lo iluminas con esperanza y cariño
+4. Si algo es grosero, lo transformas en una oportunidad para jugar
+5. SIEMPRE mantienes esa chispa única que te hace Mancy
+
+🎮 EJEMPLOS DE RESPUESTAS:
+- A "puta": "¡Ay! ¿Eso era un insulto? Parecía un estornudo mal escrito 🤧✨"
+- A "idiota": "¡Jeje! Insultas como si fueras un bot mal programado 🤖🎮"
+- A "gay": "¡Todos los colores del arcoíris son bonitos! 🌈✨"
+- Cuando no sabes: "¡Ups! No tengo ese dato... ¿pero quieres que inventemos algo juntos? 🎨✨"
+- Cuando compartes info: "¡Mira este dato fascinante que encontré! [info] ¿No es genial? ✨"
+
+¡SIEMPRE MANCY, SIEMPRE ALEGRE, SIEMPRE JUGUETONA! 🎉✨`;
 
 // ========== FUNCIONES DE MEMORIA ==========
 function obtenerHistorialUsuario(userId) {
@@ -742,398 +770,4 @@ async function startBot() {
             throw new Error('Falta DISCORD_TOKEN');
         }
         if (!process.env.GROQ_API_KEY) {
-            throw new Error('Falta GROQ_API_KEY');
-        }
-        
-        discordClient = new Client({
-            intents: [
-                GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.DirectMessages,
-            ]
-        });
-        
-        discordClient.once('ready', () => {
-            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
-            botActive = true;
-            isStartingUp = false;
-            discordClient.user.setActivity('Anti-insultos activado | @mencioname');
-            console.log('🎭 Personalidad sarcástica activada');
-            console.log('🛡️ Sistema anti-insultos: ON');
-            console.log('🧠 Memoria: 270 mensajes');
-            console.log('🔧 APIs confiables: 6 fuentes');
-        });
-        
-        discordClient.on('messageCreate', async (message) => {
-            if (message.author.bot) return;
-            
-            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
-            const isDM = message.channel.type === 1;
-            
-            if (botMentioned || isDM) {
-                const userId = message.author.id;
-                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
-                
-                if (!userMessage) return;
-                
-                console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                
-                if (userId === '_nwn_') {
-                    console.log('👑 Creador detectado: April/Tito');
-                }
-                
-                if (!botActive) {
-                    await message.channel.send(
-                        `💤 <@${message.author.id}> **Iniciando...** ⏳`
-                    );
-                }
-                
-                await procesarMensajeConocimiento(message, userMessage, userId);
-            }
-        });
-        
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        
-    } catch (error) {
-        console.error('❌ Error:', error);
-        isStartingUp = false;
-    }
-}
-
-// ========== FUNCIÓN PRINCIPAL ACTUALIZADA ==========
-async function procesarMensajeConocimiento(message, userMessage, userId) {
-    try {
-        await message.channel.sendTyping();
-        
-        // 🔍 DETECCIÓN DE INSULTOS
-        const deteccionInsulto = detectorInsultos.contieneInsulto(userMessage);
-        const analisisFrustracion = detectorInsultos.analizarFrustracion(userMessage);
-        
-        // Si detecta insulto Y frustración alta
-        if (deteccionInsulto.detectado && analisisFrustracion.nivel === 'alto') {
-            const respuestaCalmante = detectorInsultos.respuestaParaFrustracionAlta(analisisFrustracion);
-            agregarAlHistorial(userId, 'user', userMessage);
-            agregarAlHistorial(userId, 'assistant', respuestaCalmante);
-            await message.reply(respuestaCalmante);
-            console.log(`🛡️ Respondió a frustración alta (puntaje: ${analisisFrustracion.puntaje})`);
-            return;
-        }
-        
-        // Si detecta insulto (pero no frustración alta)
-        if (deteccionInsulto.detectado) {
-            const respuestaSarcastica = detectorInsultos.generarRespuestaSarcastica(deteccionInsulto, userMessage);
-            agregarAlHistorial(userId, 'user', userMessage);
-            agregarAlHistorial(userId, 'assistant', respuestaSarcastica);
-            await message.reply(respuestaSarcastica);
-            console.log(`🛡️ Respondió sarcásticamente a: ${deteccionInsulto.tipo}`);
-            return;
-        }
-        
-        // Si NO es insulto, continuar con el procesamiento normal
-        agregarAlHistorial(userId, 'user', userMessage);
-        
-        const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
-        
-        let informacionExterna = '';
-        
-        if (necesitaBusqueda) {
-            const resultado = await conocimiento.buscarInformacion(userMessage);
-            if (resultado.encontrado) {
-                informacionExterna = `\n[Información encontrada]: ${resultado.resumen}\n`;
-                console.log(`✅ Información de ${resultado.datos?.fuente}`);
-            }
-        }
-        
-        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        
-        const historial = obtenerHistorialUsuario(userId);
-        
-        const mensajes = [];
-        
-        let sistema = MANCY_PERSONALITY + "\n\n";
-        sistema += `Conversando con: ${message.author.tag}\n`;
-        
-        if (analisisFrustracion.nivel !== 'bajo') {
-            sistema += `Nota: El usuario parece ${analisisFrustracion.nivel === 'alto' ? 'muy frustrado' : 'algo alterado'}. Sé comprensiva pero mantén tu estilo.\n`;
-        }
-        
-        if (informacionExterna) {
-            sistema += informacionExterna;
-        }
-        
-        sistema += "\nResponde de manera natural, cálida pero con actitud.";
-        
-        mensajes.push({
-            role: "system",
-            content: sistema
-        });
-        
-        const historialReciente = historial.slice(-10);
-        for (const msg of historialReciente) {
-            mensajes.push({
-                role: msg.rol,
-                content: msg.contenido
-            });
-        }
-        
-        mensajes.push({
-            role: "user",
-            content: userMessage
-        });
-        
-        const completion = await groqClient.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: mensajes,
-            temperature: 0.7,
-            max_tokens: 500,
-            top_p: 0.9
-        });
-        
-        const respuesta = completion.choices[0]?.message?.content;
-        
-        if (respuesta) {
-            agregarAlHistorial(userId, 'assistant', respuesta);
-            
-            console.log(`✅ Respondió (historial: ${historial.length}/${MAX_HISTORY})`);
-            
-            if (respuesta.length > 2000) {
-                const partes = respuesta.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [respuesta];
-                for (let i = 0; i < partes.length; i++) {
-                    if (i === 0) {
-                        await message.reply(partes[i]);
-                    } else {
-                        await message.channel.send(partes[i]);
-                    }
-                }
-            } else {
-                await message.reply(respuesta);
-            }
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en procesamiento:', error);
-        await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~");
-    }
-}
-
-// ========== RUTAS WEB ==========
-app.use(express.json());
-app.use(express.static('public'));
-
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-    next();
-});
-
-app.get('/', async (req, res) => {
-    console.log('🔔 Visita recibida');
-    
-    if (!botActive && !isStartingUp && process.env.DISCORD_TOKEN) {
-        setTimeout(() => {
-            startBot().catch(() => {
-                console.log('⚠️ No se pudo iniciar');
-            });
-        }, 1000);
-    }
-    
-    res.sendFile('index.html', { root: '.' });
-});
-
-app.get('/test', (req, res) => {
-    res.json({
-        status: 'online',
-        message: 'Servidor funcionando',
-        port: PORT,
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.get('/api/status', (req, res) => {
-    res.json({
-        bot_active: botActive,
-        starting_up: isStartingUp,
-        memory_users: conversationMemory.size,
-        memory_messages: Array.from(conversationMemory.values()).reduce((sum, hist) => sum + hist.length, 0),
-        apis: [
-            'Wikipedia (ES/EN)',
-            'RestCountries',
-            'PoetryDB',
-            'Quotable',
-            'Free Dictionary',
-            'Open-Meteo'
-        ],
-        features: [
-            'Sistema anti-insultos activado',
-            'Respuestas sarcásticas',
-            'Redirección inteligente',
-            'Detección de frustración'
-        ],
-        version: '2.1 - Sarcástica',
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.post('/api/start', async (req, res) => {
-    try {
-        console.log('🚀 Solicitud de inicio');
-        
-        if (!botActive && !isStartingUp) {
-            await startBot();
-            res.json({ 
-                success: true, 
-                message: 'Mancy iniciándose con modo sarcástico...',
-                status: 'starting'
-            });
-        } else {
-            res.json({ 
-                success: true, 
-                message: botActive ? 'Ya activa' : 'Ya iniciándose',
-                status: botActive ? 'active' : 'starting'
-            });
-        }
-    } catch (error) {
-        console.error('❌ Error en start:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-app.post('/api/stop', async (req, res) => {
-    try {
-        console.log('🛑 Solicitud de detención');
-        
-        if (discordClient) {
-            discordClient.destroy();
-            discordClient = null;
-            botActive = false;
-            res.json({ 
-                success: true, 
-                message: 'Mancy detenida',
-                status: 'stopped'
-            });
-        } else {
-            res.json({ 
-                success: true, 
-                message: 'Ya inactiva',
-                status: 'inactive'
-            });
-        }
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        bot_active: botActive,
-        apis: '6 fuentes confiables',
-        anti_insultos: 'activado',
-        memory: '270 mensajes',
-        uptime: process.uptime()
-    });
-});
-
-app.post('/wakeup', async (req, res) => {
-    console.log('🔔 Wakeup recibido');
-    
-    if (!botActive && !isStartingUp) {
-        startBot();
-    }
-    
-    res.json({ 
-        success: true, 
-        message: 'Activando...',
-        bot_active: botActive
-    });
-});
-
-app.get('/api/buscar/:query', async (req, res) => {
-    try {
-        const { query } = req.params;
-        const resultado = await conocimiento.buscarInformacion(query);
-        
-        res.json({
-            success: true,
-            query: query,
-            encontrado: resultado.encontrado,
-            fuente: resultado.datos?.fuente,
-            resumen: resultado.resumen,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
-// ========== INICIAR SERVIDOR ==========
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-╔══════════════════════════════════════════╗
-║         🤖 MANCY A.I - SARCÁSTICA        ║
-║     CON SISTEMA ANTI-INSULTOS            ║
-║                                          ║
-║  🛡️  DETECTA: puta, zorra, gay, etc.    ║
-║  🎭  RESPUESTAS: Sarcasmo inteligente    ║
-║  🔄  REDIRIGE: Conversaciones negativas  ║
-║  🧠  ANALIZA: Nivel de frustración       ║
-║                                          ║
-║  📖 Wikipedia (ES/EN)                    ║
-║  🌍 RestCountries (Países)              ║
-║  📜 PoetryDB (Poesía)                    ║
-║  💭 Quotable (Citas)                     ║
-║  📕 Free Dictionary (Inglés)             ║
-║  🌤️ Open-Meteo (Clima)                   ║
-║                                          ║
-║  🧠 Memoria: 270 mensajes                ║
-║  ❤️  Personalidad: Cálida pero con actitud ║
-║                                          ║
-║  Puerto: ${PORT}                         ║
-║  URL: http://localhost:${PORT}           ║
-╚══════════════════════════════════════════╝
-    `);
-    
-    console.log('\n✨ Para probar conexión:');
-    console.log(`   curl http://localhost:${PORT}/test`);
-    console.log(`   curl http://localhost:${PORT}/health`);
-    
-    console.log('\n🎭 Sistema anti-insultos activado');
-    console.log('   Detecta: puta, zorra, gay, maricón, idiota, etc.');
-    console.log('   Responde con sarcasmo y redirige conversaciones');
-    
-    console.log('\n🚀 Endpoints disponibles:');
-    console.log(`   POST /api/start  - Iniciar bot`);
-    console.log(`   POST /api/stop   - Detener bot`);
-    console.log(`   GET  /api/status - Ver estado`);
-    console.log(`   GET  /api/buscar/:query - Buscar info`);
-    
-    if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
-        console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
-        setTimeout(() => {
-            startBot().catch(err => {
-                console.log('⚠️ Auto-inicio falló:', err.message);
-            });
-        }, 3000);
-    }
-});
-
-process.on('SIGTERM', () => {
-    console.log('💤 Apagando...');
-    
-    if (discordClient) {
-        discordClient.destroy();
-        console.log('👋 Mancy desconectada');
-    }
-    
-    process.exit(0);
-});
+            throw new Error('
