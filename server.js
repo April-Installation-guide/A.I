@@ -1,9 +1,9 @@
+// Verifica que sea exactamente así:
 import { MemoryManager } from './Modules/MemoryManager.js';
 import { ReasoningEngine } from './Modules/ReasoningEngine.js';
 import { EthicsModule } from './Modules/EthicsModule.js';
 import { NegotiationModule } from './Modules/NegotiationModule.js';
 import { PhilosophyModule } from './Modules/PhilosophyModule.js';
-
 dotenv.config();
 
 const app = express();
