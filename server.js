@@ -1,13 +1,8 @@
-import express from 'express';
-import { Client, GatewayIntentBits } from "discord.js";
-import Groq from "groq-sdk";
-import dotenv from 'dotenv';
-import axios from 'axios';
-import { MemoryManager } from './modules/MemoryManager.js';
-import { ReasoningEngine } from './modules/ReasoningEngine.js';
-import { EthicsModule } from './modules/EthicsModule.js';
-import { NegotiationModule } from './modules/NegotiationModule.js';
-import { PhilosophyModule } from './modules/PhilosophyModule.js';
+import { MemoryManager } from './Modules/MemoryManager.js';
+import { ReasoningEngine } from './Modules/ReasoningEngine.js';
+import { EthicsModule } from './Modules/EthicsModule.js';
+import { NegotiationModule } from './Modules/NegotiationModule.js';
+import { PhilosophyModule } from './Modules/PhilosophyModule.js';
 
 dotenv.config();
 
