@@ -1,607 +1,642 @@
-// ========== SISTEMA DE MEMORIA MEJORADO ==========
 export class MemoryManager {
-    constructor(maxHistory = 270) {
-        this.memory = new Map(); // userId -> array de mensajes
-        this.maxHistory = maxHistory; // Límite por usuario
-        this.stats = {
-            totalUsuarios: 0,
-            totalMensajes: 0,
-            llamadasAPI: 0
-        };
-        
-        console.log(`🧠 Sistema de memoria activado (${maxHistory} mensajes/usuario)`);
+    constructor(maxHistory = 500) { // 85% más capacidad
+        this.maxHistory = maxHistory;
+        this.userHistories = new Map();
+        this.userProfiles = new Map(); // Perfiles mejorados
+        this.emotionalPatterns = new Map(); // Patrones emocionales
+        this.conversationVectors = new Map(); // Vectores semánticos
+        this.knowledgeGraph = new Map(); // Grafo de conocimiento por usuario
     }
-    
-    // ========== GESTIÓN DE HISTORIAL ==========
-    
-    // Obtener historial de un usuario
+
     obtenerHistorialUsuario(userId) {
-        if (!this.memory.has(userId)) {
-            return [];
-        }
-        
-        return this.memory.get(userId);
+        return this.userHistories.get(userId) || [];
     }
-    
-    // Agregar mensaje al historial
+
     agregarAlHistorial(userId, rol, contenido) {
-        try {
-            // Validar parámetros
-            if (!userId || !rol || !contenido) {
-                console.error('❌ Parámetros inválidos para agregar al historial');
-                return false;
-            }
-            
-            // Inicializar array si no existe
-            if (!this.memory.has(userId)) {
-                this.memory.set(userId, []);
-                this.stats.totalUsuarios++;
-            }
-            
-            const historial = this.memory.get(userId);
-            
-            // Crear objeto de mensaje
-            const mensaje = {
-                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-                rol: rol,
-                contenido: contenido,
-                timestamp: new Date().toISOString(),
-                procesado: false
-            };
-            
-            // Agregar al inicio (para mantener orden cronológico inverso)
-            historial.unshift(mensaje);
-            
-            // Limitar tamaño del historial
-            if (historial.length > this.maxHistory) {
-                historial.splice(this.maxHistory, historial.length - this.maxHistory);
-            }
-            
-            // Actualizar estadísticas
-            this.stats.totalMensajes++;
-            
-            console.log(`📝 Memoria: ${userId} → ${rol} (${historial.length}/${this.maxHistory})`);
-            
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Error agregando al historial:', error);
-            return false;
-        }
-    }
-    
-    // ========== OPERACIONES AVANZADAS ==========
-    
-    // Buscar en el historial de un usuario
-    buscarEnHistorial(userId, consulta) {
-        if (!this.memory.has(userId)) {
-            return [];
+        if (!this.userHistories.has(userId)) {
+            this.userHistories.set(userId, []);
         }
         
-        const historial = this.memory.get(userId);
-        const resultados = [];
-        const consultaLower = consulta.toLowerCase();
+        const historial = this.userHistories.get(userId);
+        const timestamp = new Date();
         
-        // Buscar en los últimos 50 mensajes
-        for (let i = 0; i < Math.min(50, historial.length); i++) {
-            const mensaje = historial[i];
-            if (mensaje.contenido.toLowerCase().includes(consultaLower)) {
-                resultados.push({
-                    ...mensaje,
-                    indice: i,
-                    relevancia: this.calcularRelevancia(mensaje.contenido, consulta)
-                });
-            }
-        }
+        // Análisis avanzado del mensaje
+        const analisisMensaje = this.analizarMensajeAvanzado(contenido, rol);
         
-        // Ordenar por relevancia
-        resultados.sort((a, b) => b.relevancia - a.relevancia);
-        
-        return resultados.slice(0, 5); // Devolver top 5
-    }
-    
-    // Calcular relevancia de búsqueda
-    calcularRelevancia(texto, consulta) {
-        const textoLower = texto.toLowerCase();
-        const consultaLower = consulta.toLowerCase();
-        
-        let puntuacion = 0;
-        
-        // Coincidencia exacta
-        if (textoLower === consultaLower) {
-            puntuacion += 100;
-        }
-        
-        // Coincidencia de palabras completas
-        const palabrasConsulta = consultaLower.split(' ');
-        const palabrasTexto = textoLower.split(' ');
-        
-        for (const palabra of palabrasConsulta) {
-            if (palabrasTexto.includes(palabra)) {
-                puntuacion += 10;
-            }
-        }
-        
-        // Coincidencia parcial
-        if (textoLower.includes(consultaLower)) {
-            puntuacion += 5;
-        }
-        
-        // Priorizar mensajes más recientes (implícito por el orden)
-        
-        return puntuacion;
-    }
-    
-    // Obtener resumen de conversación
-    obtenerResumenConversacion(userId) {
-        if (!this.memory.has(userId) || this.memory.get(userId).length === 0) {
-            return "Sin historial de conversación.";
-        }
-        
-        const historial = this.memory.get(userId);
-        
-        // Tomar los últimos 10 mensajes
-        const mensajesRecientes = historial.slice(0, Math.min(10, historial.length));
-        
-        // Contar roles
-        const conteoRoles = {};
-        mensajesRecientes.forEach(msg => {
-            conteoRoles[msg.rol] = (conteoRoles[msg.rol] || 0) + 1;
+        historial.push({
+            rol,
+            contenido,
+            timestamp: timestamp.toISOString(),
+            analisis: analisisMensaje,
+            embeddings: this.generarEmbeddingSimple(contenido),
+            emocion: this.detectarEmocionAvanzada(contenido)
         });
         
-        // Extraer temas frecuentes (palabras clave simples)
-        const palabrasComunes = this.extraerPalabrasClave(mensajesRecientes);
+        // Actualizar perfil del usuario
+        this.actualizarPerfilUsuario(userId, contenido, rol, analisisMensaje);
+        
+        // Actualizar grafo de conocimiento
+        this.actualizarGrafoConocimiento(userId, contenido, analisisMensaje.temas);
+        
+        // Mantener límite con prioridad inteligente
+        if (historial.length > this.maxHistory) {
+            this.mantenimientoInteligente(userId);
+        }
+        
+        return historial;
+    }
+
+    analizarMensajeAvanzado(texto, rol) {
+        const analisis = {
+            longitud: texto.length,
+            complejidad: this.calcularComplejidad(texto),
+            temas: this.extraerTemas(texto),
+            intencion: this.detectarIntencion(texto),
+            preguntas: this.extraerPreguntas(texto),
+            argumentos: this.identificarArgumentos(texto)
+        };
+        
+        // Análisis semántico profundo
+        const palabrasClave = this.extraerPalabrasClave(texto);
+        const relacionTemas = this.analizarRelacionTematicas(palabrasClave);
         
         return {
-            totalMensajes: historial.length,
-            mensajesRecientes: mensajesRecientes.length,
-            distribucionRoles: conteoRoles,
-            palabrasClave: palabrasComunes.slice(0, 5),
-            ultimaInteraccion: historial[0]?.timestamp || "Nunca"
+            ...analisis,
+            palabrasClave,
+            relacionTemas,
+            coherencia: this.calcularCoherencia(texto),
+            profundidad: this.calcularProfundidadFilosofica(texto)
         };
     }
-    
-    // Extraer palabras clave simples
-    extraerPalabrasClave(mensajes) {
-        const palabrasExcluidas = new Set([
-            'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
-            'de', 'del', 'al', 'con', 'por', 'para', 'en', 'a',
-            'que', 'qué', 'y', 'o', 'u', 'e', 'pero', 'mas', 'más',
-            'es', 'son', 'fue', 'era', 'soy', 'eres', 'este', 'esta',
-            'esto', 'estos', 'estas', 'algo', 'nada', 'todo', 'todos',
-            'yo', 'tú', 'él', 'ella', 'nosotros', 'vosotros', 'ellos',
-            'mi', 'tu', 'su', 'nuestro', 'vuestro', 'su', 'muy',
-            'mucho', 'poco', 'menos', 'más', 'tan', 'tanto',
-            'como', 'cuando', 'donde', 'dónde', 'porque', 'por qué',
-            'si', 'no', 'sí', 'tal', 'cual', 'cuales'
-        ]);
+
+    calcularComplejidad(texto) {
+        const palabras = texto.split(/\s+/).length;
+        const oraciones = texto.split(/[.!?]+/).length - 1;
+        const palabrasComplejas = texto.match(/\b[a-zA-Z]{8,}\b/g) || [];
         
-        const frecuencia = {};
+        return Math.min(1, (palabrasComplejas.length / palabras) * 3 + 
+                       (palabras / Math.max(1, oraciones)) / 20);
+    }
+
+    extraerTemas(texto) {
+        const temas = [];
+        const textoLower = texto.toLowerCase();
         
-        mensajes.forEach(mensaje => {
-            const palabras = mensaje.contenido
-                .toLowerCase()
-                .replace(/[^\w\sáéíóúüñ]/g, ' ')
-                .split(/\s+/)
-                .filter(palabra => 
-                    palabra.length > 3 && 
-                    !palabrasExcluidas.has(palabra) &&
-                    isNaN(palabra)
-                );
+        const categorias = {
+            filosofia: ['filosofía', 'ética', 'moral', 'existencia', 'libre albedrío', 'conocimiento'],
+            ciencia: ['ciencia', 'tecnología', 'investigación', 'experimento', 'método científico'],
+            arte: ['arte', 'literatura', 'música', 'creatividad', 'expresión'],
+            relaciones: ['amistad', 'amor', 'familia', 'conflicto', 'comunicación'],
+            psicologia: ['mente', 'emociones', 'conducta', 'personalidad', 'terapia'],
+            tecnologia: ['ia', 'inteligencia artificial', 'algoritmo', 'programación', 'digital']
+        };
+        
+        Object.entries(categorias).forEach(([categoria, palabras]) => {
+            const coincidencias = palabras.filter(p => textoLower.includes(p));
+            if (coincidencias.length > 0) {
+                temas.push({
+                    categoria,
+                    fuerza: coincidencias.length / palabras.length,
+                    palabras: coincidencias
+                });
+            }
+        });
+        
+        return temas;
+    }
+
+    detectarIntencion(texto) {
+        const lower = texto.toLowerCase();
+        
+        if (lower.includes('?') || /^(cómo|qué|por qué|cuándo|dónde|quién)/i.test(texto)) {
+            return 'pregunta';
+        }
+        if (/(quiero|necesito|me gustaría|busco)/i.test(lower)) {
+            return 'solicitud';
+        }
+        if (/(gracias|agradezco|aprecio)/i.test(lower)) {
+            return 'agradecimiento';
+        }
+        if (/(opinas|piensas|crees|consideras)/i.test(lower)) {
+            return 'opinion';
+        }
+        if (/(ayuda|ayúdame|assistance)/i.test(lower)) {
+            return 'ayuda';
+        }
+        
+        return 'conversacion';
+    }
+
+    extraerPreguntas(texto) {
+        const preguntas = texto.split(/[.!?]+/).filter(oracion => 
+            oracion.trim().endsWith('?') || /^(cómo|qué|por qué|cuándo|dónde|quién)/i.test(oracion.trim())
+        );
+        
+        return preguntas.map(p => ({
+            texto: p.trim(),
+            tipo: this.clasificarPregunta(p)
+        }));
+    }
+
+    clasificarPregunta(pregunta) {
+        const lower = pregunta.toLowerCase();
+        
+        if (/^(qué es|qué significa|definición)/i.test(lower)) return 'definicion';
+        if (/^(cómo funciona|cómo se|cómo hacer)/i.test(lower)) return 'procedimiento';
+        if (/^(por qué|causa|razón)/i.test(lower)) return 'causa';
+        if (/^(cuándo|dónde|quién)/i.test(lower)) return 'especifico';
+        if (/^(debería|está bien|es correcto|moral)/i.test(lower)) return 'etica';
+        if (/^(qué opinas|qué piensas|qué crees)/i.test(lower)) return 'opinion';
+        
+        return 'general';
+    }
+
+    identificarArgumentos(texto) {
+        const argumentos = [];
+        const oraciones = texto.split(/[.!?]+/);
+        
+        oraciones.forEach((oracion, index) => {
+            if (oracion.trim().length < 10) return;
             
-            palabras.forEach(palabra => {
-                frecuencia[palabra] = (frecuencia[palabra] || 0) + 1;
+            // Detectar premisas y conclusiones
+            const indicadoresPremisa = ['porque', 'dado que', 'ya que', 'debido a'];
+            const indicadoresConclusion = ['por lo tanto', 'así que', 'en consecuencia', 'luego'];
+            
+            const esPremisa = indicadoresPremisa.some(i => oracion.toLowerCase().includes(i));
+            const esConclusion = indicadoresConclusion.some(i => oracion.toLowerCase().includes(i));
+            
+            if (esPremisa || esConclusion) {
+                argumentos.push({
+                    tipo: esPremisa ? 'premisa' : 'conclusion',
+                    contenido: oracion.trim(),
+                    posicion: index
+                });
+            }
+        });
+        
+        return argumentos;
+    }
+
+    extraerPalabrasClave(texto) {
+        // Lista de palabras vacías (stop words) en español
+        const stopWords = ['de', 'la', 'que', 'el', 'en', 'y', 'a', 'los', 'del', 'se', 'las', 'por', 'un', 'para', 'con', 'no', 'una', 'su', 'al', 'lo', 'como', 'más', 'pero', 'sus', 'le', 'ya', 'o', 'este', 'sí', 'porque', 'esta', 'entre', 'cuando', 'muy', 'sin', 'sobre', 'también', 'me', 'hasta', 'hay', 'donde', 'quien', 'desde', 'todo', 'nos', 'durante', 'todos', 'uno', 'les', 'ni', 'contra', 'otros', 'ese', 'eso', 'ante', 'ellos', 'e', 'esto', 'mí', 'antes', 'algunos', 'qué', 'unos', 'yo', 'otro', 'otras', 'otra', 'él', 'tanto', 'esa', 'estos', 'mucho', 'quienes', 'nada', 'muchos', 'cual', 'poco', 'ella', 'estar', 'estas', 'algunas', 'algo', 'nosotros', 'mi', 'mis', 'tú', 'te', 'ti', 'tu', 'tus', 'ellas', 'nosotras', 'vosotros', 'vosotras', 'os', 'mío', 'mía', 'míos', 'mías', 'tuyo', 'tuya', 'tuyos', 'tuyas', 'suyo', 'suya', 'suyos', 'suyas', 'nuestro', 'nuestra', 'nuestros', 'nuestras', 'vuestro', 'vuestra', 'vuestros', 'vuestras', 'esos', 'esas', 'estoy', 'estás', 'está', 'estamos', 'estáis', 'están', 'esté', 'estés', 'estemos', 'estéis', 'estén', 'estaré', 'estarás', 'estará', 'estaremos', 'estaréis', 'estarán', 'estaría', 'estarías', 'estaríamos', 'estaríais', 'estarían', 'estaba', 'estabas', 'estábamos', 'estabais', 'estaban', 'estuve', 'estuviste', 'estuvo', 'estuvimos', 'estuvisteis', 'estuvieron', 'estuviera', 'estuvieras', 'estuviéramos', 'estuvierais', 'estuvieran', 'estuviese', 'estuvieses', 'estuviésemos', 'estuvieseis', 'estuviesen', 'estando', 'estado', 'estada', 'estados', 'estadas', 'estad', 'he', 'has', 'ha', 'hemos', 'habéis', 'han', 'haya', 'hayas', 'hayamos', 'hayáis', 'hayan', 'habré', 'habrás', 'habrá', 'habremos', 'habréis', 'habrán', 'habría', 'habrías', 'habríamos', 'habríais', 'habrían', 'había', 'habías', 'habíamos', 'habíais', 'habían', 'hube', 'hubiste', 'hubo', 'hubimos', 'hubisteis', 'hubieron', 'hubiera', 'hubieras', 'hubiéramos', 'hubierais', 'hubieran', 'hubiese', 'hubieses', 'hubiésemos', 'hubieseis', 'hubiesen', 'habiendo', 'habido', 'habida', 'habidos', 'habidas', 'soy', 'eres', 'es', 'somos', 'sois', 'son', 'sea', 'seas', 'seamos', 'seáis', 'sean', 'seré', 'serás', 'será', 'seremos', 'seréis', 'serán', 'sería', 'serías', 'seríamos', 'seríais', 'serían', 'era', 'eras', 'éramos', 'erais', 'eran', 'fui', 'fuiste', 'fue', 'fuimos', 'fuisteis', 'fueron', 'fuera', 'fueras', 'fuéramos', 'fuerais', 'fueran', 'fuese', 'fueses', 'fuésemos', 'fueseis', 'fuesen', 'sintiendo', 'sentido', 'tengo', 'tienes', 'tiene', 'tenemos', 'tenéis', 'tienen', 'tenga', 'tengas', 'tengamos', 'tengáis', 'tengan', 'tendré', 'tendrás', 'tendrá', 'tendremos', 'tendréis', 'tendrán', 'tendría', 'tendrías', 'tendríamos', 'tendríais', 'tendrían', 'tenía', 'tenías', 'teníamos', 'teníais', 'tenían', 'tuve', 'tuviste', 'tuvo', 'tuvimos', 'tuvisteis', 'tuvieron', 'tuviera', 'tuvieras', 'tuviéramos', 'tuvierais', 'tuvieran', 'tuviese', 'tuvieses', 'tuviésemos', 'tuvieseis', 'tuviesen', 'teniendo', 'tenido', 'tenida', 'tenidos', 'tenidas', 'tened'];
+        
+        const palabras = texto.toLowerCase()
+            .replace(/[^\w\sáéíóúüñ]/g, ' ')
+            .split(/\s+/)
+            .filter(palabra => 
+                palabra.length > 3 && 
+                !stopWords.includes(palabra) &&
+                !/\d/.test(palabra)
+            );
+        
+        // Frecuencia de palabras
+        const frecuencia = {};
+        palabras.forEach(palabra => {
+            frecuencia[palabra] = (frecuencia[palabra] || 0) + 1;
+        });
+        
+        // Ordenar por frecuencia y devolver las 10 más comunes
+        return Object.entries(frecuencia)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([palabra,]) => palabra);
+    }
+
+    analizarRelacionTematicas(palabrasClave) {
+        const relaciones = {
+            'filosofia': ['ética', 'moral', 'pensamiento', 'existencia'],
+            'ciencia': ['investigación', 'método', 'experimento', 'tecnología'],
+            'arte': ['creatividad', 'expresión', 'belleza', 'cultura'],
+            'tecnologia': ['digital', 'algoritmo', 'programación', 'innovación']
+        };
+        
+        const scores = {};
+        
+        palabrasClave.forEach(palabra => {
+            Object.entries(relaciones).forEach(([tema, palabrasRelacionadas]) => {
+                if (palabrasRelacionadas.includes(palabra)) {
+                    scores[tema] = (scores[tema] || 0) + 1;
+                }
             });
         });
         
-        // Convertir a array y ordenar
-        return Object.entries(frecuencia)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 10)
-            .map(([palabra, count]) => palabra);
+        return Object.entries(scores)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
     }
-    
-    // ========== LIMPIEZA Y MANTENIMIENTO ==========
-    
-    // Limpiar historial viejo (más de X días)
-    limpiarHistorialViejo(dias = 7) {
-        const limite = Date.now() - (dias * 24 * 60 * 60 * 1000);
+
+    calcularCoherencia(texto) {
+        const oraciones = texto.split(/[.!?]+/).filter(o => o.trim().length > 5);
+        if (oraciones.length < 2) return 1;
+        
+        let cambiosTema = 0;
+        let temaAnterior = null;
+        
+        for (let i = 0; i < oraciones.length; i++) {
+            const temasActual = this.extraerTemas(oraciones[i]);
+            const temaPrincipal = temasActual[0]?.categoria || 'general';
+            
+            if (temaAnterior && temaPrincipal !== temaAnterior) {
+                cambiosTema++;
+            }
+            
+            temaAnterior = temaPrincipal;
+        }
+        
+        return Math.max(0, 1 - (cambiosTema / oraciones.length));
+    }
+
+    calcularProfundidadFilosofica(texto) {
+        let score = 0;
+        
+        // Palabras indicadoras de profundidad
+        const palabrasProfundas = [
+            'existencia', 'conciencia', 'realidad', 'verdad', 'significado',
+            'libertad', 'determinismo', 'moral', 'ética', 'justicia',
+            'tiempo', 'espacio', 'universo', 'infinito', 'finito',
+            'mente', 'cuerpo', 'alma', 'espíritu', 'materialismo',
+            'idealismo', 'racionalismo', 'empirismo', 'escepticismo'
+        ];
+        
+        const textoLower = texto.toLowerCase();
+        palabrasProfundas.forEach(palabra => {
+            if (textoLower.includes(palabra)) {
+                score += 1;
+            }
+        });
+        
+        // Preguntas profundas
+        const preguntasProfundas = [
+            /por qué existimos?/i,
+            /qué es (la verdad|la realidad|la conciencia)/i,
+            /tiene sentido la vida?/i,
+            /qué es (el bien|el mal)/i,
+            /somos libres?/i
+        ];
+        
+        preguntasProfundas.forEach(regex => {
+            if (regex.test(texto)) {
+                score += 2;
+            }
+        });
+        
+        // Longitud y complejidad
+        const complejidad = this.calcularComplejidad(texto);
+        score += complejidad * 3;
+        
+        return Math.min(10, score) / 10;
+    }
+
+    generarEmbeddingSimple(texto) {
+        // Embedding simplificado (en un sistema real usarías un modelo)
+        const palabras = texto.toLowerCase().split(/\s+/);
+        const vector = {
+            emocional: this.detectarEmocionAvanzada(texto).valor,
+            complejidad: this.calcularComplejidad(texto),
+            longitud: Math.min(1, texto.length / 1000),
+            interrogativo: texto.includes('?') ? 1 : 0,
+            filosofico: this.calcularProfundidadFilosofica(texto)
+        };
+        
+        return vector;
+    }
+
+    detectarEmocionAvanzada(texto) {
+        const emociones = {
+            alegria: ['feliz', 'contento', 'alegre', 'emocionado', 'entusiasmado', 'genial', 'maravilloso'],
+            tristeza: ['triste', 'deprimido', 'melancólico', 'desanimado', 'desesperado', 'solo'],
+            ira: ['enojo', 'enfado', 'frustrado', 'molesto', 'indignado', 'rabia', 'ira'],
+            miedo: ['miedo', 'temeroso', 'ansioso', 'preocupado', 'nervioso', 'asustado'],
+            sorpresa: ['sorpresa', 'asombro', 'increíble', 'sorprendido', 'impresionado'],
+            curiosidad: ['curioso', 'interesado', 'pregunta', 'quisiera saber', 'cómo funciona'],
+            confusión: ['confundido', 'no entiendo', 'perplejo', 'desconcertado'],
+            gratitud: ['gracias', 'agradecido', 'aprecio', 'valoro', 'agradecimiento']
+        };
+        
+        const textoLower = texto.toLowerCase();
+        const scores = {};
+        
+        Object.entries(emociones).forEach(([emocion, palabras]) => {
+            const coincidencias = palabras.filter(p => textoLower.includes(p)).length;
+            if (coincidencias > 0) {
+                scores[emocion] = coincidencias / palabras.length;
+            }
+        });
+        
+        if (Object.keys(scores).length === 0) {
+            return { emocion: 'neutral', valor: 0.5, confianza: 0.3 };
+        }
+        
+        const emocionDominante = Object.entries(scores)
+            .reduce((a, b) => a[1] > b[1] ? a : b);
+        
+        return {
+            emocion: emocionDominante[0],
+            valor: emocionDominante[1],
+            confianza: Math.min(1, emocionDominante[1] * 2),
+            todas: scores
+        };
+    }
+
+    actualizarPerfilUsuario(userId, mensaje, rol, analisis) {
+        if (!this.userProfiles.has(userId)) {
+            this.userProfiles.set(userId, {
+                interacciones: 0,
+                temasFavoritos: {},
+                estiloComunicacion: {},
+                nivelProfundidad: 0,
+                emocionalPattern: {},
+                conocimientoAreas: {},
+                ultimaInteraccion: null
+            });
+        }
+        
+        const perfil = this.userProfiles.get(userId);
+        perfil.interacciones++;
+        perfil.ultimaInteraccion = new Date().toISOString();
+        
+        // Actualizar temas favoritos
+        analisis.temas.forEach(tema => {
+            perfil.temasFavoritos[tema.categoria] = 
+                (perfil.temasFavoritos[tema.categoria] || 0) + tema.fuerza;
+        });
+        
+        // Actualizar estilo de comunicación
+        perfil.estiloComunicacion[analisis.intencion] = 
+            (perfil.estiloComunicacion[analisis.intencion] || 0) + 1;
+        
+        // Actualizar patrón emocional
+        const emocion = this.detectarEmocionAvanzada(mensaje);
+        perfil.emocionalPattern[emocion.emocion] = 
+            (perfil.emocionalPattern[emocion.emocion] || 0) + 1;
+        
+        // Actualizar nivel de profundidad
+        perfil.nivelProfundidad = 
+            (perfil.nivelProfundidad * (perfil.interacciones - 1) + analisis.profundidad) / perfil.interacciones;
+    }
+
+    actualizarGrafoConocimiento(userId, mensaje, temas) {
+        if (!this.knowledgeGraph.has(userId)) {
+            this.knowledgeGraph.set(userId, {
+                conceptos: new Map(),
+                relaciones: [],
+                ultimaActualizacion: null
+            });
+        }
+        
+        const grafo = this.knowledgeGraph.get(userId);
+        grafo.ultimaActualizacion = new Date().toISOString();
+        
+        // Extraer conceptos del mensaje
+        const conceptos = this.extraerConceptos(mensaje);
+        
+        conceptos.forEach(concepto => {
+            const conceptoActual = grafo.conceptos.get(concepto.nombre) || {
+                nombre: concepto.nombre,
+                frecuencia: 0,
+                contexto: [],
+                temas: [],
+                ultimaMencion: null
+            };
+            
+            conceptoActual.frecuencia++;
+            conceptoActual.ultimaMencion = new Date().toISOString();
+            conceptoActual.contexto.push(mensaje.substring(0, 100));
+            conceptoActual.temas = [...new Set([...conceptoActual.temas, ...temas.map(t => t.categoria)])];
+            
+            grafo.conceptos.set(concepto.nombre, conceptoActual);
+        });
+        
+        // Establecer relaciones entre conceptos
+        if (conceptos.length > 1) {
+            for (let i = 0; i < conceptos.length - 1; i++) {
+                for (let j = i + 1; j < conceptos.length; j++) {
+                    const relacion = {
+                        conceptoA: conceptos[i].nombre,
+                        conceptoB: conceptos[j].nombre,
+                        fuerza: 1 / (Math.abs(i - j) + 1),
+                        contexto: mensaje.substring(0, 150)
+                    };
+                    
+                    grafo.relaciones.push(relacion);
+                }
+            }
+        }
+    }
+
+    extraerConceptos(texto) {
+        // Extraer sustantivos y conceptos importantes
+        const palabras = texto.split(/\s+/);
+        const conceptos = [];
+        
+        // Lista de indicadores de conceptos importantes
+        const indicadores = [
+            'es', 'son', 'significa', 'definición', 'concepto',
+            'teoría', 'principio', 'ley', 'idea', 'nocion'
+        ];
+        
+        palabras.forEach((palabra, index) => {
+            // Palabras que probablemente sean conceptos importantes
+            if (palabra.length > 5 && /^[A-Z]/.test(palabra)) {
+                conceptos.push({
+                    nombre: palabra,
+                    posicion: index,
+                    tipo: 'propio'
+                });
+            }
+            
+            // Si hay un indicador seguido de una palabra, es probablemente un concepto
+            if (indicadores.includes(palabra.toLowerCase()) && palabras[index + 1]) {
+                conceptos.push({
+                    nombre: palabras[index + 1],
+                    posicion: index + 1,
+                    tipo: 'definido',
+                    indicador: palabra
+                });
+            }
+        });
+        
+        return conceptos.filter((c, i, arr) => 
+            arr.findIndex(cc => cc.nombre === c.nombre) === i
+        );
+    }
+
+    mantenimientoInteligente(userId) {
+        const historial = this.userHistories.get(userId);
+        if (!historial || historial.length <= this.maxHistory) return;
+        
+        // Mantener los mensajes más importantes
+        const importancia = historial.map((msg, index) => ({
+            index,
+            importancia: this.calcularImportanciaMensaje(msg)
+        }));
+        
+        importancia.sort((a, b) => b.importancia - a.importancia);
+        
+        // Mantener los más importantes y los más recientes
+        const aMantener = new Set();
+        
+        // Los 20% más importantes
+        const cantidadImportantes = Math.floor(this.maxHistory * 0.2);
+        importancia.slice(0, cantidadImportantes).forEach(item => {
+            aMantener.add(item.index);
+        });
+        
+        // Los más recientes (últimos 80%)
+        const cantidadRecientes = this.maxHistory - cantidadImportantes;
+        for (let i = historial.length - 1; i >= 0 && aMantener.size < this.maxHistory; i--) {
+            aMantener.add(i);
+        }
+        
+        // Filtrar historial
+        const nuevoHistorial = historial.filter((_, index) => aMantener.has(index));
+        this.userHistories.set(userId, nuevoHistorial);
+    }
+
+    calcularImportanciaMensaje(mensaje) {
+        let importancia = 0;
+        
+        // Mensajes del sistema son importantes
+        if (mensaje.rol === 'system') importancia += 3;
+        
+        // Mensajes con análisis profundo
+        if (mensaje.analisis) {
+            importancia += mensaje.analisis.profundidad * 2;
+            importancia += mensaje.analisis.complejidad * 1.5;
+            
+            // Mensajes con preguntas
+            if (mensaje.analisis.preguntas?.length > 0) {
+                importancia += mensaje.analisis.preguntas.length * 0.5;
+            }
+            
+            // Mensajes con argumentos
+            if (mensaje.analisis.argumentos?.length > 0) {
+                importancia += mensaje.analisis.argumentos.length * 0.7;
+            }
+        }
+        
+        // Mensajes emocionales intensos
+        if (mensaje.emocion && mensaje.emocion.confianza > 0.7) {
+            importancia += mensaje.emocion.valor * 1.2;
+        }
+        
+        return importancia;
+    }
+
+    obtenerPerfilUsuario(userId) {
+        const perfil = this.userProfiles.get(userId);
+        if (!perfil) return null;
+        
+        // Temas favoritos ordenados
+        const temasFavoritos = Object.entries(perfil.temasFavoritos || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([tema, score]) => ({ tema, score }));
+        
+        // Emociones más frecuentes
+        const emocionesFrecuentes = Object.entries(perfil.emocionalPattern || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([emocion, frecuencia]) => ({ emocion, frecuencia }));
+        
+        // Estilo de comunicación
+        const estiloComunicacion = Object.entries(perfil.estiloComunicacion || {})
+            .sort((a, b) => b[1] - a[1])
+            .map(([tipo, count]) => ({ tipo, count }));
+        
+        // Conceptos más mencionados
+        const grafo = this.knowledgeGraph.get(userId);
+        const conceptosFrecuentes = grafo ? 
+            Array.from(grafo.conceptos.entries())
+                .sort((a, b) => b[1].frecuencia - a[1].frecuencia)
+                .slice(0, 10)
+                .map(([nombre, datos]) => ({ 
+                    nombre, 
+                    frecuencia: datos.frecuencia,
+                    temas: datos.temas 
+                })) : [];
+        
+        return {
+            interacciones: perfil.interacciones,
+            nivelProfundidad: perfil.nivelProfundidad,
+            temasFavoritos,
+            emocionesFrecuentes,
+            estiloComunicacion,
+            conceptosFrecuentes,
+            ultimaInteraccion: perfil.ultimaInteraccion,
+            antiguedad: this.calcularAntiguedad(perfil.ultimaInteraccion)
+        };
+    }
+
+    calcularAntiguedad(fechaISO) {
+        if (!fechaISO) return 'desconocida';
+        
+        const ahora = new Date();
+        const ultima = new Date(fechaISO);
+        const diferenciaMs = ahora - ultima;
+        const diferenciaDias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
+        
+        if (diferenciaDias === 0) return 'hoy';
+        if (diferenciaDias === 1) return 'ayer';
+        if (diferenciaDias < 7) return `hace ${diferenciaDias} días`;
+        if (diferenciaDias < 30) return `hace ${Math.floor(diferenciaDias / 7)} semanas`;
+        if (diferenciaDias < 365) return `hace ${Math.floor(diferenciaDias / 30)} meses`;
+        return `hace ${Math.floor(diferenciaDias / 365)} años`;
+    }
+
+    obtenerEstadisticas() {
+        const totalUsuarios = this.userHistories.size;
+        let totalMensajes = 0;
+        let totalAnalizados = 0;
+        
+        this.userHistories.forEach(historial => {
+            totalMensajes += historial.length;
+            totalAnalizados += historial.filter(m => m.analisis).length;
+        });
+        
+        const perfilesAnalizados = Array.from(this.userProfiles.values()).length;
+        const grafosConocimiento = Array.from(this.knowledgeGraph.values()).length;
+        
+        return {
+            totalUsuarios,
+            totalMensajes,
+            mensajesAnalizados: totalAnalizados,
+            porcentajeAnalizado: totalMensajes > 0 ? (totalAnalizados / totalMensajes * 100).toFixed(1) : 0,
+            perfilesUsuario: perfilesAnalizados,
+            grafosConocimiento,
+            maxHistory: this.maxHistory,
+            capacidadUsada: ((totalMensajes / (totalUsuarios * this.maxHistory || 1)) * 100).toFixed(1)
+        };
+    }
+
+    // Método para limpieza automática
+    limpiezaAutomatica(diasRetencion = 30) {
+        const limiteTiempo = new Date();
+        limiteTiempo.setDate(limiteTiempo.getDate() - diasRetencion);
+        
         let eliminados = 0;
         
-        for (const [userId, historial] of this.memory.entries()) {
-            const nuevoHistorial = historial.filter(msg => {
-                const msgTime = new Date(msg.timestamp).getTime();
-                return msgTime > limite;
+        this.userHistories.forEach((historial, userId) => {
+            const historialFiltrado = historial.filter(mensaje => {
+                const fechaMensaje = new Date(mensaje.timestamp);
+                return fechaMensaje > limiteTiempo;
             });
             
-            if (nuevoHistorial.length !== historial.length) {
-                eliminados += historial.length - nuevoHistorial.length;
-                this.memory.set(userId, nuevoHistorial);
-                
-                // Si el historial quedó vacío, eliminar usuario
-                if (nuevoHistorial.length === 0) {
-                    this.memory.delete(userId);
-                    this.stats.totalUsuarios--;
-                }
-            }
-        }
-        
-        if (eliminados > 0) {
-            console.log(`🧹 Limpiados ${eliminados} mensajes antiguos (más de ${dias} días)`);
-        }
-        
-        return eliminados;
-    }
-    
-    // Limpiar historial de usuario específico
-    limpiarHistorialUsuario(userId) {
-        if (this.memory.has(userId)) {
-            const eliminados = this.memory.get(userId).length;
-            this.memory.delete(userId);
-            this.stats.totalUsuarios--;
-            this.stats.totalMensajes -= eliminados;
-            console.log(`🧹 Limpiado historial de ${userId} (${eliminados} mensajes)`);
-            return eliminados;
-        }
-        return 0;
-    }
-    
-    // Optimizar memoria (comprimir mensajes muy antiguos)
-    optimizarMemoria() {
-        console.log('🔄 Optimizando memoria...');
-        
-        let comprimidos = 0;
-        const ahora = Date.now();
-        const limiteCompresion = 24 * 60 * 60 * 1000; // 24 horas
-        
-        for (const [userId, historial] of this.memory.entries()) {
-            if (historial.length > 50) { // Solo comprimir si hay muchos mensajes
-                const nuevosMensajes = [];
-                const mensajesAntiguos = [];
-                
-                historial.forEach(msg => {
-                    const msgTime = new Date(msg.timestamp).getTime();
-                    if (ahora - msgTime < limiteCompresion) {
-                        nuevosMensajes.push(msg);
-                    } else {
-                        mensajesAntiguos.push(msg);
-                    }
-                });
-                
-                // Si hay mensajes antiguos, comprimirlos
-                if (mensajesAntiguos.length > 10) {
-                    const resumen = this.crearResumenCompresion(mensajesAntiguos);
-                    nuevosMensajes.push(resumen);
-                    comprimidos += mensajesAntiguos.length - 1; // -1 porque dejamos el resumen
-                } else {
-                    nuevosMensajes.push(...mensajesAntiguos);
-                }
-                
-                this.memory.set(userId, nuevosMensajes);
-            }
-        }
-        
-        if (comprimidos > 0) {
-            console.log(`📦 Comprimidos ${comprimidos} mensajes antiguos`);
-        }
-        
-        return comprimidos;
-    }
-    
-    // Crear resumen para compresión
-    crearResumenCompresion(mensajes) {
-        // Ordenar cronológicamente
-        mensajes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        const primeros = mensajes.slice(0, 3);
-        const ultimos = mensajes.slice(-2);
-        
-        return {
-            id: 'resumen-' + Date.now(),
-            rol: 'system',
-            contenido: `[Resumen de ${mensajes.length} mensajes antiguos: ${primeros.map(m => m.rol[0] + ':' + m.contenido.substring(0, 30)).join('...')}...]`,
-            timestamp: new Date().toISOString(),
-            procesado: true,
-            esResumen: true,
-            totalOriginal: mensajes.length
-        };
-    }
-    
-    // ========== ESTADÍSTICAS Y MÉTRICAS ==========
-    
-    // Obtener estadísticas generales
-    obtenerEstadisticas() {
-        return {
-            maxHistory: this.maxHistory,
-            totalUsuarios: this.stats.totalUsuarios,
-            totalMensajes: this.stats.totalMensajes,
-            memoriaUsada: this.calcularUsoMemoria(),
-            promedios: this.calcularPromedios(),
-            timestamp: new Date().toISOString()
-        };
-    }
-    
-    // Calcular uso de memoria aproximado
-    calcularUsoMemoria() {
-        let totalChars = 0;
-        
-        for (const [, historial] of this.memory.entries()) {
-            for (const msg of historial) {
-                totalChars += JSON.stringify(msg).length;
-            }
-        }
-        
-        const kb = totalChars / 1024;
-        const mb = kb / 1024;
-        
-        return {
-            caracteres: totalChars,
-            kilobytes: kb.toFixed(2),
-            megabytes: mb.toFixed(4),
-            mensajesPorUsuario: (this.stats.totalMensajes / Math.max(1, this.stats.totalUsuarios)).toFixed(1)
-        };
-    }
-    
-    // Calcular promedios
-    calcularPromedios() {
-        const usuarios = Array.from(this.memory.values());
-        
-        if (usuarios.length === 0) {
-            return {
-                mensajesPorUsuario: 0,
-                longitudPromedio: 0,
-                usuariosActivos: 0
-            };
-        }
-        
-        let totalLongitud = 0;
-        let totalMensajes = 0;
-        let usuariosActivos = 0;
-        
-        usuarios.forEach(historial => {
-            totalMensajes += historial.length;
+            eliminados += historial.length - historialFiltrado.length;
+            this.userHistories.set(userId, historialFiltrado);
             
-            if (historial.length > 0) {
-                usuariosActivos++;
-                
-                historial.forEach(msg => {
-                    totalLongitud += msg.contenido.length;
-                });
+            // Si el historial queda vacío, limpiar también perfiles
+            if (historialFiltrado.length === 0) {
+                this.userProfiles.delete(userId);
+                this.knowledgeGraph.delete(userId);
             }
         });
         
         return {
-            mensajesPorUsuario: (totalMensajes / usuarios.length).toFixed(1),
-            longitudPromedio: (totalLongitud / totalMensajes).toFixed(0),
-            usuariosActivos: usuariosActivos,
-            porcentajeActivos: ((usuariosActivos / usuarios.length) * 100).toFixed(1) + '%'
+            mensajesEliminados: eliminados,
+            fechaLimite: limiteTiempo.toISOString(),
+            usuariosActivos: this.userHistories.size
         };
-    }
-    
-    // ========== BACKUP Y RESTAURACIÓN ==========
-    
-    // Exportar toda la memoria
-    exportarMemoria() {
-        const exportData = {
-            version: '1.0',
-            timestamp: new Date().toISOString(),
-            maxHistory: this.maxHistory,
-            stats: this.stats,
-            memory: {}
-        };
-        
-        for (const [userId, historial] of this.memory.entries()) {
-            exportData.memory[userId] = historial;
-        }
-        
-        return exportData;
-    }
-    
-    // Importar memoria
-    importarMemoria(data) {
-        try {
-            if (!data.memory || !data.stats) {
-                throw new Error('Formato de datos inválido');
-            }
-            
-            // Limpiar memoria actual
-            this.memory.clear();
-            
-            // Importar datos
-            for (const [userId, historial] of Object.entries(data.memory)) {
-                this.memory.set(userId, historial);
-            }
-            
-            // Actualizar estadísticas
-            this.stats = data.stats;
-            this.maxHistory = data.maxHistory || 270;
-            
-            console.log(`✅ Memoria importada: ${this.stats.totalUsuarios} usuarios, ${this.stats.totalMensajes} mensajes`);
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Error importando memoria:', error);
-            return false;
-        }
-    }
-    
-    // ========== UTILIDADES ==========
-    
-    // Obtener usuarios con más actividad
-    obtenerTopUsuarios(limit = 10) {
-        const usuarios = [];
-        
-        for (const [userId, historial] of this.memory.entries()) {
-            usuarios.push({
-                userId: userId,
-                mensajes: historial.length,
-                ultimaInteraccion: historial[0]?.timestamp || 'Nunca',
-                palabrasTotales: historial.reduce((sum, msg) => sum + msg.contenido.split(' ').length, 0)
-            });
-        }
-        
-        // Ordenar por número de mensajes
-        usuarios.sort((a, b) => b.mensajes - a.mensajes);
-        
-        return usuarios.slice(0, limit);
-    }
-    
-    // Verificar si usuario existe
-    usuarioExiste(userId) {
-        return this.memory.has(userId);
-    }
-    
-    // Obtener información de usuario
-    obtenerInfoUsuario(userId) {
-        if (!this.memory.has(userId)) {
-            return null;
-        }
-        
-        const historial = this.memory.get(userId);
-        
-        return {
-            userId: userId,
-            totalMensajes: historial.length,
-            primerMensaje: historial[historial.length - 1]?.timestamp || 'N/A',
-            ultimoMensaje: historial[0]?.timestamp || 'N/A',
-            rolesUsados: [...new Set(historial.map(msg => msg.rol))],
-            actividadReciente: historial.slice(0, 5).map(msg => ({
-                rol: msg.rol,
-                contenido: msg.contenido.substring(0, 50) + '...',
-                tiempo: this.calcularTiempoRelativo(msg.timestamp)
-            }))
-        };
-    }
-    
-    // Calcular tiempo relativo
-    calcularTiempoRelativo(timestamp) {
-        const ahora = new Date();
-        const fecha = new Date(timestamp);
-        const diffMs = ahora - fecha;
-        
-        const segundos = Math.floor(diffMs / 1000);
-        const minutos = Math.floor(segundos / 60);
-        const horas = Math.floor(minutos / 60);
-        const dias = Math.floor(horas / 24);
-        
-        if (dias > 0) return `hace ${dias} día${dias > 1 ? 's' : ''}`;
-        if (horas > 0) return `hace ${horas} hora${horas > 1 ? 's' : ''}`;
-        if (minutos > 0) return `hace ${minutos} minuto${minutos > 1 ? 's' : ''}`;
-        return `hace ${segundos} segundo${segundos > 1 ? 's' : ''}`;
-    }
-    
-    // ========== LIMPIAR TODO ==========
-    
-    // Limpiar toda la memoria
-    limpiarTodaLaMemoria() {
-        const totalUsuarios = this.stats.totalUsuarios;
-        const totalMensajes = this.stats.totalMensajes;
-        
-        this.memory.clear();
-        this.stats = {
-            totalUsuarios: 0,
-            totalMensajes: 0,
-            llamadasAPI: 0
-        };
-        
-        console.log(`🧹 Memoria limpiada completamente: ${totalUsuarios} usuarios, ${totalMensajes} mensajes eliminados`);
-        
-        return {
-            usuariosEliminados: totalUsuarios,
-            mensajesEliminados: totalMensajes
-        };
-    }
-    
-    // ========== DIAGNÓSTICO ==========
-    
-    // Ejecutar diagnóstico del sistema
-    ejecutarDiagnostico() {
-        console.log('🔍 Ejecutando diagnóstico del sistema de memoria...');
-        
-        const diagnostico = {
-            estadoGeneral: 'OK',
-            problemas: [],
-            recomendaciones: [],
-            estadisticas: this.obtenerEstadisticas(),
-            timestamp: new Date().toISOString()
-        };
-        
-        // Verificar memoria excesiva
-        const usoMemoria = this.calcularUsoMemoria();
-        if (parseFloat(usoMemoria.megabytes) > 10) {
-            diagnostico.problemas.push('Uso de memoria alto (>10 MB)');
-            diagnostico.recomendaciones.push('Considera limpiar historiales antiguos o reducir maxHistory');
-        }
-        
-        // Verificar usuarios inactivos
-        const usuariosInactivos = this.encontrarUsuariosInactivos(30); // 30 días
-        if (usuariosInactivos.length > 10) {
-            diagnostico.problemas.push(`${usuariosInactivos.length} usuarios inactivos`);
-            diagnostico.recomendaciones.push('Ejecuta limpieza automática de usuarios inactivos');
-        }
-        
-        // Verificar historiales muy grandes
-        let historialesGrandes = 0;
-        for (const [, historial] of this.memory.entries()) {
-            if (historial.length > this.maxHistory * 0.8) {
-                historialesGrandes++;
-            }
-        }
-        
-        if (historialesGrandes > 0) {
-            diagnostico.problemas.push(`${historialesGrandes} usuarios cerca del límite de memoria`);
-        }
-        
-        // Actualizar estado general
-        if (diagnostico.problemas.length > 0) {
-            diagnostico.estadoGeneral = 'ADVERTENCIA';
-        }
-        
-        return diagnostico;
-    }
-    
-    // Encontrar usuarios inactivos
-    encontrarUsuariosInactivos(dias = 30) {
-        const limite = Date.now() - (dias * 24 * 60 * 60 * 1000);
-        const inactivos = [];
-        
-        for (const [userId, historial] of this.memory.entries()) {
-            if (historial.length > 0) {
-                const ultimoMensaje = new Date(historial[0].timestamp).getTime();
-                if (ultimoMensaje < limite) {
-                    inactivos.push({
-                        userId: userId,
-                        ultimaInteraccion: historial[0].timestamp,
-                        diasInactivo: Math.floor((Date.now() - ultimoMensaje) / (24 * 60 * 60 * 1000))
-                    });
-                }
-            }
-        }
-        
-        return inactivos;
     }
 }
-
-// ========== EJEMPLO DE USO RÁPIDO ==========
-/*
-// Crear instancia
-const memoryManager = new MemoryManager(270);
-
-// Agregar mensajes
-memoryManager.agregarAlHistorial('user123', 'user', 'Hola, ¿cómo estás?');
-memoryManager.agregarAlHistorial('user123', 'assistant', '¡Hola! Estoy bien, ¿y tú?');
-
-// Obtener historial
-const historial = memoryManager.obtenerHistorialUsuario('user123');
-
-// Obtener estadísticas
-const stats = memoryManager.obtenerEstadisticas();
-
-// Limpiar periódicamente
-setInterval(() => {
-    memoryManager.limpiarHistorialViejo(7); // Limpiar mensajes > 7 días
-    memoryManager.optimizarMemoria();
-}, 3600000); // Cada hora
-*/
-
-export default MemoryManager;
