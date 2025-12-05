@@ -1,13 +1,288 @@
-// Verifica que sea exactamente así:
-import { MemoryManager } from './Modules/MemoryManager.js';
-import { ReasoningEngine } from './Modules/ReasoningEngine.js';
-import EthicsModule from './Modules/EthicsModule.js';
-import { NegotiationModule } from './Modules/NegotiationModule.js';
-import { PhilosophyModule } from './Modules/PhilosophyModule.js';
+import express from 'express';
+import { Client, GatewayIntentBits } from "discord.js";
+import Groq from "groq-sdk";
+import dotenv from 'dotenv';
+import axios from 'axios';
+
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// ========== CLASES INTEGRADAS (eliminar importaciones externas) ==========
+
+// 1. MEMORY MANAGER
+class MemoryManager {
+    constructor(maxHistory = 270) {
+        this.maxHistory = maxHistory;
+        this.userHistories = new Map();
+    }
+
+    obtenerHistorialUsuario(userId) {
+        return this.userHistories.get(userId) || [];
+    }
+
+    agregarAlHistorial(userId, rol, contenido) {
+        if (!this.userHistories.has(userId)) {
+            this.userHistories.set(userId, []);
+        }
+        
+        const historial = this.userHistories.get(userId);
+        historial.push({
+            rol,
+            contenido,
+            timestamp: new Date().toISOString()
+        });
+        
+        if (historial.length > this.maxHistory) {
+            historial.shift();
+        }
+        
+        return historial;
+    }
+
+    obtenerEstadisticas() {
+        return {
+            totalUsuarios: this.userHistories.size,
+            totalMensajes: Array.from(this.userHistories.values())
+                .reduce((acc, hist) => acc + hist.length, 0),
+            maxHistory: this.maxHistory
+        };
+    }
+}
+
+// 2. REASONING ENGINE
+class ReasoningEngine {
+    constructor() {
+        this.baseConocimiento = {
+            logica: ['deductiva', 'inductiva', 'abductiva'],
+            falacias: ['ad hominem', 'falsa dicotomía', 'apelación a la autoridad'],
+            sesgos: ['confirmación', 'disponibilidad', 'anclaje']
+        };
+        this.casosResueltos = 0;
+    }
+
+    procesarConsulta(consulta, contexto) {
+        this.casosResueltos++;
+        
+        return {
+            esComplejo: consulta.length > 20,
+            inferencias: [
+                {
+                    inferencia: 'Consulta procesada para razonamiento',
+                    certeza: 0.7
+                }
+            ],
+            pasosRazonamiento: 2,
+            certeza: 0.7,
+            respuesta: `He analizado tu pregunta: "${consulta.substring(0, 50)}..." desde una perspectiva lógica.`
+        };
+    }
+
+    obtenerEstadisticas() {
+        return {
+            baseConocimiento: Object.keys(this.baseConocimiento).length,
+            casosResueltos: this.casosResueltos
+        };
+    }
+}
+
+// 3. ETHICS MODULE
+class EthicsModule {
+    constructor() {
+        this.unescoPrinciples = {
+            principios: [
+                'Dignidad Humana y Derechos Humanos',
+                'Beneficio y No Maleficencia',
+                'Autonomía y Consentimiento',
+                'Justicia y Equidad',
+                'Solidaridad y Cooperación',
+                'Responsabilidad Social'
+            ],
+            documentosFundamentales: [
+                { nombre: 'Declaración Universal de Derechos Humanos (1948)', relevancia: 'fundamental' },
+                { nombre: 'Declaración sobre Bioética y Derechos Humanos UNESCO (2005)', relevancia: 'específica' },
+                { nombre: 'Recomendación sobre Ética de la IA UNESCO (2021)', relevancia: 'moderna' }
+            ]
+        };
+        this.totalConsultasEticas = 0;
+    }
+
+    esConsultaEticaNatural(mensaje) {
+        const lower = mensaje.toLowerCase();
+        const palabrasClave = ['debería', 'ético', 'moral', 'correcto', 'incorrecto', 'dilema'];
+        return palabrasClave.some(palabra => lower.includes(palabra));
+    }
+
+    generarRespuestaEticaUNESCO(mensaje, contexto) {
+        this.totalConsultasEticas++;
+        
+        return {
+            respuesta: `Los principios éticos de la UNESCO se basan en 6 fundamentos universales que incluyen la dignidad humana, la justicia y la responsabilidad social. Guían mi brújula moral en cada interacción.`,
+            principiosAplicables: [1, 2, 5],
+            formato: 'natural'
+        };
+    }
+
+    procesarConsultaEticaIntegrada(mensaje, contexto) {
+        return {
+            esEtica: this.esConsultaEticaNatural(mensaje),
+            tipo: 'dilema_moral',
+            analisis: {
+                explicacion: 'Analizando desde perspectiva UNESCO...'
+            }
+        };
+    }
+
+    explicarPrincipiosUNESCO(nivel = 'basico') {
+        return {
+            principios: this.unescoPrinciples.principios,
+            explicacion: nivel === 'basico' 
+                ? 'Fundamentos éticos universales para la convivencia humana.'
+                : 'Marco detallado para la toma de decisiones éticas.'
+        };
+    }
+
+    obtenerEstadisticasConversacionales() {
+        return {
+            totalConsultasEticas: this.totalConsultasEticas
+        };
+    }
+
+    detectarPreguntaEspecificaUNESCO(mensaje) {
+        const lower = mensaje.toLowerCase();
+        return lower.includes('unesco') || 
+               lower.includes('base ética') || 
+               lower.includes('principios éticos');
+    }
+}
+
+// 4. NEGOTIATION MODULE
+class NegotiationModule {
+    constructor() {
+        this.estrategias = {
+            colaborativa: {
+                nombre: 'Ganar-Ganar',
+                descripcion: 'Buscar beneficios mutuos',
+                cuandoUsar: 'Cuando la relación es importante'
+            },
+            competitiva: {
+                nombre: 'Ganar-Perder',
+                descripcion: 'Maximizar ganancias propias',
+                cuandoUsar: 'Negociaciones de una sola vez'
+            },
+            acomodaticia: {
+                nombre: 'Perder-Ganar',
+                descripcion: 'Ceder para mantener relación',
+                cuandoUsar: 'Cuando el tema es menos importante'
+            }
+        };
+        this.totalNegociaciones = 0;
+    }
+
+    esNegociacionConversacional(mensaje) {
+        const lower = mensaje.toLowerCase();
+        return lower.includes('conflicto') || 
+               lower.includes('negociar') || 
+               lower.includes('acuerdo') ||
+               lower.includes('disputa');
+    }
+
+    procesarNegociacionIntegrada(mensaje, contexto) {
+        this.totalNegociaciones++;
+        
+        return {
+            esNegociacion: true,
+            respuestaNatural: {
+                respuesta: 'Analizando tu situación de negociación para encontrar una solución mutuamente beneficiosa...'
+            },
+            analisis: {
+                estrategia: {
+                    recomendada: this.estrategias.colaborativa
+                }
+            }
+        };
+    }
+
+    obtenerEstadisticasConversacionales() {
+        return {
+            totalNegociaciones: this.totalNegociaciones
+        };
+    }
+}
+
+// 5. PHILOSOPHY MODULE
+class PhilosophyModule {
+    constructor() {
+        this.problemasClasicos = {
+            tranvia: {
+                nombre: 'Problema del Tranvía',
+                descripcion: 'Dilema ético sobre sacrificar uno para salvar a muchos'
+            },
+            prisionero: {
+                nombre: 'Dilema del Prisionero',
+                descripcion: 'Conflicto entre cooperación y traición en teoría de juegos'
+            },
+            libreAlbedrio: {
+                nombre: 'Libre Albedrío vs Determinismo',
+                descripcion: '¿Tenemos verdadera libertad de elección?'
+            }
+        };
+        
+        this.escuelasFilosoficas = {
+            etica: {
+                utilitarismo: 'Maximizar la felicidad',
+                deontologia: 'Actuar por deber',
+                virtudes: 'Desarrollar carácter moral'
+            }
+        };
+    }
+
+    detectarProblemaFilosofico(mensaje) {
+        const lower = mensaje.toLowerCase();
+        let puntaje = 0;
+        let tipoProblema = 'general';
+        
+        if (lower.includes('tranvía') || lower.includes('sacrificar')) {
+            puntaje = 0.9;
+            tipoProblema = 'tranvia';
+        } else if (lower.includes('libre albedrío') || lower.includes('determinismo')) {
+            puntaje = 0.8;
+            tipoProblema = 'libreAlbedrio';
+        } else if (lower.includes('prisionero') || lower.includes('conflicto')) {
+            puntaje = 0.7;
+            tipoProblema = 'prisionero';
+        } else if (lower.includes('ética') || lower.includes('moral')) {
+            puntaje = 0.6;
+            tipoProblema = 'etica';
+        }
+        
+        return {
+            esFilosofico: puntaje > 0.5,
+            puntaje,
+            tipoProblema
+        };
+    }
+
+    analizarProblemaFilosofico(mensaje, contexto) {
+        const deteccion = this.detectarProblemaFilosofico(mensaje);
+        
+        return {
+            esFilosofico: deteccion.esFilosofico,
+            tipoProblema: deteccion.tipoProblema,
+            analisis: {
+                problemaIdentificado: this.problemasClasicos[deteccion.tipoProblema] || {
+                    nombre: 'Problema filosófico general',
+                    descripcion: 'Cuestionamiento profundo sobre la condición humana'
+                },
+                enfoquesRelevantes: [
+                    { nombre: 'Perspectiva utilitarista', principios: ['Maximizar bienestar'] },
+                    { nombre: 'Perspectiva deontológica', principios: ['Actuar por principios'] }
+                ]
+            }
+        };
+    }
+}
 
 // Variables globales
 let discordClient = null;
