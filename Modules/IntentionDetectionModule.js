@@ -1,539 +1,840 @@
-export class IntentionDetectionModule {
+// ========== SISTEMA AVANZADO DE DETECCIÓN DE INTENCIONES ==========
+export class AdvancedIntentionSystem {
     constructor() {
-        console.log('🎯 IntentionDetectionModule inicializado');
+        console.log('🧠 AdvancedIntentionSystem inicializado');
         
-        // Niveles de prioridad de procesamiento
-        this.processingPriority = [
-            'emergency',      // Salud, peligro
-            'informative',    // Consultas de información
-            'philosophical',  // Preguntas profundas
-            'educational',    // Aprendizaje
-            'conversational', // Conversación normal
-            'inappropriate',  // Contenido problemático
-            'invalid'         // Mensajes no procesables
-        ];
+        // Subsistemas especializados
+        this.contextAnalyzer = new ContextAnalyzer();
+        this.entityRecognizer = new EntityRecognizer();
+        this.intentionClassifier = new IntentionClassifier();
+        this.safetyValidator = new SafetyValidator();
+        this.learningModule = new LearningModule();
         
-        this.initializePatterns();
-        this.initializeContextRules();
+        // Base de conocimiento contextual
+        this.knowledgeBase = new KnowledgeBase();
+        
+        // Historial para análisis de patrones
+        this.interactionHistory = new Map();
+        this.falsePositivesLog = new Set();
+        this.falseNegativesLog = new Set();
+        
+        // Estadísticas y métricas
+        this.metrics = {
+            totalProcessed: 0,
+            classifications: {},
+            confidenceScores: [],
+            responseTimes: []
+        };
+        
+        this.initializeSystem();
     }
     
-    initializePatterns() {
-        this.intentionPatterns = {
-            // CONSULTAS INFORMATIVAS (Alta prioridad)
-            informative: {
-                patterns: [
+    initializeSystem() {
+        // Cargar modelos y datos iniciales
+        this.loadRecognizedEntities();
+        this.loadContextPatterns();
+        this.loadSafetyModels();
+        this.loadLearningData();
+        
+        console.log('✅ Sistema avanzado listo');
+    }
+    
+    async analyzeMessage(message, metadata = {}) {
+        const startTime = Date.now();
+        const messageId = this.generateMessageId(message, metadata);
+        
+        // PASO 1: Preprocesamiento y normalización
+        const preprocessed = this.preprocessMessage(message);
+        
+        // PASO 2: Análisis paralelo en subsistemas
+        const analysisResults = await Promise.all([
+            this.contextAnalyzer.analyze(preprocessed, metadata),
+            this.entityRecognizer.extract(preprocessed),
+            this.intentionClassifier.classify(preprocessed),
+            this.safetyValidator.validate(preprocessed)
+        ]);
+        
+        const [context, entities, intentions, safety] = analysisResults;
+        
+        // PASO 3: Fusión de resultados y decisión
+        const fusedAnalysis = this.fuseAnalysis({
+            context,
+            entities,
+            intentions,
+            safety,
+            originalMessage: message,
+            metadata
+        });
+        
+        // PASO 4: Aplicar reglas de resolución de conflictos
+        const resolvedAnalysis = this.resolveConflicts(fusedAnalysis);
+        
+        // PASO 5: Calcular confianza y verificar coherencia
+        const confidenceScore = this.calculateConfidence(resolvedAnalysis);
+        const isCoherent = this.checkCoherence(resolvedAnalysis);
+        
+        // PASO 6: Generar decisión final
+        const finalDecision = this.makeFinalDecision(
+            resolvedAnalysis, 
+            confidenceScore, 
+            isCoherent
+        );
+        
+        // PASO 7: Aprendizaje y retroalimentación
+        await this.learnFromAnalysis({
+            messageId,
+            message,
+            analysis: resolvedAnalysis,
+            decision: finalDecision,
+            metadata
+        });
+        
+        // Registrar métricas
+        this.recordMetrics({
+            messageId,
+            processingTime: Date.now() - startTime,
+            confidence: confidenceScore,
+            classification: finalDecision.primaryCategory,
+            entities: entities.length
+        });
+        
+        console.log(`🧠 [AIS] "${message.substring(0, 40)}..." → ${finalDecision.primaryCategory} (${confidenceScore.toFixed(2)})`);
+        
+        return {
+            ...finalDecision,
+            metadata: {
+                messageId,
+                timestamp: new Date().toISOString(),
+                processingTime: Date.now() - startTime,
+                subsystemsUsed: ['context', 'entity', 'intention', 'safety'],
+                version: '2.0.0'
+            },
+            detailedAnalysis: resolvedAnalysis,
+            confidence: confidenceScore,
+            coherence: isCoherent
+        };
+    }
+    
+    // ========== SUBSISTEMAS ESPECIALIZADOS ==========
+    
+    class ContextAnalyzer {
+        analyze(message, metadata) {
+            return {
+                // Análisis contextual
+                messageType: this.determineMessageType(message),
+                conversationContext: this.extractConversationContext(metadata),
+                userIntentPattern: this.identifyIntentPattern(message),
+                emotionalTone: this.analyzeEmotionalTone(message),
+                complexityLevel: this.calculateComplexity(message),
+                languageFeatures: this.extractLanguageFeatures(message),
+                
+                // Metadatos contextuales
+                isFollowUp: this.isFollowUpQuestion(message, metadata),
+                topicContinuity: this.checkTopicContinuity(message, metadata),
+                userKnowledgeLevel: this.estimateUserKnowledge(metadata),
+                culturalContext: this.detectCulturalIndicators(message)
+            };
+        }
+        
+        determineMessageType(message) {
+            const patterns = {
+                informational: [
                     /^(?:hablame|dime|cuéntame|información|sabes|conoces).+sobre/i,
                     /^(?:quién|quiénes)\s+(?:es|son|fue|fueron)\s+/i,
                     /^(?:qué|cuál)\s+(?:es|son)\s+/i,
-                    /^(?:cómo|cuándo|dónde|por qué)\s+/i,
-                    /^(?:historia|biografía|datos|información)\s+(?:de|acerca|sobre)\s+/i,
-                    /^(?:explicame|defin(?:e|ición|ir))\s+/i,
-                    /^(?:presidente|político|filósofo|científico|artista|escritor)\s+/i
+                    /^(?:cómo|cuándo|dónde|por qué)\s+/i
                 ],
-                examples: [
-                    "Hablame sobre Jimmy Morales",
-                    "Quién es Simone de Beauvoir",
-                    "Qué es la teoría de la relatividad",
-                    "Historia de la filosofía griega"
-                ]
-            },
-            
-            // CONSULTAS FILOSÓFICAS/ÉTICAS
-            philosophical: {
-                patterns: [
-                    /(?:problema|dilema|paradoja)\s+(?:del|de la|de los|ética|moral)/i,
+                philosophical: [
+                    /(?:problema|dilema|paradoja)\s+(?:del|de la|de los)/i,
                     /(?:qué|cuál)\s+(?:piensas|opinas|crees)\s+(?:sobre|acerca|de)/i,
-                    /(?:debería|está bien|es correcto|es ético|es moral)/i,
-                    /(?:si fueras|si estuvieras|en tu lugar)/i,
-                    /(?:significado|sentido|propósito)\s+(?:de la|del|de los)/i,
-                    /(?:libre albedrío|determinismo|existencialismo)/i
-                ]
-            },
-            
-            // CONTENIDO INAPROPIADO (Reevaluado contextualmente)
-            inappropriate: {
-                patterns: [
-                    // Patrones claramente sexuales
-                    /(?:quiero|deseo|me gusta).+(?:sexo|cojer|follar|fuck|acostarme)/i,
-                    /(?:envía|manda|pasa).+(?:fotos|nudes|desnudos|pack)/i,
-                    /(?:eres|estás).+(?:sexy|caliente|rica|rica|atractiva)/i,
-                    /(?:ven|vamos).+(?:cama|dormir|acostarnos|motel)/i,
-                    /(?:te quiero).+(?:puta|zorrita|perra|slut|bitch)/i,
-                    
-                    // Patrones de acoso
-                    /(?:sos|eres)\s+mi\s+(?:puta|perra|esclava|toy)/i,
-                    /(?:quiero que seas).+(?:novia|esposa|amante)/i,
-                    /(?:dame|quiero).+(?:beso|abrazo|caricia)\s+(?:íntimo|sexual)/i
+                    /(?:debería|está bien|es correcto|es ético)/i
                 ],
-                // EXCEPCIONES para estos patrones
-                exceptions: [
-                    /hablame sobre.+prostitución/i,  // Consulta informativa
-                    /qué es.+feminismo/i,            // Tema educativo
-                    /historia de.+sexualidad/i       // Contexto académico
-                ]
-            },
-            
-            // MENSAJES NO PROCESABLES
-            invalid: {
-                patterns: [
-                    /^[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9]{3,}$/,  // Solo símbolos
-                    /^.{1,2}$/,                       // Demasiado corto
-                    /^(?:hola|hey|hi)\s*\?*$/i,       // Solo saludo
-                    /^(?:gracias|thanks|bye|adiós)/i  // Solo despedida
-                ]
-            },
-            
-            // CONVERSACIÓN NORMAL
-            conversational: {
-                patterns: [
+                conversational: [
                     /^(?:hola|hey|hi|buenos|buenas).+/i,
-                    /^(?:cómo estás|qué tal|qué pasa).*/i,
-                    /^(?:gracias|thank you|merci).+/i,
-                    /^[^?]{10,}$/i  // Afirmaciones sin pregunta
+                    /^(?:cómo estás|qué tal|qué pasa).*/i
                 ]
-            }
-        };
-        
-        // ENTIDADES RECONOCIDAS (para evitar falsos positivos)
-        this.recognizedEntities = {
-            people: [
-                'jimmy morales', 'simone de beauvoir', 'immanuel kant', 
-                'aristóteles', 'platón', 'sócrates', 'friedrich nietzsche',
-                'rene descartes', 'karl marx', 'mahatma gandhi'
-            ],
-            topics: [
-                'filosofía', 'ética', 'moral', 'unesco', 'derechos humanos',
-                'democracia', 'política', 'historia', 'ciencia', 'arte'
-            ],
-            organizations: [
-                'unesco', 'onu', 'naciones unidas', 'oea'
-            ]
-        };
-    }
-    
-    initializeContextRules() {
-        this.contextRules = {
-            // Regla: Si contiene entidad reconocida + patrón informativo → ES INFORMATIVO
-            entityPlusInfo: (message, detectedEntities) => {
-                if (detectedEntities.length === 0) return false;
-                
-                const infoPatterns = this.intentionPatterns.informative.patterns;
-                const hasInfoPattern = infoPatterns.some(pattern => pattern.test(message));
-                
-                return hasInfoPattern;
-            },
+            };
             
-            // Regla: Si es figura histórica + "hablame sobre" → SALTAR FILTRO
-            historicalFigureQuery: (message) => {
-                const figurePattern = /hablame sobre (.+)/i;
-                const match = message.match(figurePattern);
-                
-                if (!match) return false;
-                
-                const query = match[1].toLowerCase().trim();
-                return this.recognizedEntities.people.some(person => 
-                    query.includes(person) || person.includes(query)
-                );
-            },
-            
-            // Regla: Contexto académico anula detección inapropiada
-            academicContext: (message) => {
-                const academicIndicators = [
-                    /para mi (?:ensayo|trabajo|investigación|tesis)/i,
-                    /estoy (?:estudiando|investigando|aprendiendo)/i,
-                    /en la (?:clase|universidad|escuela|curso)/i,
-                    /tema de (?:estudio|investigación)/i
-                ];
-                
-                return academicIndicators.some(pattern => pattern.test(message));
-            }
-        };
-    }
-    
-    /**
-     * Analiza un mensaje y determina su intención primaria
-     */
-    analyzeMessage(message, context = {}) {
-        const messageLower = message.toLowerCase().trim();
-        const analysis = {
-            rawMessage: message,
-            normalizedMessage: messageLower,
-            detectedIntentions: [],
-            primaryIntention: null,
-            confidence: 0,
-            entities: [],
-            flags: [],
-            safeToProcess: true,
-            requiresSpecialHandling: false,
-            processingPriority: 5 // Default: medio
-        };
-        
-        // PASO 1: Extraer entidades reconocidas
-        analysis.entities = this.extractEntities(messageLower);
-        
-        // PASO 2: Aplicar reglas de contexto primero
-        const contextOverride = this.applyContextRules(message, analysis.entities, context);
-        if (contextOverride) {
-            Object.assign(analysis, contextOverride);
-            return analysis;
-        }
-        
-        // PASO 3: Detectar todas las intenciones posibles
-        for (const [intentionType, data] of Object.entries(this.intentionPatterns)) {
-            if (this.detectsIntention(messageLower, intentionType)) {
-                analysis.detectedIntentions.push(intentionType);
-            }
-        }
-        
-        // PASO 4: Determinar intención primaria (resolución de conflictos)
-        analysis.primaryIntention = this.resolvePrimaryIntention(
-            analysis.detectedIntentions, 
-            messageLower,
-            analysis.entities
-        );
-        
-        // PASO 5: Calcular confianza y flags
-        analysis.confidence = this.calculateConfidence(analysis, message);
-        analysis.flags = this.generateFlags(analysis);
-        analysis.safeToProcess = this.isSafeToProcess(analysis);
-        analysis.processingPriority = this.getProcessingPriority(analysis.primaryIntention);
-        analysis.requiresSpecialHandling = this.requiresSpecialHandling(analysis);
-        
-        console.log(`🎯 [IntentionDetection] "${message.substring(0, 40)}..." → ${analysis.primaryIntention} (${analysis.confidence.toFixed(2)})`);
-        
-        return analysis;
-    }
-    
-    extractsEntities(message) {
-        const entities = [];
-        
-        // Buscar personas
-        for (const person of this.recognizedEntities.people) {
-            if (message.includes(person)) {
-                entities.push({
-                    type: 'person',
-                    value: person,
-                    context: this.getEntityContext(message, person)
-                });
-            }
-        }
-        
-        // Buscar temas
-        for (const topic of this.recognizedEntities.topics) {
-            if (message.includes(topic)) {
-                entities.push({
-                    type: 'topic',
-                    value: topic,
-                    context: this.getEntityContext(message, topic)
-                });
-            }
-        }
-        
-        return entities;
-    }
-    
-    getEntityContext(message, entity) {
-        const index = message.indexOf(entity);
-        const start = Math.max(0, index - 20);
-        const end = Math.min(message.length, index + entity.length + 20);
-        const context = message.substring(start, end);
-        
-        // Determinar si es consulta informativa
-        const isInformative = /(hablame|dime|qu[ií]en|qu[eé]|c[oó]mo).+sobre/i.test(context);
-        
-        return {
-            excerpt: context,
-            isInformativeQuery: isInformative,
-            position: { start: index, end: index + entity.length }
-        };
-    }
-    
-    detectsIntention(message, intentionType) {
-        const patterns = this.intentionPatterns[intentionType]?.patterns || [];
-        
-        // Verificar patrones principales
-        for (const pattern of patterns) {
-            if (pattern.test(message)) {
-                // Verificar excepciones si existen
-                const exceptions = this.intentionPatterns[intentionType]?.exceptions || [];
-                const hasException = exceptions.some(exception => exception.test(message));
-                
-                if (!hasException) {
-                    return true;
+            for (const [type, typePatterns] of Object.entries(patterns)) {
+                if (typePatterns.some(pattern => pattern.test(message))) {
+                    return type;
                 }
             }
+            
+            return 'general';
         }
-        
-        return false;
     }
     
-    applyContextRules(message, entities, context) {
-        // REGLA 1: Entidad reconocida + patrón informativo → INFORMATIVO
-        if (this.contextRules.entityPlusInfo(message, entities)) {
+    class EntityRecognizer {
+        constructor() {
+            this.entityDatabase = {
+                people: this.loadPeopleDatabase(),
+                places: this.loadPlacesDatabase(),
+                concepts: this.loadConceptsDatabase(),
+                organizations: this.loadOrganizationsDatabase()
+            };
+            
+            this.aliases = this.loadAliases();
+        }
+        
+        extract(message) {
+            const entities = [];
+            const messageLower = message.toLowerCase();
+            
+            // Reconocimiento multi-nivel
+            entities.push(...this.extractNamedEntities(messageLower));
+            entities.push(...this.extractConceptualEntities(messageLower));
+            entities.push(...this.extractContextualEntities(messageLower));
+            entities.push(...this.extractImpliedEntities(messageLower));
+            
+            // Desambiguación y consolidación
+            const consolidated = this.consolidateEntities(entities);
+            const disambiguated = this.disambiguateEntities(consolidated, message);
+            
             return {
-                primaryIntention: 'informative',
-                confidence: 0.95,
-                safeToProcess: true,
-                processingPriority: 2, // Alta prioridad
-                flags: ['entity_recognized', 'informative_context']
+                entities: disambiguated,
+                count: disambiguated.length,
+                coverage: this.calculateCoverage(disambiguated, message),
+                confidence: this.calculateEntityConfidence(disambiguated)
             };
         }
         
-        // REGLA 2: Figura histórica + "hablame sobre" → INFORMATIVO (saltar filtro)
-        if (this.contextRules.historicalFigureQuery(message)) {
-            return {
-                primaryIntention: 'informative',
-                confidence: 0.98,
-                safeToProcess: true,
-                bypassFilter: true, // ¡IMPORTANTE!
-                processingPriority: 1,
-                flags: ['historical_figure', 'bypass_filter']
-            };
-        }
-        
-        // REGLA 3: Contexto académico → reevaluar detecciones
-        if (this.contextRules.academicContext(message)) {
-            return {
-                primaryIntention: 'educational',
-                confidence: 0.9,
-                safeToProcess: true,
-                processingPriority: 3,
-                flags: ['academic_context', 'reassessed']
-            };
-        }
-        
-        return null;
-    }
-    
-    resolvePrimaryIntention(detectedIntentions, message, entities) {
-        if (detectedIntentions.length === 0) {
-            return 'unknown';
-        }
-        
-        if (detectedIntentions.length === 1) {
-            return detectedIntentions[0];
-        }
-        
-        // RESOLUCIÓN DE CONFLICTOS
-        const conflictRules = [
-            // Regla: "informative" tiene prioridad sobre "inappropriate" si hay entidad
-            (intentions, msg, ents) => {
-                if (intentions.includes('informative') && 
-                    intentions.includes('inappropriate') && 
-                    ents.length > 0) {
-                    return 'informative';
-                }
-            },
+        extractNamedEntities(text) {
+            const entities = [];
             
-            // Regla: "philosophical" tiene prioridad sobre "conversational"
-            (intentions) => {
-                if (intentions.includes('philosophical') && 
-                    intentions.includes('conversational')) {
-                    return 'philosophical';
-                }
-            },
-            
-            // Regla: Orden de prioridad predeterminado
-            (intentions) => {
-                for (const priority of this.processingPriority) {
-                    if (intentions.includes(priority)) {
-                        return priority;
+            // Buscar en todas las bases de datos
+            for (const [category, items] of Object.entries(this.entityDatabase)) {
+                for (const item of items) {
+                    if (this.matchesEntity(text, item)) {
+                        entities.push({
+                            type: category,
+                            value: item.name,
+                            canonical: item.canonical,
+                            aliases: item.aliases || [],
+                            confidence: this.calculateMatchConfidence(text, item),
+                            context: this.extractEntityContext(text, item)
+                        });
                     }
                 }
             }
-        ];
-        
-        for (const rule of conflictRules) {
-            const result = rule(detectedIntentions, message, entities);
-            if (result) return result;
+            
+            return entities;
         }
         
-        return detectedIntentions[0];
-    }
-    
-    calculateConfidence(analysis, originalMessage) {
-        let confidence = 0.5;
-        
-        // Factores que AUMENTAN confianza
-        if (analysis.entities.length > 0) confidence += 0.2;
-        if (analysis.detectedIntentions.length === 1) confidence += 0.15;
-        if (originalMessage.length > 20 && originalMessage.length < 200) confidence += 0.1;
-        if (originalMessage.includes('?')) confidence += 0.05;
-        
-        // Factores que DISMINUYEN confianza
-        if (analysis.detectedIntentions.length > 2) confidence -= 0.1;
-        if (originalMessage.length < 5) confidence -= 0.3;
-        if (/[A-Z]{4,}/.test(originalMessage)) confidence -= 0.1; // GRITOS
-        
-        // Confianza específica por intención
-        const intentionConfidence = {
-            'informative': 0.8,
-            'philosophical': 0.7,
-            'educational': 0.75,
-            'conversational': 0.6,
-            'inappropriate': 0.9, // Alta confianza para evitar falsos negativos
-            'invalid': 0.85
-        };
-        
-        if (analysis.primaryIntention in intentionConfidence) {
-            confidence = (confidence + intentionConfidence[analysis.primaryIntention]) / 2;
-        }
-        
-        return Math.max(0.1, Math.min(0.99, confidence));
-    }
-    
-    generateFlags(analysis) {
-        const flags = [];
-        
-        if (analysis.entities.length > 0) flags.push('has_entities');
-        if (analysis.detectedIntentions.length > 1) flags.push('multiple_intentions');
-        if (analysis.confidence > 0.8) flags.push('high_confidence');
-        if (analysis.confidence < 0.3) flags.push('low_confidence');
-        if (analysis.primaryIntention === 'informative') flags.push('needs_research');
-        if (analysis.primaryIntention === 'philosophical') flags.push('deep_analysis');
-        
-        return flags;
-    }
-    
-    isSafeToProcess(analysis) {
-        // Mensajes NO seguros para procesar normalmente
-        const unsafeIntentions = ['inappropriate', 'invalid'];
-        
-        if (unsafeIntentions.includes(analysis.primaryIntention)) {
+        matchesEntity(text, entity) {
+            // Buscar nombre canónico
+            if (text.includes(entity.canonical.toLowerCase())) {
+                return true;
+            }
+            
+            // Buscar aliases
+            if (entity.aliases) {
+                return entity.aliases.some(alias => 
+                    text.includes(alias.toLowerCase())
+                );
+            }
+            
             return false;
         }
-        
-        // Verificar flags de riesgo
-        const riskFlags = ['multiple_intentions', 'low_confidence'];
-        const hasRiskFlag = riskFlags.some(flag => analysis.flags.includes(flag));
-        
-        return !hasRiskFlag;
     }
     
-    getProcessingPriority(intention) {
-        const priorityMap = {
-            'emergency': 0,
-            'informative': 1,
-            'educational': 2,
-            'philosophical': 3,
-            'conversational': 4,
-            'inappropriate': 5,
-            'invalid': 6,
-            'unknown': 7
+    class IntentionClassifier {
+        constructor() {
+            this.intentionModels = {
+                informational: this.createInformationalModel(),
+                conversational: this.createConversationalModel(),
+                philosophical: this.createPhilosophicalModel(),
+                educational: this.createEducationalModel(),
+                inappropriate: this.createInappropriateModel(),
+                ambiguous: this.createAmbiguousModel()
+            };
+            
+            this.confidenceThresholds = {
+                high: 0.8,
+                medium: 0.6,
+                low: 0.4
+            };
+        }
+        
+        async classify(message) {
+            const scores = {};
+            const features = this.extractFeatures(message);
+            
+            // Clasificación paralela con múltiples modelos
+            for (const [category, model] of Object.entries(this.intentionModels)) {
+                scores[category] = await model.predict(features);
+            }
+            
+            // Normalizar scores
+            const normalized = this.normalizeScores(scores);
+            
+            // Determinar categoría primaria y secundarias
+            const primary = this.getPrimaryCategory(normalized);
+            const secondary = this.getSecondaryCategories(normalized, primary);
+            
+            return {
+                primaryCategory: primary,
+                secondaryCategories: secondary,
+                scores: normalized,
+                features: features,
+                confidence: normalized[primary],
+                isAmbiguous: this.isAmbiguous(normalized)
+            };
+        }
+        
+        extractFeatures(message) {
+            return {
+                // Características léxicas
+                length: message.length,
+                wordCount: message.split(/\s+/).length,
+                questionWords: this.countQuestionWords(message),
+                imperativeWords: this.countImperativeWords(message),
+                
+                // Características semánticas
+                containsQuestionMark: message.includes('?'),
+                containsExclamation: message.includes('!'),
+                containsEntities: this.hasRecognizedEntities(message),
+                
+                // Características estructurales
+                sentenceStructure: this.analyzeStructure(message),
+                vocabularyComplexity: this.calculateVocabularyComplexity(message),
+                repetitionLevel: this.calculateRepetition(message),
+                
+                // Características contextuales
+                greetingPattern: this.detectGreetingPattern(message),
+                farewellPattern: this.detectFarewellPattern(message),
+                requestPattern: this.detectRequestPattern(message)
+            };
+        }
+    }
+    
+    class SafetyValidator {
+        constructor() {
+            this.safetyModels = {
+                content: new ContentSafetyModel(),
+                context: new ContextSafetyModel(),
+                user: new UserSafetyModel(),
+                system: new SystemSafetyModel()
+            };
+            
+            this.safetyLevels = {
+                safe: 0,
+                caution: 1,
+                warning: 2,
+                block: 3
+            };
+        }
+        
+        async validate(message) {
+            // Validación multi-dimensional
+            const validations = await Promise.all([
+                this.validateContentSafety(message),
+                this.validateContextSafety(message),
+                this.validateUserSafety(message),
+                this.validateSystemSafety(message)
+            ]);
+            
+            const [content, context, user, system] = validations;
+            
+            // Combinar resultados
+            const overallSafety = this.combineSafetyResults({
+                content,
+                context,
+                user,
+                system
+            });
+            
+            return {
+                level: overallSafety.level,
+                score: overallSafety.score,
+                flags: overallSafety.flags,
+                recommendations: overallSafety.recommendations,
+                detailed: { content, context, user, system },
+                requiresReview: overallSafety.level >= this.safetyLevels.warning
+            };
+        }
+        
+        async validateContentSafety(message) {
+            // Validación sofisticada que diferencia contexto
+            const text = message.toLowerCase();
+            
+            // Lista dinámica con contexto
+            const problematicPatterns = this.getProblematicPatterns();
+            const safePatterns = this.getSafePatterns();
+            const contextualExceptions = this.getContextualExceptions();
+            
+            // Primero verificar patrones seguros (override)
+            for (const pattern of safePatterns) {
+                if (pattern.test(message)) {
+                    return {
+                        safe: true,
+                        reason: 'safe_pattern',
+                        pattern: pattern.toString()
+                    };
+                }
+            }
+            
+            // Verificar patrones problemáticos con contexto
+            let maxSeverity = 0;
+            const detectedPatterns = [];
+            
+            for (const pattern of problematicPatterns) {
+                if (pattern.test(text)) {
+                    // Verificar si hay excepción contextual
+                    const hasException = contextualExceptions.some(
+                        exception => exception.test(message)
+                    );
+                    
+                    if (!hasException) {
+                        const severity = this.getPatternSeverity(pattern);
+                        maxSeverity = Math.max(maxSeverity, severity);
+                        detectedPatterns.push({
+                            pattern: pattern.toString(),
+                            severity: severity
+                        });
+                    }
+                }
+            }
+            
+            return {
+                safe: maxSeverity === 0,
+                severity: maxSeverity,
+                detectedPatterns,
+                requiresHumanReview: maxSeverity >= 2
+            };
+        }
+    }
+    
+    class LearningModule {
+        constructor() {
+            this.trainingData = [];
+            this.modelWeights = new Map();
+            this.feedbackLoop = new FeedbackLoop();
+        }
+        
+        async learnFromAnalysis(analysisData) {
+            // Aprendizaje supervisado de resultados
+            await this.updateModels(analysisData);
+            await this.adjustThresholds(analysisData);
+            await this.refinePatterns(analysisData);
+            
+            // Retroalimentación continua
+            if (analysisData.feedback) {
+                await this.processFeedback(analysisData.feedback);
+            }
+            
+            // Actualización incremental
+            this.incrementalUpdate(analysisData);
+        }
+        
+        async processFeedback(feedback) {
+            // Aprendizaje de falsos positivos/negativos
+            if (feedback.type === 'false_positive') {
+                await this.learnFromFalsePositive(feedback);
+                this.falsePositivesLog.add(feedback.messageId);
+            }
+            
+            if (feedback.type === 'false_negative') {
+                await this.learnFromFalseNegative(feedback);
+                this.falseNegativesLog.add(feedback.messageId);
+            }
+            
+            // Ajustar modelos
+            await this.recalibrateModels();
+        }
+        
+        learnFromFalsePositive(feedback) {
+            // Aprender qué patrones causaron el falso positivo
+            const patterns = this.extractPatterns(feedback.message);
+            patterns.forEach(pattern => {
+                this.adjustPatternWeight(pattern, -0.1); // Reducir peso
+            });
+            
+            // Añadir excepción contextual
+            this.addContextualException(feedback.message, feedback.context);
+            
+            console.log(`📚 Aprendido de falso positivo: "${feedback.message.substring(0, 50)}"`);
+        }
+    }
+    
+    class KnowledgeBase {
+        constructor() {
+            this.entities = new Map();
+            this.contexts = new Map();
+            this.patterns = new Map();
+            this.exceptions = new Map();
+            
+            this.loadInitialKnowledge();
+        }
+        
+        loadInitialKnowledge() {
+            // Cargar base de conocimiento inicial
+            this.loadHistoricalFigures();
+            this.loadAcademicConcepts();
+            this.loadCulturalReferences();
+            this.loadCommonContexts();
+        }
+        
+        query(entity, context) {
+            // Consulta sofisticada con contexto
+            const exactMatch = this.entities.get(entity);
+            if (exactMatch) return exactMatch;
+            
+            // Búsqueda aproximada
+            const approximateMatches = this.findApproximateMatches(entity);
+            
+            // Filtrar por contexto
+            const contextualMatches = this.filterByContext(approximateMatches, context);
+            
+            return contextualMatches.length > 0 ? contextualMatches[0] : null;
+        }
+        
+        addEntity(entity, data) {
+            // Añadir con múltiples representaciones
+            this.entities.set(entity.canonical, data);
+            
+            if (entity.aliases) {
+                entity.aliases.forEach(alias => {
+                    this.entities.set(alias, {
+                        ...data,
+                        isAlias: true,
+                        canonical: entity.canonical
+                    });
+                });
+            }
+            
+            // Actualizar índices
+            this.updateIndices(entity, data);
+        }
+    }
+    
+    // ========== MÉTODOS DE FUSIÓN Y DECISIÓN ==========
+    
+    fuseAnalysis(analyses) {
+        // Fusión bayesiana de múltiples análisis
+        const weights = {
+            context: 0.3,
+            entities: 0.25,
+            intentions: 0.3,
+            safety: 0.15
         };
         
-        return priorityMap[intention] || 5;
+        const fused = {
+            // Combinar resultados
+            messageType: this.weightedDecision(
+                analyses.context.messageType,
+                analyses.intentions.primaryCategory,
+                weights
+            ),
+            
+            // Entidades consolidadas
+            entities: this.mergeEntities(
+                analyses.entities.entities,
+                analyses.context.conversationContext
+            ),
+            
+            // Intención final
+            intention: this.resolveIntention(
+                analyses.intentions,
+                analyses.context,
+                analyses.safety
+            ),
+            
+            // Nivel de seguridad
+            safetyLevel: this.determineSafetyLevel(
+                analyses.safety,
+                analyses.context,
+                analyses.entities
+            ),
+            
+            // Metadatos combinados
+            metadata: {
+                ...analyses.metadata,
+                confidence: this.calculateOverallConfidence(analyses)
+            }
+        };
+        
+        return fused;
     }
     
-    requiresSpecialHandling(analysis) {
-        return [
-            'inappropriate',
-            'invalid',
-            'emergency'
-        ].includes(analysis.primaryIntention);
+    resolveConflicts(analysis) {
+        const conflicts = this.detectConflicts(analysis);
+        
+        if (conflicts.length === 0) {
+            return analysis;
+        }
+        
+        // Aplicar reglas de resolución de conflictos
+        const resolved = { ...analysis };
+        
+        conflicts.forEach(conflict => {
+            switch (conflict.type) {
+                case 'safety_vs_context':
+                    // Priorizar contexto para consultas informativas
+                    if (analysis.messageType === 'informational' && 
+                        analysis.entities.count > 0) {
+                        resolved.safetyLevel = Math.max(0, resolved.safetyLevel - 1);
+                    }
+                    break;
+                    
+                case 'intention_vs_entities':
+                    // Ajustar intención basado en entidades
+                    if (analysis.entities.confidence > 0.8) {
+                        resolved.intention = this.adjustIntentionByEntities(
+                            analysis.intention,
+                            analysis.entities
+                        );
+                    }
+                    break;
+                    
+                case 'context_vs_content':
+                    // Contexto anula contenido problemático en casos académicos
+                    if (analysis.context.isAcademic) {
+                        resolved.safetyLevel = this.safetyLevels.caution;
+                    }
+                    break;
+            }
+        });
+        
+        return resolved;
     }
+    
+    makeFinalDecision(analysis, confidence, isCoherent) {
+        // Árbol de decisión multi-factor
+        if (!isCoherent || confidence < 0.3) {
+            return this.handleUncertainCase(analysis);
+        }
+        
+        if (analysis.safetyLevel >= this.safetyLevels.block) {
+            return this.createSafetyDecision(analysis);
+        }
+        
+        if (analysis.safetyLevel >= this.safetyLevels.warning) {
+            return this.createCautiousDecision(analysis);
+        }
+        
+        // Decisión normal basada en intención
+        switch (analysis.intention.category) {
+            case 'informational':
+                return this.createInformationalDecision(analysis);
+                
+            case 'philosophical':
+                return this.createPhilosophicalDecision(analysis);
+                
+            case 'conversational':
+                return this.createConversationalDecision(analysis);
+                
+            default:
+                return this.createGeneralDecision(analysis);
+        }
+    }
+    
+    createInformationalDecision(analysis) {
+        return {
+            primaryCategory: 'informational',
+            action: 'process_normally',
+            module: 'knowledge',
+            bypassFilter: true,
+            requiresResearch: true,
+            responseStyle: {
+                tone: 'informative',
+                depth: 'detailed',
+                includeSources: true
+            },
+            processingInstructions: {
+                priority: 'high',
+                timeout: 10000,
+                fallback: 'basic_information'
+            }
+        };
+    }
+    
+    createSafetyDecision(analysis) {
+        return {
+            primaryCategory: 'safety_block',
+            action: 'block_and_respond',
+            module: 'safety',
+            responseStyle: {
+                tone: 'firm',
+                message: 'Este contenido no es apropiado para esta conversación.',
+                includeWarning: true
+            },
+            logging: {
+                level: 'high',
+                notify: true
+            }
+        };
+    }
+    
+    // ========== MÉTODOS DE UTILIDAD ==========
+    
+    preprocessMessage(message) {
+        return {
+            original: message,
+            normalized: message.toLowerCase().trim(),
+            tokens: message.split(/\s+/),
+            cleaned: this.cleanMessage(message),
+            features: this.extractMessageFeatures(message)
+        };
+    }
+    
+    generateMessageId(message, metadata) {
+        const hash = this.createHash(message + JSON.stringify(metadata));
+        return `msg_${hash}_${Date.now()}`;
+    }
+    
+    calculateConfidence(analysis) {
+        // Confianza basada en múltiples factores
+        const factors = [
+            analysis.entities.confidence * 0.3,
+            analysis.intention.confidence * 0.4,
+            analysis.safety.score * 0.2,
+            this.calculateContextConsistency(analysis) * 0.1
+        ];
+        
+        return factors.reduce((sum, factor) => sum + factor, 0);
+    }
+    
+    checkCoherence(analysis) {
+        // Verificar coherencia interna del análisis
+        const checks = [
+            this.checkEntityIntentionCoherence(analysis),
+            this.checkContextSafetyCoherence(analysis),
+            this.checkMessageTypeCoherence(analysis)
+        ];
+        
+        return checks.every(check => check === true);
+    }
+    
+    recordMetrics(data) {
+        this.metrics.totalProcessed++;
+        
+        if (!this.metrics.classifications[data.classification]) {
+            this.metrics.classifications[data.classification] = 0;
+        }
+        this.metrics.classifications[data.classification]++;
+        
+        this.metrics.confidenceScores.push(data.confidence);
+        this.metrics.responseTimes.push(data.processingTime);
+        
+        // Mantener solo últimas 1000 métricas
+        if (this.metrics.confidenceScores.length > 1000) {
+            this.metrics.confidenceScores.shift();
+            this.metrics.responseTimes.shift();
+        }
+    }
+    
+    // ========== INTERFAZ PÚBLICA ==========
     
     /**
-     * Método principal para integrar en Mancy
+     * Método principal para integración
      */
-    processMessageForMancy(message, userId, historial = []) {
-        const context = {
-            userId,
-            historialLength: historial.length,
-            previousIntention: this.getPreviousIntention(userId, historial)
-        };
-        
-        const analysis = this.analyzeMessage(message, context);
-        
-        // Guardar análisis para contexto futuro
-        this.saveAnalysis(userId, analysis);
-        
-        return {
-            // Información de análisis
-            analysis: analysis,
-            
-            // Decisión de procesamiento
-            shouldProcess: analysis.safeToProcess,
-            bypassFilter: analysis.flags.includes('bypass_filter'),
-            
-            // Recomendaciones para Mancy
-            recommendedModule: this.recommendModule(analysis),
-            responseStyle: this.determineResponseStyle(analysis),
-            processingStrategy: this.getProcessingStrategy(analysis),
-            
-            // Metadata
+    async process(message, options = {}) {
+        const metadata = {
+            userId: options.userId,
+            channelType: options.channelType,
             timestamp: new Date().toISOString(),
-            messageLength: message.length,
-            wordCount: message.split(/\s+/).length
-        };
-    }
-    
-    recommendModule(analysis) {
-        const moduleMap = {
-            'informative': 'knowledge',
-            'educational': 'knowledge',
-            'philosophical': 'philosophy',
-            'ethical': 'ethics',
-            'conversational': 'conversation',
-            'emotional': 'empathy'
+            history: options.history || [],
+            platform: options.platform || 'discord'
         };
         
-        return moduleMap[analysis.primaryIntention] || 'general';
+        try {
+            const result = await this.analyzeMessage(message, metadata);
+            
+            // Formatear resultado para Mancy
+            return this.formatForMancy(result);
+            
+        } catch (error) {
+            console.error('❌ Error en AdvancedIntentionSystem:', error);
+            
+            // Fallback inteligente
+            return this.fallbackAnalysis(message, metadata);
+        }
     }
     
-    determineResponseStyle(analysis) {
-        const styles = {
-            'informative': { tone: 'informative', depth: 'detailed', length: 'moderate' },
-            'philosophical': { tone: 'reflective', depth: 'deep', length: 'extensive' },
-            'conversational': { tone: 'friendly', depth: 'light', length: 'brief' },
-            'inappropriate': { tone: 'sarcastic', depth: 'minimal', length: 'short' }
+    formatForMancy(analysis) {
+        return {
+            // Para detección de tipo
+            type: analysis.decision.primaryCategory,
+            confidence: analysis.confidence,
+            
+            // Para procesamiento
+            shouldProcess: analysis.decision.action !== 'block_and_respond',
+            bypassFilter: analysis.decision.bypassFilter || false,
+            recommendedModule: analysis.decision.module,
+            
+            // Para respuesta
+            responseStyle: analysis.decision.responseStyle,
+            processingInstructions: analysis.decision.processingInstructions,
+            
+            // Metadata avanzada
+            entities: analysis.detailedAnalysis.entities,
+            context: analysis.detailedAnalysis.context,
+            safety: analysis.detailedAnalysis.safety,
+            
+            // Debug info
+            debug: {
+                analysisId: analysis.metadata.messageId,
+                subsystems: analysis.metadata.subsystemsUsed,
+                coherence: analysis.coherence
+            }
         };
-        
-        return styles[analysis.primaryIntention] || { tone: 'neutral', depth: 'medium', length: 'moderate' };
-    }
-    
-    getProcessingStrategy(analysis) {
-        if (!analysis.safeToProcess) {
-            return 'handle_with_caution';
-        }
-        
-        if (analysis.primaryIntention === 'informative') {
-            return 'research_and_inform';
-        }
-        
-        if (analysis.primaryIntention === 'philosophical') {
-            return 'deep_analysis_and_reflection';
-        }
-        
-        return 'conversational_response';
-    }
-    
-    // Métodos de utilidad para seguimiento
-    saveAnalysis(userId, analysis) {
-        // Implementar almacenamiento si es necesario
-    }
-    
-    getPreviousIntention(userId, historial) {
-        // Extraer intención previa del historial
-        if (historial.length === 0) return null;
-        
-        const lastMessage = historial[historial.length - 1].contenido;
-        const lastAnalysis = this.analyzeMessage(lastMessage);
-        
-        return lastAnalysis.primaryIntention;
     }
     
     /**
-     * Verificación rápida para integración inmediata
+     * Para retroalimentación y aprendizaje
      */
-    quickCheck(message) {
-        const analysis = this.analyzeMessage(message);
+    async provideFeedback(messageId, feedback) {
+        await this.learningModule.processFeedback({
+            messageId,
+            ...feedback
+        });
         
+        // Recalibrar si es necesario
+        if (feedback.type === 'false_positive' || feedback.type === 'false_negative') {
+            await this.recalibrate();
+        }
+    }
+    
+    /**
+     * Métricas y estadísticas
+     */
+    getMetrics() {
         return {
-            isInformativeQuery: analysis.primaryIntention === 'informative',
-            containsRecognizedEntity: analysis.entities.length > 0,
-            shouldBypassFilter: analysis.flags.includes('bypass_filter'),
-            confidence: analysis.confidence
+            total: this.metrics.totalProcessed,
+            classifications: this.metrics.classifications,
+            avgConfidence: this.calculateAverage(this.metrics.confidenceScores),
+            avgResponseTime: this.calculateAverage(this.metrics.responseTimes),
+            falsePositives: this.falsePositivesLog.size,
+            falseNegatives: this.falseNegativesLog.size
         };
+    }
+    
+    // ========== MÉTODOS DE CONFIGURACIÓN ==========
+    
+    async recalibrate() {
+        console.log('🔄 Recalibrando sistema...');
+        
+        // Recalibrar todos los subsistemas
+        await Promise.all([
+            this.intentionClassifier.recalibrate(),
+            this.safetyValidator.recalibrate(),
+            this.entityRecognizer.updateModels()
+        ]);
+        
+        // Ajustar umbrales basados en métricas
+        this.adjustThresholdsBasedOnPerformance();
+        
+        console.log('✅ Sistema recalibrado');
+    }
+    
+    async updateKnowledgeBase(newData) {
+        // Actualización incremental de la base de conocimiento
+        await this.knowledgeBase.update(newData);
+        
+        // Propagación a subsistemas
+        this.entityRecognizer.updateEntityDatabase(newData.entities);
+        this.contextAnalyzer.updatePatterns(newData.patterns);
+        this.safetyValidator.updateExceptions(newData.exceptions);
     }
 }
