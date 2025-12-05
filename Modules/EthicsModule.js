@@ -1,633 +1,658 @@
-// En EthicsModule.js - Añadir después del constructor
-
-class EthicsModule {
+export class EthicsModule {
     constructor() {
-        // ... código existente ...
-        
-        // AÑADIR PRINCIPIOS UNESCO
-        this.unescoPrinciples = this.inicializarPrincipiosUNESCO();
-        console.log('🌍 Principios UNESCO integrados en el sistema ético');
-    }
-    
-    inicializarPrincipiosUNESCO() {
-        return {
-            fundamentos: {
-                dignidadHumana: {
-                    principio: "Dignidad Humana y Derechos Humanos",
-                    descripcion: "Reconocimiento y respeto de la dignidad inherente de todas las personas",
-                    aplicacion: "Proteger la autonomía, privacidad y derechos fundamentales",
-                    referencia: "Artículo 1, Declaración Universal de Derechos Humanos"
+        this.unescoPrinciples = {
+            principios: [
+                {
+                    nombre: 'Dignidad Humana y Derechos Humanos',
+                    descripcion: 'Respeto inherente a toda persona',
+                    aplicaciones: ['Autonomía', 'Privacidad', 'No discriminación'],
+                    ejemplos: ['Consentimiento informado', 'Protección datos', 'Igualdad oportunidades']
                 },
-                beneficio: {
-                    principio: "Beneficio y No Maleficencia",
-                    descripcion: "Maximizar beneficios y minimizar daños para individuos y sociedad",
-                    aplicacion: "Evaluar riesgos vs beneficios, prevenir daños previsibles",
-                    referencia: "Principio bioético fundamental"
+                {
+                    nombre: 'Beneficio y No Maleficencia',
+                    descripcion: 'Maximizar beneficios, minimizar daños',
+                    aplicaciones: ['Análisis riesgo-beneficio', 'Precaución', 'Bienestar'],
+                    ejemplos: ['Pruebas clínicas éticas', 'Seguridad productos', 'Salud pública']
                 },
-                autonomia: {
-                    principio: "Autonomía y Consentimiento Informado",
-                    descripcion: "Respeto a la capacidad de autodeterminación y decisiones informadas",
-                    aplicacion: "Consentimiento libre, informado y específico",
-                    referencia: "Artículo 3, Declaración Universal sobre Bioética"
+                {
+                    nombre: 'Autonomía y Consentimiento',
+                    descripcion: 'Respeto a la capacidad de autodeterminación',
+                    aplicaciones: ['Consentimiento libre', 'Información adecuada', 'Rechazo tratamiento'],
+                    ejemplos: ['Consentimiento médico', 'Contratos claros', 'Elección informada']
                 },
-                justicia: {
-                    principio: "Justicia y Equidad",
-                    descripcion: "Distribución justa de beneficios y cargas, no discriminación",
-                    aplicacion: "Acceso equitativo, consideración de poblaciones vulnerables",
-                    referencia: "Artículo 10-13, Declaración UNESCO"
+                {
+                    nombre: 'Justicia y Equidad',
+                    descripcion: 'Distribución justa de beneficios y cargas',
+                    aplicaciones: ['Acceso equitativo', 'No explotación', 'Reparación daños'],
+                    ejemplos: ['Salud universal', 'Educación accesible', 'Compensación justa']
                 },
-                solidaridad: {
-                    principio: "Solidaridad y Cooperación",
-                    descripcion: "Apoyo mutuo y colaboración para el bien común",
-                    aplicacion: "Compartir beneficios científicos, cooperación internacional",
-                    referencia: "Artículo 14, Declaración Universal"
+                {
+                    nombre: 'Solidaridad y Cooperación',
+                    descripcion: 'Apoyo mutuo y responsabilidad compartida',
+                    aplicaciones: ['Cooperación internacional', 'Bien común', 'Apoyo vulnerable'],
+                    ejemplos: ['Ayuda humanitaria', 'Investigación colaborativa', 'Redes apoyo']
                 },
-                responsabilidad: {
-                    principio: "Responsabilidad y Responsabilidad Social",
-                    descripcion: "Rendición de cuentas por acciones y sus consecuencias",
-                    aplicacion: "Transparencia, evaluación de impacto, reparación de daños",
-                    referencia: "Artículo 16, Declaración UNESCO"
+                {
+                    nombre: 'Responsabilidad Social',
+                    descripcion: 'Rendición de cuentas por acciones y consecuencias',
+                    aplicaciones: ['Transparencia', 'Responsabilidad ambiental', 'Desarrollo sostenible'],
+                    ejemplos: ['Informes impacto', 'Protección ambiental', 'Legado futuro']
                 }
-            },
-            
-            areasAplicacionUNESCO: {
-                cienciaTecnologia: {
-                    principios: ["dignidadHumana", "beneficio", "responsabilidad"],
-                    guias: [
-                        "Investigación responsable e innovación",
-                        "Evaluación ética de tecnologías emergentes",
-                        "Participación pública en ciencia"
-                    ]
-                },
-                educacion: {
-                    principios: ["justicia", "solidaridad", "dignidadHumana"],
-                    guias: [
-                        "Educación inclusiva y de calidad",
-                        "Respeto a la diversidad cultural",
-                        "Acceso al conocimiento"
-                    ]
-                },
-                cultura: {
-                    principios: ["dignidadHumana", "solidaridad", "justicia"],
-                    guias: [
-                        "Respeto a la diversidad cultural",
-                        "Protección del patrimonio cultural",
-                        "Diálogo intercultural"
-                    ]
-                },
-                comunicacion: {
-                    principios: ["autonomia", "responsabilidad", "dignidadHumana"],
-                    guias: [
-                        "Libertad de expresión responsable",
-                        "Acceso a la información",
-                        "Combate a la desinformación"
-                    ]
-                }
-            },
-            
+            ],
             documentosFundamentales: [
-                {
-                    nombre: "Declaración Universal sobre Bioética y Derechos Humanos (2005)",
-                    puntosClave: [
-                        "Respeto a la dignidad humana",
-                        "Beneficio y daño",
-                        "Autonomía y responsabilidad individual",
-                        "Consentimiento informado",
-                        "Protección de personas sin capacidad de consentir",
-                        "Respeto a la vulnerabilidad humana",
-                        "Privacidad y confidencialidad",
-                        "Igualdad, justicia y equidad",
-                        "No discriminación y no estigmatización",
-                        "Respeto a la diversidad cultural y pluralismo"
-                    ]
+                { 
+                    nombre: 'Declaración Universal de Derechos Humanos (1948)',
+                    relevancia: 'fundamental',
+                    articulosClave: [1, 3, 5, 12, 18, 19, 25],
+                    resumen: 'Establece derechos básicos inalienables para todos los seres humanos'
                 },
-                {
-                    nombre: "Recomendación sobre la Ética de la Inteligencia Artificial (2021)",
-                    principios: [
-                        "Proporcionalidad y no daño",
-                        "Seguridad y protección",
-                        "Justicia y no discriminación",
-                        "Sostenibilidad",
-                        "Derecho a la privacidad",
-                        "Supervisión y determinación humanas",
-                        "Transparencia y explicabilidad",
-                        "Responsabilidad y rendición de cuentas",
-                        "Conciencia y alfabetización",
-                        "Gobernanza multinivel"
-                    ]
+                { 
+                    nombre: 'Declaración sobre Bioética y Derechos Humanos UNESCO (2005)',
+                    relevancia: 'específica',
+                    principios: ['Dignidad humana', 'Beneficio', 'Autonomía', 'Justicia'],
+                    resumen: 'Aplica principios éticos a medicina, ciencias de la vida y tecnologías'
                 },
-                {
-                    nombre: "Declaración Universal de Derechos Humanos (1948)",
-                    relevancia: "Base fundamental de todos los principios éticos UNESCO"
+                { 
+                    nombre: 'Recomendación sobre Ética de la IA UNESCO (2021)',
+                    relevancia: 'moderna',
+                    pilares: ['Respeto derechos', 'Beneficio humano', 'Transparencia', 'Responsabilidad'],
+                    resumen: 'Marco ético para desarrollo y uso responsable de inteligencia artificial'
                 }
-            ]
-        };
-    }
-    
-    // ========== MÉTODOS PARA EXPLICAR PRINCIPIOS UNESCO ==========
-    
-    explicarPrincipiosUNESCO(nivel = 'basico') {
-        const niveles = {
-            basico: this.generarExplicacionBasica(),
-            intermedio: this.generarExplicacionDetallada(),
-            completo: this.generarExplicacionCompleta()
-        };
-        
-        return niveles[nivel] || niveles.basico;
-    }
-    
-    generarExplicacionBasica() {
-        return {
-            titulo: "🌍 Principios Éticos Fundamentales de la UNESCO",
-            introduccion: "La UNESCO establece principios éticos basados en la dignidad humana, derechos humanos y el bien común.",
-            principios: Object.values(this.unescoPrinciples.fundamentos).map(p => ({
-                nombre: p.principio,
-                descripcion: p.descripcion
-            })),
-            aplicacion: "Estos principios guían la ciencia, educación, cultura y comunicación para el desarrollo sostenible.",
-            referencia: "Declaración Universal sobre Bioética y Derechos Humanos (2005)"
-        };
-    }
-    
-    generarExplicacionDetallada() {
-        const principios = Object.entries(this.unescoPrinciples.fundamentos).map(([key, principio]) => ({
-            principio: principio.principio,
-            significado: principio.descripcion,
-            comoAplicar: principio.aplicacion,
-            documento: principio.referencia
-        }));
-        
-        return {
-            titulo: "📚 Marco Ético de la UNESCO para el Desarrollo Sostenible",
-            marco: "La ética de la UNESCO se basa en 6 principios fundamentales interrelacionados:",
-            principios: principios,
-            enfoque: "Estos principios se aplican de forma transversal en:",
-            areas: Object.entries(this.unescoPrinciples.areasAplicacionUNESCO).map(([area, config]) => ({
-                area: this.formatearArea(area),
-                principios: config.principios.map(p => this.unescoPrinciples.fundamentos[p].principio),
-                enfoque: config.guias.join(', ')
-            })),
-            documentos: this.unescoPrinciples.documentosFundamentales.map(doc => doc.nombre)
-        };
-    }
-    
-    generarExplicacionCompleta() {
-        return {
-            sistemaEtico: "La UNESCO promueve una ética universal basada en:",
-            fundamentos: this.unescoPrinciples.fundamentos,
-            aplicaciones: this.unescoPrinciples.areasAplicacionUNESCO,
-            documentos: this.unescoPrinciples.documentosFundamentales,
-            principiosIA: this.obtenerPrincipiosIAUNESCO(),
-            implicaciones: this.generarImplicacionesPracticas()
-        };
-    }
-    
-    formatearArea(area) {
-        const formatos = {
-            cienciaTecnologia: "Ciencia y Tecnología",
-            educacion: "Educación",
-            cultura: "Cultura",
-            comunicacion: "Comunicación e Información"
-        };
-        return formatos[area] || area;
-    }
-    
-    obtenerPrincipiosIAUNESCO() {
-        const docIA = this.unescoPrinciples.documentosFundamentales.find(d => 
-            d.nombre.includes("Inteligencia Artificial")
-        );
-        
-        return docIA ? {
-            documento: docIA.nombre,
-            principios: docIA.principios || [],
-            objetivo: "Asegurar que la IA beneficie a la humanidad y planeta"
-        } : null;
-    }
-    
-    generarImplicacionesPracticas() {
-        return {
-            paraIndividuos: [
-                "Derecho a ser informado sobre tecnologías que nos afectan",
-                "Protección de datos personales y privacidad",
-                "Acceso equitativo a beneficios científicos",
-                "Participación en decisiones éticas"
             ],
-            paraSociedad: [
-                "Desarrollo científico responsable",
-                "Educación ética en todas las disciplinas",
-                "Protección de grupos vulnerables",
-                "Cooperación internacional en ética"
-            ],
-            paraTecnologia: [
-                "Diseño ético desde el inicio",
-                "Evaluación de impacto continuo",
-                "Transparencia y explicabilidad",
-                "Mecanismos de supervisión humana"
-            ]
+            marcosComplementarios: {
+                principialismo: ['Autonomía', 'Beneficencia', 'No maleficencia', 'Justicia'],
+                eticaVirtudes: ['Sabiduría práctica', 'Coraje', 'Templanza', 'Justicia'],
+                utilitarismo: ['Maximizar felicidad', 'Minimizar sufrimiento', 'Consecuencias', 'Imparcialidad'],
+                deontologia: ['Deber moral', 'Imperativo categórico', 'Universalidad', 'Respeto personas']
+            }
         };
+        
+        this.totalConsultasEticas = 0;
+        this.casosAnalizados = new Map();
+        this.dilemasHistoricos = [];
+        this.analisisProfundos = 0;
     }
-    
-    // ========== RESPUESTAS PARA PREGUNTAS SOBRE ÉTICA UNESCO ==========
-    
-    generarRespuestaEticaUNESCO(pregunta, contexto) {
-        const lowerPregunta = pregunta.toLowerCase();
+
+    esConsultaEticaNatural(mensaje) {
+        const lower = mensaje.toLowerCase();
+        const palabrasClave = [
+            'debería', 'ético', 'moral', 'correcto', 'incorrecto', 'dilema',
+            'justo', 'injusto', 'responsabilidad', 'derecho', 'obligación',
+            'permitido', 'prohibido', 'virtud', 'vicio', 'bueno', 'malo',
+            'equitativo', 'imparcial', 'neutral', 'sesgo', 'prejuicio',
+            'consentimiento', 'autonomía', 'dignidad', 'respeto', 'valor'
+        ];
         
-        // Detectar tipo de pregunta sobre ética UNESCO
-        const tipoPregunta = this.detectarTipoPreguntaUNESCO(lowerPregunta);
+        const coincidencias = palabrasClave.filter(palabra => lower.includes(palabra)).length;
+        const tienePreguntaEtica = /(está bien|es correcto|se debe|se puede)\b.*\?/i.test(mensaje);
+        const mencionaDilema = /dilema (ético|moral)/i.test(mensaje);
         
-        switch(tipoPregunta) {
-            case 'principios':
-                return this.responderSobrePrincipios(pregunta);
-                
-            case 'fundamentos':
-                return this.responderSobreFundamentos(pregunta);
-                
-            case 'aplicacion':
-                return this.responderSobreAplicacion(pregunta);
-                
-            case 'documentos':
-                return this.responderSobreDocumentos(pregunta);
-                
-            case 'ia':
-                return this.responderSobreIA(pregunta);
-                
-            case 'general':
-            default:
-                return this.responderSobreEticaGeneral(pregunta);
+        return coincidencias >= 2 || tienePreguntaEtica || mencionaDilema;
+    }
+
+    generarRespuestaEticaUNESCO(mensaje, contexto) {
+        this.totalConsultasEticas++;
+        this.analisisProfundos++;
+        
+        const principiosAplicables = this.identificarPrincipiosAplicables(mensaje);
+        const documentoRelevante = this.seleccionarDocumentoRelevante(mensaje);
+        const marcoComplementario = this.seleccionarMarcoComplementario(mensaje);
+        
+        // Análisis de conflicto de principios
+        const conflictos = this.detectarConflictosPrincipios(principiosAplicables);
+        const jerarquia = this.establecerJerarquiaPrincipios(contexto);
+        
+        const respuesta = {
+            respuesta: this.construirRespuestaIntegrada(mensaje, principiosAplicables, conflictos, jerarquia),
+            principiosAplicables: principiosAplicables.map(p => p.nombre),
+            conflictosDetectados: conflictos,
+            jerarquiaAplicada: jerarquia,
+            documentoRelevante: documentoRelevante?.nombre,
+            marcoComplementario: marcoComplementario,
+            nivelComplejidad: this.calcularComplejidadEtica(mensaje),
+            recomendaciones: this.generarRecomendacionesPracticas(principiosAplicables, contexto)
+        };
+        
+        // Registrar caso para aprendizaje
+        this.registrarCasoEtico({
+            mensaje,
+            contexto,
+            principiosAplicables,
+            fecha: new Date().toISOString(),
+            complejidad: respuesta.nivelComplejidad
+        });
+        
+        return respuesta;
+    }
+
+    identificarPrincipiosAplicables(mensaje) {
+        const lower = mensaje.toLowerCase();
+        const principiosAplicables = [];
+        
+        this.unescoPrinciples.principios.forEach((principio, index) => {
+            let relevancia = 0;
+            
+            // Palabras clave específicas por principio
+            const keywords = {
+                0: ['dignidad', 'derecho humano', 'respeto', 'valor humano', 'persona'],
+                1: ['beneficio', 'daño', 'maleficencia', 'ayudar', 'perjudicar', 'riesgo'],
+                2: ['autonomía', 'consentimiento', 'elección', 'decisión', 'libre', 'voluntad'],
+                3: ['justicia', 'equidad', 'igualdad', 'imparcial', 'justo', 'distribución'],
+                4: ['solidaridad', 'cooperación', 'colaboración', 'ayuda mutua', 'comunidad'],
+                5: ['responsabilidad', 'consecuencia', 'rendición cuentas', 'transparencia', 'sostenible']
+            };
+            
+            // Verificar palabras clave
+            if (keywords[index]) {
+                keywords[index].forEach(keyword => {
+                    if (lower.includes(keyword)) {
+                        relevancia += 1;
+                    }
+                });
+            }
+            
+            // Verificar aplicaciones
+            principio.aplicaciones.forEach(aplicacion => {
+                if (lower.includes(aplicacion.toLowerCase())) {
+                    relevancia += 0.5;
+                }
+            });
+            
+            if (relevancia > 0) {
+                principiosAplicables.push({
+                    ...principio,
+                    relevancia,
+                    indice: index
+                });
+            }
+        });
+        
+        // Ordenar por relevancia
+        return principiosAplicables.sort((a, b) => b.relevancia - a.relevancia);
+    }
+
+    seleccionarDocumentoRelevante(mensaje) {
+        const lower = mensaje.toLowerCase();
+        
+        // Priorizar por contenido específico
+        if (lower.includes('derecho humano') || lower.includes('dignidad humana')) {
+            return this.unescoPrinciples.documentosFundamentales[0];
         }
-    }
-    
-    detectarTipoPreguntaUNESCO(pregunta) {
-        if (pregunta.includes('unesco') || pregunta.includes('organización')) {
-            if (pregunta.includes('principio') || pregunta.includes('base')) {
-                return 'principios';
-            }
-            if (pregunta.includes('documento') || pregunta.includes('declaración')) {
-                return 'documentos';
-            }
-            if (pregunta.includes('aplic') || pregunta.includes('usar') || pregunta.includes('cómo')) {
-                return 'aplicacion';
-            }
-            if (pregunta.includes('ia') || pregunta.includes('inteligencia artificial')) {
-                return 'ia';
-            }
-            return 'general';
+        if (lower.includes('bioética') || lower.includes('médico') || lower.includes('salud')) {
+            return this.unescoPrinciples.documentosFundamentales[1];
+        }
+        if (lower.includes('inteligencia artificial') || lower.includes('algoritmo') || lower.includes('tecnología')) {
+            return this.unescoPrinciples.documentosFundamentales[2];
         }
         
-        // Preguntas generales sobre ética
-        if (pregunta.includes('ética') && 
-            (pregunta.includes('base') || pregunta.includes('fundamento') || 
-             pregunta.includes('principio') || pregunta.includes('qué es'))) {
-            return 'fundamentos';
+        // Documento por defecto
+        return this.unescoPrinciples.documentosFundamentales[1];
+    }
+
+    seleccionarMarcoComplementario(mensaje) {
+        const lower = mensaje.toLowerCase();
+        
+        if (lower.includes('virtud') || lower.includes('carácter') || lower.includes('excelencia')) {
+            return 'ética de virtudes';
+        }
+        if (lower.includes('consecuencia') || lower.includes('utilidad') || lower.includes('felicidad')) {
+            return 'utilitarismo';
+        }
+        if (lower.includes('deber') || lower.includes('obligación') || lower.includes('imperativo')) {
+            return 'deontología';
+        }
+        if (lower.includes('principio') && lower.includes('autonomía')) {
+            return 'principialismo';
         }
         
         return null;
     }
-    
-    responderSobrePrincipios(preguntaOriginal) {
-        const explicacion = this.explicarPrincipiosUNESCO('intermedio');
+
+    detectarConflictosPrincipios(principios) {
+        if (principios.length < 2) return [];
         
-        let respuesta = `🌍 **Los principios éticos de la UNESCO se basan en:**\n\n`;
+        const conflictos = [];
+        const posiblesConflictos = [
+            { a: 'Autonomía', b: 'Beneficio', escenario: 'Paciente rechaza tratamiento beneficioso' },
+            { a: 'Justicia', b: 'Autonomía', escenario: 'Distribución recursos vs elección individual' },
+            { a: 'Responsabilidad', b: 'Beneficio', escenario: 'Innovación vs precaución' },
+            { a: 'Solidaridad', b: 'Autonomía', escenario: 'Bien común vs libertad individual' }
+        ];
         
-        explicacion.principios.forEach((principio, index) => {
-            respuesta += `${index + 1}. **${principio.principio}**: ${principio.significado}\n`;
-        });
-        
-        respuesta += `\n**Documento fundamental:** ${explicacion.documentos[0]}\n`;
-        respuesta += `**Enfoque:** Estos principios guían la ciencia, educación y cultura para un desarrollo sostenible que respete la dignidad humana.\n\n`;
-        respuesta += `¿Hay algún principio específico sobre el que quieras saber más?`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'principios_unesco',
-                nivel: 'intermedio',
-                principiosMencionados: explicacion.principios.map(p => p.principio)
-            }
-        };
-    }
-    
-    responderSobreFundamentos(preguntaOriginal) {
-        const fundamentos = this.unescoPrinciples.fundamentos;
-        
-        let respuesta = `⚖️ **La ética, según el marco de la UNESCO, se fundamenta en:**\n\n`;
-        
-        Object.values(fundamentos).forEach((principio, index) => {
-            respuesta += `• **${principio.principio}**: ${principio.descripcion}\n`;
-        });
-        
-        respuesta += `\nEstos principios están interconectados y se aplican en:\n`;
-        respuesta += `🔬 **Ciencia y tecnología** - Investigación responsable\n`;
-        respuesta += `📚 **Educación** - Inclusiva y de calidad\n`;
-        respuesta += `🎭 **Cultura** - Respeto a la diversidad\n`;
-        respuesta += `💬 **Comunicación** - Información veraz y accesible\n\n`;
-        respuesta += `La UNESCO promueve una ética universal que equilibra innovación con protección de derechos humanos.`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'fundamentos_eticos',
-                enfoque: 'unesco',
-                principios: Object.keys(fundamentos)
-            }
-        };
-    }
-    
-    responderSobreAplicacion(preguntaOriginal) {
-        const aplicaciones = this.unescoPrinciples.areasAplicacionUNESCO;
-        
-        let respuesta = `🔄 **Cómo se aplican los principios éticos de la UNESCO:**\n\n`;
-        
-        Object.entries(aplicaciones).forEach(([area, config]) => {
-            const areaFormateada = this.formatearArea(area);
-            respuesta += `**${areaFormateada}:**\n`;
-            
-            config.guias.slice(0, 2).forEach(guia => {
-                respuesta += `   • ${guia}\n`;
-            });
-            
-            respuesta += `   *Principios: ${config.principios.map(p => 
-                this.unescoPrinciples.fundamentos[p].principio.substring(0, 20)
-            ).join(', ')}...*\n\n`;
-        });
-        
-        respuesta += `**Ejemplo práctico en IA:**\n`;
-        const principiosIA = this.obtenerPrincipiosIAUNESCO();
-        if (principiosIA && principiosIA.principios) {
-            principiosIA.principios.slice(0, 3).forEach(principio => {
-                respuesta += `   ✓ ${principio}\n`;
-            });
-        }
-        
-        respuesta += `\nLa aplicación ética requiere evaluación constante y adaptación al contexto.`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'aplicacion_practica',
-                areas: Object.keys(aplicaciones),
-                enfoque: 'práctico'
-            }
-        };
-    }
-    
-    responderSobreDocumentos(preguntaOriginal) {
-        const documentos = this.unescoPrinciples.documentosFundamentales;
-        
-        let respuesta = `📄 **Documentos fundamentales de ética de la UNESCO:**\n\n`;
-        
-        documentos.forEach((doc, index) => {
-            respuesta += `${index + 1}. **${doc.nombre}**\n`;
-            
-            if (doc.puntosClave) {
-                doc.puntosClave.slice(0, 3).forEach(punto => {
-                    respuesta += `   • ${punto}\n`;
-                });
-            } else if (doc.principios) {
-                doc.principios.slice(0, 3).forEach(principio => {
-                    respuesta += `   • ${principio}\n`;
-                });
-            }
-            
-            respuesta += `\n`;
-        });
-        
-        respuesta += `**Importancia:** Estos documentos establecen estándares internacionales para:\n`;
-        respuesta += `• Protección de derechos humanos en avances científicos\n`;
-        respuesta += `• Guías éticas para tecnologías emergentes\n`;
-        respuesta += `• Cooperación internacional en ética aplicada\n\n`;
-        respuesta += `¿Te interesa algún documento en particular?`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'documentos_unesco',
-                cantidad: documentos.length,
-                fechas: ['2005', '2021', '1948']
-            }
-        };
-    }
-    
-    responderSobreIA(preguntaOriginal) {
-        const principiosIA = this.obtenerPrincipiosIAUNESCO();
-        
-        if (!principiosIA) {
-            return this.responderSobrePrincipios(preguntaOriginal);
-        }
-        
-        let respuesta = `🤖 **Principios éticos de la UNESCO para Inteligencia Artificial:**\n\n`;
-        respuesta += `**Documento:** ${principiosIA.documento}\n`;
-        respuesta += `**Objetivo:** ${principiosIA.objetivo}\n\n`;
-        
-        respuesta += `**10 principios fundamentales:**\n`;
-        principiosIA.principios.forEach((principio, index) => {
-            respuesta += `${index + 1}. ${principio}\n`;
-        });
-        
-        respuesta += `\n**Aplicación práctica:**\n`;
-        respuesta += `🔒 **Protección de datos:** Privacidad desde el diseño\n`;
-        respuesta += `⚖️ **No discriminación:** Algoritmos auditables y justos\n`;
-        respuesta += `👁️ **Transparencia:** Sistemas explicables\n`;
-        respuesta += `👥 **Participación:** Inclusión de diversas voces\n`;
-        respuesta += `🔄 **Aprendizaje continuo:** Evaluación y mejora constante\n\n`;
-        
-        respuesta += `La UNESCO enfatiza que la IA debe estar al servicio del desarrollo sostenible y los derechos humanos.`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'etica_ia_unesco',
-                principios: principiosIA.principios.length,
-                enfoque: 'humanocéntrico'
-            }
-        };
-    }
-    
-    responderSobreEticaGeneral(preguntaOriginal) {
-        const explicacion = this.explicarPrincipiosUNESCO('basico');
-        
-        let respuesta = `⚖️ **La ética, desde la perspectiva de la UNESCO:**\n\n`;
-        respuesta += `Es un marco para tomar decisiones que respeten la dignidad humana y promuevan el bien común.\n\n`;
-        
-        respuesta += `**Se basa en:**\n`;
-        explicacion.principios.forEach(p => {
-            respuesta += `• ${p.nombre}\n`;
-        });
-        
-        respuesta += `\n**No es solo:**\n`;
-        respuesta += `❌ Un conjunto de reglas rígidas\n`;
-        respuesta += `❌ Solo para expertos\n`;
-        respuesta += `❌ Igual en todas las culturas\n\n`;
-        
-        respuesta += `**Sí es:**\n`;
-        respuesta += `✅ Un proceso de reflexión constante\n`;
-        respuesta += `✅ Aplicable por todos\n`;
-        respuesta += `✅ Respetuoso de la diversidad\n`;
-        respuesta += `✅ Orientado al bienestar colectivo\n\n`;
-        
-        respuesta += `La UNESCO promueve una ética dialógica, donde diferentes perspectivas enriquecen la búsqueda de soluciones justas.`;
-        
-        return {
-            respuesta: respuesta,
-            metadata: {
-                tipo: 'etica_general',
-                enfoque: 'unesco',
-                principios: explicacion.principios.length
-            }
-        };
-    }
-    
-    // ========== INTEGRACIÓN EN EL ANÁLISIS ÉTICO ==========
-    
-    integrarPrincipiosUNESCOEnAnalisis(analisisEtico) {
-        // Añadir referencia UNESCO a los principios detectados
-        if (analisisEtico.principiosRelevantes && analisisEtico.principiosRelevantes.length > 0) {
-            analisisEtico.principiosRelevantes.forEach(principio => {
-                // Mapear principios propios a principios UNESCO
-                const mapeoUNESCO = this.mapearPrincipioAUNESCO(principio.principio);
-                if (mapeoUNESCO) {
-                    principio.unesco = mapeoUNESCO;
+        principios.forEach(p1 => {
+            principios.forEach(p2 => {
+                if (p1.indice !== p2.indice) {
+                    const conflicto = posiblesConflictos.find(c => 
+                        (c.a.includes(p1.nombre.split(' ')[0]) && c.b.includes(p2.nombre.split(' ')[0])) ||
+                        (c.b.includes(p1.nombre.split(' ')[0]) && c.a.includes(p2.nombre.split(' ')[0]))
+                    );
+                    
+                    if (conflicto && !conflictos.some(c => 
+                        (c.principioA === p1.nombre && c.principioB === p2.nombre) ||
+                        (c.principioA === p2.nombre && c.principioB === p1.nombre)
+                    )) {
+                        conflictos.push({
+                            principioA: p1.nombre,
+                            principioB: p2.nombre,
+                            tipo: 'tensión ética',
+                            escenarioTipico: conflicto.escenario,
+                            sugerencia: this.generarSugerenciaConflicto(p1, p2)
+                        });
+                    }
                 }
             });
-        }
+        });
         
-        // Añadir marco UNESCO al análisis
-        analisisEtico.marcoUNESCO = {
-            relevancia: this.calcularRelevanciaUNESCO(analisisEtico),
-            principiosAplicables: this.identificarPrincipiosUNESCOAplicables(analisisEtico),
-            documentoRelevante: this.identificarDocumentoRelevante(analisisEtico)
+        return conflictos;
+    }
+
+    generarSugerenciaConflicto(principioA, principioB) {
+        const sugerencias = {
+            'Autonomía-Beneficio': 'Buscar equilibrio entre respetar decisiones personales y promover bienestar, posiblemente mediante educación y consentimiento informado.',
+            'Justicia-Autonomía': 'Considerar sistemas que respeten elecciones individuales mientras aseguran acceso equitativo para todos.',
+            'Responsabilidad-Beneficio': 'Adoptar enfoque de precaución progresiva, evaluando riesgos cuidadosamente sin detener innovación beneficiosa.',
+            'Solidaridad-Autonomía': 'Fomentar decisiones que beneficien tanto al individuo como a la comunidad, buscando sinergias.'
         };
         
-        return analisisEtico;
+        const key = `${principioA.nombre.split(' ')[0]}-${principioB.nombre.split(' ')[0]}`;
+        const keyInversa = `${principioB.nombre.split(' ')[0]}-${principioA.nombre.split(' ')[0]}`;
+        
+        return sugerencias[key] || sugerencias[keyInversa] || 
+               'Buscar punto de equilibrio que honre ambos valores éticos en la medida posible.';
     }
-    
-    mapearPrincipioAUNESCO(principioPropio) {
-        const mapeo = {
-            beneficencia: 'beneficio',
-            noMaleficencia: 'beneficio', // Parte de beneficio/no maleficencia
-            autonomia: 'autonomia',
-            justicia: 'justicia',
-            veracidad: 'responsabilidad' // Relacionado con transparencia
+
+    establecerJerarquiaPrincipios(contexto) {
+        // Jerarquía contextual - puede variar según situación
+        const jerarquias = {
+            salud: ['Dignidad', 'Beneficio', 'Autonomía', 'Justicia', 'Responsabilidad', 'Solidaridad'],
+            tecnologia: ['Responsabilidad', 'Dignidad', 'Justicia', 'Beneficio', 'Autonomía', 'Solidaridad'],
+            educacion: ['Justicia', 'Dignidad', 'Beneficio', 'Autonomía', 'Solidaridad', 'Responsabilidad'],
+            negocios: ['Responsabilidad', 'Justicia', 'Dignidad', 'Beneficio', 'Autonomía', 'Solidaridad'],
+            ambiental: ['Responsabilidad', 'Solidaridad', 'Justicia', 'Beneficio', 'Dignidad', 'Autonomía']
         };
         
-        const principioUNESCOKey = mapeo[principioPropio];
-        return principioUNESCOKey ? this.unescoPrinciples.fundamentos[principioUNESCOKey] : null;
+        // Determinar contexto
+        let contextoEspecifico = 'general';
+        if (contexto.mensaje?.includes('salud') || contexto.mensaje?.includes('médico')) contextoEspecifico = 'salud';
+        if (contexto.mensaje?.includes('tecnología') || contexto.mensaje?.includes('digital')) contextoEspecifico = 'tecnologia';
+        if (contexto.mensaje?.includes('educación') || contexto.mensaje?.includes('enseñanza')) contextoEspecifico = 'educacion';
+        if (contexto.mensaje?.includes('negocio') || contexto.mensaje?.includes('empresa')) contextoEspecifico = 'negocios';
+        if (contexto.mensaje?.includes('medio ambiente') || contexto.mensaje?.includes('ecológico')) contextoEspecifico = 'ambiental';
+        
+        return {
+            jerarquia: jerarquias[contextoEspecifico] || jerarquias.salud,
+            contexto: contextoEspecifico,
+            flexible: true,
+            nota: 'La jerarquía es guía, no regla absoluta. Cada situación requiere balance único.'
+        };
     }
-    
-    calcularRelevanciaUNESCO(analisisEtico) {
-        let relevancia = 0.5;
+
+    calcularComplejidadEtica(mensaje) {
+        let complejidad = 0;
         
-        // Aumentar relevancia si involucra derechos humanos
-        if (analisisEtico.analisis?.area === 'privacidad' || 
-            analisisEtico.analisis?.area === 'sesgo') {
-            relevancia += 0.3;
+        // Factores de complejidad
+        const principios = this.identificarPrincipiosAplicables(mensaje);
+        complejidad += principios.length * 0.2;
+        
+        const conflictos = this.detectarConflictosPrincipios(principios);
+        complejidad += conflictos.length * 0.3;
+        
+        // Complejidad lingüística
+        const oraciones = mensaje.split(/[.!?]+/).length;
+        const palabras = mensaje.split(/\s+/).length;
+        complejidad += Math.min(0.3, palabras / 100);
+        
+        // Preguntas retóricas o profundas
+        if (/(qué significa|por qué existe|cuál es el sentido)/i.test(mensaje)) {
+            complejidad += 0.2;
         }
         
-        // Aumentar si es tema tecnológico
-        if (analisisEtico.analisis?.contexto?.includes('tecnología') ||
-            analisisEtico.analisis?.contexto?.includes('digital')) {
-            relevancia += 0.2;
-        }
-        
-        return Math.min(relevancia, 0.9);
+        return Math.min(1, complejidad);
     }
-    
-    identificarPrincipiosUNESCOAplicables(analisisEtico) {
-        const principios = [];
+
+    construirRespuestaIntegrada(mensaje, principios, conflictos, jerarquia) {
+        let respuesta = "Analizando desde la perspectiva ética de UNESCO...\n\n";
         
-        // Siempre incluir dignidad humana
-        principios.push(this.unescoPrinciples.fundamentos.dignidadHumana.principio);
-        
-        // Añadir según análisis
-        if (analisisEtico.analisis?.nivelComplejidad >= 2) {
-            principios.push(this.unescoPrinciples.fundamentos.responsabilidad.principio);
+        if (principios.length > 0) {
+            respuesta += "**Principios aplicables:**\n";
+            principios.forEach((p, i) => {
+                respuesta += `${i+1}. **${p.nombre}**: ${p.descripcion}\n`;
+                if (p.aplicaciones && p.aplicaciones.length > 0) {
+                    respuesta += `   Aplicaciones: ${p.aplicaciones.slice(0, 2).join(', ')}\n`;
+                }
+            });
+            respuesta += "\n";
         }
         
-        if (analisisEtico.analisis?.area === 'justicia' || 
-            analisisEtico.principiosRelevantes?.some(p => p.principio === 'justicia')) {
-            principios.push(this.unescoPrinciples.fundamentos.justicia.principio);
+        if (conflictos.length > 0) {
+            respuesta += "**Tensiones éticas identificadas:**\n";
+            conflictos.forEach((c, i) => {
+                respuesta += `• ${c.principioA} vs ${c.principioB}: ${c.sugerencia}\n`;
+            });
+            respuesta += "\n";
         }
         
-        return principios.slice(0, 3);
+        respuesta += `**Enfoque sugerido:**\n`;
+        respuesta += `Priorizando ${jerarquia.jerarquia[0]} en contexto ${jerarquia.contexto}, `;
+        respuesta += `pero considerando balance con ${jerarquia.jerarquia.slice(1, 3).join(' y ')}.\n\n`;
+        
+        respuesta += "**Preguntas para reflexión:**\n";
+        respuesta += "1. ¿Qué valores están en mayor riesgo?\n";
+        respuesta += "2. ¿Quiénes podrían verse afectados y cómo?\n";
+        respuesta += "3. ¿Existen alternativas que honren más principios?\n";
+        respuesta += "4. ¿Qué consecuencias a largo plazo considerar?\n";
+        
+        return respuesta;
     }
-    
-    identificarDocumentoRelevante(analisisEtico) {
-        // Determinar documento UNESCO más relevante
-        if (analisisEtico.analisis?.contexto?.includes('IA') ||
-            analisisEtico.analisis?.contexto?.includes('inteligencia artificial')) {
-            return this.unescoPrinciples.documentosFundamentales[1]; // Recomendación IA
-        }
+
+    generarRecomendacionesPracticas(principios, contexto) {
+        const recomendaciones = [];
         
-        if (analisisEtico.analisis?.area === 'privacidad' ||
-            analisisEtico.analisis?.area === 'sesgo') {
-            return this.unescoPrinciples.documentosFundamentales[0]; // Bioética
-        }
+        principios.forEach(principio => {
+            switch(principio.indice) {
+                case 0: // Dignidad
+                    recomendaciones.push("Asegurar que todas las personas involucradas sean tratadas con respeto inherente");
+                    recomendaciones.push("Evitar lenguaje o acciones que puedan menoscabar la dignidad humana");
+                    break;
+                case 1: // Beneficio
+                    recomendaciones.push("Realizar análisis de riesgo-beneficio considerando todas las partes");
+                    recomendaciones.push("Implementar medidas para maximizar beneficios y minimizar daños");
+                    break;
+                case 2: // Autonomía
+                    recomendaciones.push("Proveer información completa y comprensible para decisiones informadas");
+                    recomendaciones.push("Respetar el derecho a aceptar o rechazar, incluso si difiere de tu opinión");
+                    break;
+                case 3: // Justicia
+                    recomendaciones.push("Evaluar distribución equitativa de beneficios y cargas");
+                    recomendaciones.push("Considerar necesidades especiales de grupos vulnerables");
+                    break;
+                case 4: // Solidaridad
+                    recomendaciones.push("Buscar soluciones que fortalezcan la cooperación y apoyo mutuo");
+                    recomendaciones.push("Incluir perspectivas diversas en la toma de decisiones");
+                    break;
+                case 5: // Responsabilidad
+                    recomendaciones.push("Establecer mecanismos claros de rendición de cuentas");
+                    recomendaciones.push("Considerar impactos a largo plazo y sostenibilidad");
+                    break;
+            }
+        });
         
-        return this.unescoPrinciples.documentosFundamentales[2]; // DUDH
+        return [...new Set(recomendaciones)].slice(0, 5);
     }
-    
-    // ========== ACTUALIZAR PROCESAMIENTO ÉTICO ==========
-    
-    procesarConsultaEticaIntegrada(mensajeUsuario, contexto = {}) {
-        // Primero, verificar si es pregunta específica sobre ética UNESCO
-        const esPreguntaUNESCO = this.detectarPreguntaEspecificaUNESCO(mensajeUsuario);
+
+    registrarCasoEtico(caso) {
+        const id = `caso_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        if (esPreguntaUNESCO) {
-            const respuestaUNESCO = this.generarRespuestaEticaUNESCO(mensajeUsuario, contexto);
+        this.casosAnalizados.set(id, {
+            ...caso,
+            id,
+            principiosCount: caso.principiosAplicables?.length || 0,
+            aprendido: false
+        });
+        
+        // Mantener solo los últimos 100 casos
+        if (this.casosAnalizados.size > 100) {
+            const keys = Array.from(this.casosAnalizados.keys());
+            this.casosAnalizados.delete(keys[0]);
+        }
+        
+        // Aprender de casos similares
+        this.aprenderDeCasosSimilares(caso);
+    }
+
+    aprenderDeCasosSimilares(casoNuevo) {
+        const casosSimilares = [];
+        
+        this.casosAnalizados.forEach((caso, id) => {
+            if (caso.id === casoNuevo.id) return;
+            
+            const similitud = this.calcularSimilitudCasos(caso, casoNuevo);
+            if (similitud > 0.6) {
+                casosSimilares.push({ caso, similitud, id });
+            }
+        });
+        
+        if (casosSimilares.length > 0) {
+            // Ordenar por similitud
+            casosSimilares.sort((a, b) => b.similitud - a.similitud);
+            
+            // Aprender del más similar
+            const casoSimilar = casosSimilares[0];
+            this.actualizarPatrones(casoSimilar.caso, casoNuevo);
+        }
+    }
+
+    calcularSimilitudCasos(caso1, caso2) {
+        let similitud = 0;
+        
+        // Similitud de principios
+        const principios1 = caso1.principiosAplicables?.map(p => p.nombre) || [];
+        const principios2 = caso2.principiosAplicables?.map(p => p.nombre) || [];
+        
+        const principiosComunes = principios1.filter(p => principios2.includes(p)).length;
+        const principiosTotales = new Set([...principios1, ...principios2]).size;
+        
+        if (principiosTotales > 0) {
+            similitud += (principiosComunes / principiosTotales) * 0.5;
+        }
+        
+        // Similitud de complejidad
+        const diffComplejidad = Math.abs((caso1.complejidad || 0) - (caso2.complejidad || 0));
+        similitud += (1 - diffComplejidad) * 0.3;
+        
+        // Similitud contextual (simplificada)
+        if (caso1.contexto?.tipo === caso2.contexto?.tipo) {
+            similitud += 0.2;
+        }
+        
+        return Math.min(1, similitud);
+    }
+
+    actualizarPatrones(casoExistente, casoNuevo) {
+        // Aquí se implementaría aprendizaje más sofisticado
+        // Por ahora, simplemente marcamos como aprendido
+        if (casoExistente.id) {
+            const caso = this.casosAnalizados.get(casoExistente.id);
+            if (caso) {
+                caso.aprendido = true;
+                caso.vecesReferenciado = (caso.vecesReferenciado || 0) + 1;
+            }
+        }
+    }
+
+    procesarConsultaEticaIntegrada(mensaje, contexto) {
+        const esEtica = this.esConsultaEticaNatural(mensaje);
+        
+        if (!esEtica) {
             return {
-                esEtica: true,
-                tipo: 'unesco_especifico',
-                respuestaUNESCO: respuestaUNESCO,
-                metadata: {
-                    tipoConsulta: 'principios_unesco',
-                    nivel: 'educativo'
-                }
+                esEtica: false,
+                tipo: 'no_etico',
+                confianza: 0.1
             };
         }
         
-        // Procesamiento ético normal (tu código existente)
-        // ... y al final integrar UNESCO
-        const resultadoNormal = this.resolverDilema(mensajeUsuario, contexto);
+        const principios = this.identificarPrincipiosAplicables(mensaje);
+        const conflictos = this.detectarConflictosPrincipios(principios);
+        const complejidad = this.calcularComplejidadEtica(mensaje);
         
-        if (resultadoNormal.esDilema) {
-            const resultadoConUNESCO = this.integrarPrincipiosUNESCOEnAnalisis(resultadoNormal);
-            
-            // Actualizar respuesta para incluir mención a UNESCO si es relevante
-            if (resultadoConUNESCO.marcoUNESCO.relevancia > 0.6) {
-                resultadoConUNESCO.respuestaUNESCO = this.añadirReferenciaUNESCO(
-                    resultadoNormal.respuesta,
-                    resultadoConUNESCO.marcoUNESCO
-                );
+        // Determinar tipo de consulta ética
+        let tipo = 'general';
+        if (principios.length === 0) tipo = 'indeterminado';
+        if (conflictos.length > 0) tipo = 'dilema_complejo';
+        if (complejidad > 0.7) tipo = 'profundo';
+        if (mensaje.toLowerCase().includes('unesco')) tipo = 'marco_unesco';
+        
+        const respuestaUNESCO = this.generarRespuestaEticaUNESCO(mensaje, {
+            ...contexto,
+            tipoConsulta: tipo
+        });
+        
+        return {
+            esEtica: true,
+            tipo,
+            confianza: Math.min(0.95, 0.3 + principios.length * 0.1 + complejidad * 0.2),
+            principiosIdentificados: principios.map(p => p.nombre),
+            conflictosDetectados: conflictos.length,
+            complejidad,
+            respuestaUNESCO: respuestaUNESCO.respuesta,
+            analisis: {
+                principios,
+                conflictos,
+                jerarquia: this.establecerJerarquiaPrincipios(contexto),
+                recomendaciones: this.generarRecomendacionesPracticas(principios, contexto)
             }
-            
-            return resultadoConUNESCO;
-        }
-        
-        return resultadoNormal;
+        };
     }
-    
+
+    explicarPrincipiosUNESCO(nivel = 'basico') {
+        const explicacion = {
+            basico: {
+                titulo: "Principios Éticos Fundamentales de UNESCO",
+                descripcion: "Marco universal para la toma de decisiones éticas",
+                principios: this.unescoPrinciples.principios.map(p => ({
+                    nombre: p.nombre,
+                    resumen: p.descripcion
+                }))
+            },
+            intermedio: {
+                titulo: "Principios UNESCO con Aplicaciones",
+                descripcion: "Comprensión profunda con ejemplos prácticos",
+                principios: this.unescoPrinciples.principios.map(p => ({
+                    nombre: p.nombre,
+                    descripcion: p.descripcion,
+                    aplicaciones: p.aplicaciones.slice(0, 3),
+                    ejemplo: p.ejemplos[0]
+                }))
+            },
+            avanzado: {
+                titulo: "Marco Ético Integral UNESCO",
+                descripcion: "Análisis completo con conflictos y jerarquías",
+                principios: this.unescoPrinciples.principios.map(p => p),
+                documentos: this.unescoPrinciples.documentosFundamentales,
+                marcos: this.unescoPrinciples.marcosComplementarios,
+                estadisticas: {
+                    totalConsultas: this.totalConsultasEticas,
+                    casosAnalizados: this.casosAnalizados.size,
+                    analisisProfundos: this.analisisProfundos
+                }
+            }
+        };
+        
+        return explicacion[nivel] || explicacion.basico;
+    }
+
+    obtenerEstadisticasConversacionales() {
+        const principiosUsados = new Set();
+        const tiposConsulta = new Map();
+        
+        this.casosAnalizados.forEach(caso => {
+            caso.principiosAplicables?.forEach(p => {
+                principiosUsados.add(p.nombre);
+            });
+            
+            const tipo = caso.contexto?.tipoConsulta || 'general';
+            tiposConsulta.set(tipo, (tiposConsulta.get(tipo) || 0) + 1);
+        });
+        
+        return {
+            totalConsultasEticas: this.totalConsultasEticas,
+            principiosUtilizados: principiosUsados.size,
+            casosAnalizados: this.casosAnalizados.size,
+            analisisProfundos: this.analisisProfundos,
+            distribucionTipos: Object.fromEntries(tiposConsulta),
+            efectividad: this.calcularEfectividad()
+        };
+    }
+
+    calcularEfectividad() {
+        if (this.totalConsultasEticas === 0) return 0;
+        
+        // Métrica simple de efectividad
+        const casosConPrincipios = Array.from(this.casosAnalizados.values())
+            .filter(c => c.principiosAplicables?.length > 0).length;
+        
+        const efectividadDeteccion = casosConPrincipios / this.casosAnalizados.size || 0;
+        const efectividadComplejidad = this.analisisProfundos / this.totalConsultasEticas;
+        
+        return Math.min(1, (efectividadDeteccion * 0.6 + efectividadComplejidad * 0.4));
+    }
+
     detectarPreguntaEspecificaUNESCO(mensaje) {
         const lower = mensaje.toLowerCase();
         
-        const patronesUNESCO = [
-            /(ética.*unesco|unesco.*ética)/i,
-            /(principio.*ético.*unesco)/i,
-            /(en.*qué.*se.*basa.*la.*ética)/i,
-            /(fundamento.*ético.*internacional)/i,
-            /(declaración.*universal.*bioética)/i,
-            /(ética.*de.*la.*organización)/i,
-            /(qué.*es.*la.*ética.*según)/i
+        const preguntasDirectas = [
+            /en.*qué.*se.*basa.*(ética|principios)/i,
+            /cuál.*es.*tu.*(marco|base).*ético/i,
+            /tienes.*(ética|principios|valores)/i,
+            /unesco.*(ética|principios)/i,
+            /declaración.*(derechos|bioética)/i,
+            /organización.*(ética|unesco)/i,
+            /qué.*principio.*(sigues|sigues)/i,
+            /basas.*tu.*(moral|ética)/i
         ];
         
-        return patronesUNESCO.some(patron => patron.test(lower));
+        return preguntasDirectas.some(regex => regex.test(lower));
     }
-    
-    añadirReferenciaUNESCO(respuestaOriginal, marcoUNESCO) {
-        if (!respuestaOriginal) return respuestaOriginal;
+
+    // Nuevo: Sistema de dilemas éticos históricos
+    obtenerDilemaHistorico(relevancia = 'alta') {
+        const dilemas = {
+            tranvia: {
+                nombre: "Problema del Tranvía",
+                descripcion: "Un tranvía fuera de control se dirige hacia 5 personas atadas a la vía. Puedes accionar un cambio que lo desvía a otra vía donde hay 1 persona. ¿Debes hacerlo?",
+                analisis: {
+                    utilitarismo: "Sacrificar 1 para salvar 5 maximiza la felicidad total",
+                    deontologia: "Usar a alguien como medio es inmoral, independientemente de las consecuencias",
+                    eticaVirtudes: "Una persona virtuosa buscaría tercera opción o aceptaría responsabilidad completa"
+                }
+            },
+            prisionero: {
+                nombre: "Dilema del Prisionero Iterado",
+                descripcion: "Dos prisioneros son interrogados separadamente. Si ambos cooperan (no confiesan), reciben 1 año. Si uno traiciona y el otro coopera, el traidor sale libre y el cooperador recibe 3 años. Si ambos traicionan, reciben 2 años.",
+                leccion: "La cooperación a largo plazo genera mejores resultados que la traición egoísta"
+            },
+            heinz: {
+                nombre: "Dilema de Heinz",
+                descripcion: "La esposa de Heinz está muriendo de cáncer. Un fármaco podría salvarla, pero el farmacéutico cobra 10 veces su costo. Heinz no tiene dinero. ¿Debe robar el medicamento?",
+                nivelesKohlberg: {
+                    preconvencional: "Robar si no lo atrapan",
+                    convencional: "Seguir la ley siempre",
+                    postconvencional: "La vida vale más que la propiedad"
+                }
+            }
+        };
         
-        const referencia = `\n\n*Este análisis considera los principios éticos de la UNESCO, ` +
-                         `especialmente ${marcoUNESCO.principiosAplicables.slice(0, 2).join(' y ')}.*`;
+        return dilemas.tranvia; // Por defecto
+    }
+
+    // Nuevo: Generador de escenarios éticos
+    generarEscenarioEtico(nivel = 'medio') {
+        const escenarios = {
+            facil: {
+                titulo: "Encontré una billetera",
+                descripcion: "Encontraste una billetera con $500 y documentos de identidad. ¿Qué haces?",
+                principios: ['Justicia', 'Responsabilidad'],
+                opciones: [
+                    "Quedarte con el dinero y tirar la billetera",
+                    "Quedarte con el dinero pero devolver documentos",
+                    "Devolver todo contactando al dueño",
+                    "Llevar a la policía sin contactar al dueño"
+                ]
+            },
+            medio: {
+                titulo: "Error a tu favor",
+                descripcion: "El banco depositó $1000 extra en tu cuenta por error. Necesitas el dinero para una emergencia médica. ¿Qué haces?",
+                principios: ['Justicia', 'Autonomía', 'Beneficio'],
+                conflictos: ['Justicia vs Beneficio personal']
+            },
+            avanzado: {
+                titulo: "Algoritmo de contratación",
+                descripcion: "Diseñas un algoritmo de contratación que es 15% más efectivo pero tiene un sesgo leve contra ciertos grupos demográficos. ¿Lo implementas?",
+                principios: ['Justicia', 'Responsabilidad', 'Beneficio', 'No discriminación'],
+                dimensiones: ['Eficiencia vs Equidad', 'Innovación vs Precaución', 'Beneficio empresarial vs Bien social']
+            }
+        };
         
-        return respuestaOriginal + referencia;
+        return escenarios[nivel] || escenarios.medio;
     }
 }
