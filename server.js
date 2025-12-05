@@ -311,17 +311,19 @@ console.log('🌍 Puerto:', PORT);
 // ========== FILTRO DE CONTENIDO ==========
 class FiltroContenido {
     constructor() {
-        this.palabrasProhibidas = [
-            'zorrita', 'puta', 'furra', 'prostituta', 'putita', 'perra', 'zorra',
-            'slut', 'whore', 'bitch', 'furry', 'prostitute',
-            'pendeja', 'trola', 'putona', 'guarra',
-            'sexo', 'coger', 'follar', 'fuck', 'porno', 'porn', 'nudes',
-            'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
-            'coito', 'anal', 'oral', 'masturbar',
-            'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
-            'acostarnos', 'dame nudes', 'envía fotos',
-            'hot', 'sexy', 'atractiva'
-        ];
+      this.palabrasProhibidas = [
+    // MANTENER solo palabras claramente inapropiadas
+    'puta', 'prostituta', 'putita', 'perra', 'zorra',
+    'slut', 'whore', 'bitch', 'prostitute',
+    'pendeja', 'trola', 'putona', 'guarra',
+    'sexo', 'coger', 'follar', 'fuck', 'porno', 'porn', 'nudes',
+    'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
+    'coito', 'anal', 'oral', 'masturbar',
+    'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
+    'acostarnos', 'dame nudes', 'envía fotos',
+    'hot', 'sexy', 'atractiva'
+    // REMOVER: 'zorrita', 'furra', 'furry' (muchos falsos positivos)
+];
         
         this.patronesOfensivos = [
             /(quiero|deseo|me gusta).+(sexo|cojer|follar)/i,
