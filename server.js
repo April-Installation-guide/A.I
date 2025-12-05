@@ -11,17 +11,20 @@ dotenv.config();
 // Subsistema de ContextAnalyzer
 class ContextAnalyzer {
     analyze(message, metadata) {
+        // FIXED: Asegurar que message sea una cadena
+        const processedMessage = typeof message === 'string' ? message : String(message || '');
+        
         return {
-            messageType: this.determineMessageType(message),
+            messageType: this.determineMessageType(processedMessage),
             conversationContext: this.extractConversationContext(metadata),
-            userIntentPattern: this.identifyIntentPattern(message),
-            emotionalTone: this.analyzeEmotionalTone(message),
-            complexityLevel: this.calculateComplexity(message),
-            languageFeatures: this.extractLanguageFeatures(message),
-            isFollowUp: this.isFollowUpQuestion(message, metadata),
-            topicContinuity: this.checkTopicContinuity(message, metadata),
+            userIntentPattern: this.identifyIntentPattern(processedMessage),
+            emotionalTone: this.analyzeEmotionalTone(processedMessage),
+            complexityLevel: this.calculateComplexity(processedMessage),
+            languageFeatures: this.extractLanguageFeatures(processedMessage),
+            isFollowUp: this.isFollowUpQuestion(processedMessage, metadata),
+            topicContinuity: this.checkTopicContinuity(processedMessage, metadata),
             userKnowledgeLevel: this.estimateUserKnowledge(metadata),
-            culturalContext: this.detectCulturalIndicators(message)
+            culturalContext: this.detectCulturalIndicators(processedMessage)
         };
     }
     
@@ -72,6 +75,11 @@ class ContextAnalyzer {
     }
     
     analyzeEmotionalTone(message) {
+        // FIXED: Verificar que el mensaje sea válido
+        if (!message || typeof message !== 'string') {
+            return 'neutral';
+        }
+        
         const positiveWords = ['feliz', 'contento', 'genial', 'excelente', 'maravilloso'];
         const negativeWords = ['triste', 'molesto', 'enojado', 'preocupado', 'frustrado'];
         
@@ -90,6 +98,11 @@ class ContextAnalyzer {
     }
     
     calculateComplexity(message) {
+        // FIXED: Verificar que el mensaje sea válido
+        if (!message || typeof message !== 'string') {
+            return 'low';
+        }
+        
         const words = message.split(/\s+/).length;
         const sentences = message.split(/[.!?]+/).length;
         const avgWordLength = message.replace(/\s+/g, '').length / words || 0;
@@ -121,6 +134,10 @@ class ContextAnalyzer {
         if (!metadata.history || metadata.history.length < 2) return 'new';
         
         const lastTwo = metadata.history.slice(-2);
+        
+        // FIXED: Verificar que el último mensaje tenga contenido
+        if (!lastTwo[0] || !lastTwo[0].content) return 'new';
+        
         const topics = this.extractTopics(message);
         const lastTopics = this.extractTopics(lastTwo[0].content);
         
@@ -132,6 +149,11 @@ class ContextAnalyzer {
     }
     
     extractTopics(text) {
+        // FIXED: Verificar que text sea una cadena válida
+        if (!text || typeof text !== 'string') {
+            return [];
+        }
+        
         const commonTopics = ['ética', 'filosofía', 'ciencia', 'tecnología', 'historia', 'arte'];
         const topics = [];
         const lowerText = text.toLowerCase();
@@ -1033,11 +1055,14 @@ class AdvancedIntentionSystem {
     }
     
     preprocessMessage(message) {
+        // FIXED: Asegurar que message sea una cadena
+        const safeMessage = typeof message === 'string' ? message : String(message || '');
+        
         return {
-            original: message,
-            normalized: message.toLowerCase().trim(),
-            tokens: message.split(/\s+/),
-            cleaned: this.cleanMessage(message)
+            original: safeMessage,
+            normalized: safeMessage.toLowerCase().trim(),
+            tokens: safeMessage.split(/\s+/),
+            cleaned: this.cleanMessage(safeMessage)
         };
     }
     
@@ -1711,7 +1736,6 @@ class PhilosophyModule {
 }
 
 // ========== CONTINÚA EL RESTO DEL CÓDIGO ORIGINAL ==========
-// [Aquí continúa el resto de tu código original exactamente como estaba...]
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -2650,7 +2674,7 @@ ${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}
     }
 }
 
-// ========== PROCESAR CON RAZONAMIENTO - ACTUALIZADO ==========
+// ========== PROCESAR CON RAZONAMIENTO - ACTUALIZADA ==========
 async function procesarConRazonamiento(message, userMessage, userId) {
     try {
         console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
