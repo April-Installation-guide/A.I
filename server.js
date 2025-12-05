@@ -1523,47 +1523,53 @@ async function startBot() {
             console.log('🛡️ Filtro: Sarcasmo-elegante activado');
         });
         
-        discordClient.on('messageCreate', async (message) => {
-            if (message.author.bot) return;
-            
-            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
-            const isDM = message.channel.type === 1;
-            
-            // Para DMs no mencionadas
-            if (isDM && !botMentioned) {
-                const userMessage = message.content.trim();
-                
-                if (filtroContenido.esContenidoInapropiado(userMessage)) {
-                    console.log(`🚫 DM inapropiada de ${message.author.tag}`);
-                    const respuesta = filtroContenido.generarRespuestaDM();
-                    await message.reply(respuesta);
-                    return;
-                }
-                
-                // En DMs, siempre responder
-                const userId = message.author.id;
-                
-                if (!userMessage) return;
-                
-                console.log(`💬 DM de ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                await procesarMensajeMancy(message, userMessage, userId);
-                return;
-            }
+       discordClient.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    
+    // ✅ IGNORAR @everyone y @here EXPLÍCITAMENTE
+    if (message.content.includes('@everyone') || message.content.includes('@here')) {
+        console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}: "${message.content.substring(0, 50)}..."`);
+        return; // No responder nada
+    }
+    
+    const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+    const isDM = message.channel.type === 1;
+    
+    // Para DMs no mencionadas
+    if (isDM && !botMentioned) {
+        const userMessage = message.content.trim();
+        
+        if (filtroContenido.esContenidoInapropiado(userMessage)) {
+            console.log(`🚫 DM inapropiada de ${message.author.tag}`);
+            const respuesta = filtroContenido.generarRespuestaDM();
+            await message.reply(respuesta);
+            return;
+        }
+        
+        // En DMs, siempre responder
+        const userId = message.author.id;
+        
+        if (!userMessage) return;
+        
+        console.log(`💬 DM de ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+        await procesarMensajeMancy(message, userMessage, userId);
+        return;
+    }
             
             // Para menciones en canales
-            if (botMentioned) {
-                const userId = message.author.id;
-                const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
-                
-                if (!userMessage) {
-                    await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~");
-                    return;
-                }
-                
-                console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                await procesarMensajeMancy(message, userMessage, userId);
-            }
-        });
+         if (botMentioned) {
+        const userId = message.author.id;
+        const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
+        
+        if (!userMessage) {
+            await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~");
+            return;
+        }
+        
+        console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+        await procesarMensajeMancy(message, userMessage, userId);
+    }
+});
         
         await discordClient.login(process.env.DISCORD_TOKEN);
         
