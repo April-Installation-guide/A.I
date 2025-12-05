@@ -51,7 +51,7 @@ class MemoryManager {
     }
 }
 
-// 2. REASONING ENGINE
+// 2. REASONING ENGINE - ACTUALIZADA
 class ReasoningEngine {
     constructor() {
         this.baseConocimiento = {
@@ -69,13 +69,18 @@ class ReasoningEngine {
             esComplejo: consulta.length > 20,
             inferencias: [
                 {
-                    inferencia: 'Consulta procesada para razonamiento',
+                    inferencia: 'Consulta analizada para razonamiento profundo',
                     certeza: 0.7
+                },
+                {
+                    inferencia: 'Identificando componentes emocionales y relacionales',
+                    certeza: 0.6
                 }
             ],
-            pasosRazonamiento: 2,
+            pasosRazonamiento: 3,
             certeza: 0.7,
-            respuesta: `He analizado tu pregunta: "${consulta.substring(0, 50)}..." desde una perspectiva lógica.`
+            // CAMBIADO: Respuesta vacía para forzar uso de Groq
+            respuesta: ''
         };
     }
 
@@ -344,7 +349,7 @@ class FiltroContenido {
             "Bueno, dejando a un lado ese... *momento peculiar*... ¿en qué puedo ayudarte realmente?",
             "Vale, momento incómodo superado. Siguiente tema, por favor. ⏭️",
             "Interesante interrupción. Retomemos la conversación productiva, ¿sí?",
-            "Ignoro eleganteente eso y continúo siendo útil. ¿Algo más? 😌",
+            "Ignoro elegantemente eso y continúo siendo útil. ¿Algo más? 😌",
             "Como si nada hubiera pasado... ¿Hablabas de algo importante?",
             "Error 404: Relevancia no encontrada. Continuemos. 💻",
             "Ahora que has sacado eso de tu sistema... ¿necesitas ayuda con algo real?",
@@ -977,7 +982,7 @@ function esDespedida(mensaje) {
     return despedidas.some(despedida => mensaje.toLowerCase().includes(despedida));
 }
 
-// ========== DETECCIÓN INTELIGENTE ==========
+// ========== DETECCIÓN INTELIGENTE - ACTUALIZADA ==========
 function detectarTipoConsultaInteligente(mensaje, historial = []) {
     const lowerMsg = mensaje.toLowerCase().trim();
     
@@ -990,7 +995,18 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 2. Pregunta sobre UNESCO/ética
+    // 2. Detección de preguntas sobre relaciones y desarrollo personal (NUEVO)
+    if (/\b(creador|padre|paternidad|desarroll[oa]r|identidad|nombre|apodo)\b/i.test(lowerMsg) &&
+        /\b(tito|desarrollador|programador|hijo|hija|relaci[óo]n|creaci[óo]n)\b/i.test(lowerMsg)) {
+        return {
+            tipo: 'filosofia',
+            confianza: 0.85,
+            subtipo: 'relaciones_humanas',
+            accion: 'analisis_filosofico_profundo'
+        };
+    }
+    
+    // 3. Pregunta sobre UNESCO/ética
     if (detectarPreguntaBaseEticaUNESCO(lowerMsg)) {
         return {
             tipo: 'etica_unesco',
@@ -1000,7 +1016,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 3. Problema filosófico
+    // 4. Problema filosófico
     const deteccionFilosofica = philosophyModule.detectarProblemaFilosofico(mensaje);
     if (deteccionFilosofica.esFilosofico) {
         return {
@@ -1011,7 +1027,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 4. Dilema ético
+    // 5. Dilema ético
     if (ethicsModule.esConsultaEticaNatural(mensaje)) {
         return {
             tipo: 'etica',
@@ -1021,7 +1037,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 5. Negociación
+    // 6. Negociación
     if (negotiationModule.esNegociacionConversacional(mensaje)) {
         return {
             tipo: 'negociacion',
@@ -1031,7 +1047,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 6. Razonamiento
+    // 7. Razonamiento
     if (detectarConsultaRazonamientoConversacional(mensaje)) {
         return {
             tipo: 'razonamiento',
@@ -1040,7 +1056,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 7. Conocimiento
+    // 8. Conocimiento
     if (necesitaBusquedaConocimiento(mensaje)) {
         return {
             tipo: 'conocimiento',
@@ -1049,7 +1065,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 8. Emocional
+    // 9. Emocional
     if (detectarComponenteEmocional(mensaje)) {
         return {
             tipo: 'emocional',
@@ -1058,7 +1074,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 9. Conversación general
+    // 10. Conversación general
     return {
         tipo: 'conversacion',
         confianza: 0.5,
@@ -1201,6 +1217,7 @@ ${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}
     }
 }
 
+// ========== PROCESAR CON RAZONAMIENTO - ACTUALIZADO ==========
 async function procesarConRazonamiento(message, userMessage, userId) {
     try {
         console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
@@ -1217,34 +1234,33 @@ async function procesarConRazonamiento(message, userMessage, userId) {
         
         agregarAlHistorial(userId, 'user', userMessage);
         
-        let respuestaFinal;
-        if (resultado.certeza >= 0.6 && resultado.respuesta) {
-            respuestaFinal = resultado.respuesta;
-            agregarAlHistorial(userId, 'system', 
-                `[Razonamiento: ${resultado.pasosRazonamiento} inferencias]`);
-        } else {
-            // Combinar con Groq
-            const historial = obtenerHistorialUsuario(userId);
-            
-            const prompt = `[ANÁLISIS DE RAZONAMIENTO]
-He analizado esta pregunta y encontré:
-${resultado.inferencias?.slice(0, 3).map((inf, idx) => 
-    `${idx + 1}. ${inf.inferencia}`
-).join('\n') || 'Necesito más contexto'}
+        // SIEMPRE usar Groq para generar la respuesta completa
+        const historial = obtenerHistorialUsuario(userId);
+        
+        const prompt = `[ANÁLISIS DE RAZONAMIENTO PROFUNDO]
 
-[PREGUNTA ORIGINAL]
+PREGUNTA DEL USUARIO:
 "${userMessage}"
 
-[INSTRUCCIONES]
-Integra este análisis en tu respuesta de forma natural.
-No digas "según mi análisis".
-Sé Mancy: cálida, perspicaz, reflexiva.`;
-            
-            respuestaFinal = await generarRespuestaConGroq(prompt, historial, userId, {
-                temperatura: 0.6
-            });
-        }
+ANÁLISIS INTERNO:
+${resultado.inferencias?.slice(0, 3).map((inf, idx) => 
+    `${idx + 1}. ${inf.inferencia}`
+).join('\n') || 'Esta pregunta requiere un análisis cuidadoso de múltiples perspectivas.'}
+
+[INSTRUCCIONES PARA MANCY]
+1. Responde como Mancy: cálida, reflexiva y empática
+2. No digas "He analizado tu pregunta" ni frases similares
+3. Integra el análisis de forma natural en tu respuesta
+4. Sé conversacional y profunda
+5. Haz preguntas para continuar el diálogo
+6. Mantén tu personalidad única: filosófica pero accesible, analítica pero cálida`;
+
+        const respuestaFinal = await generarRespuestaConGroq(prompt, historial, userId, {
+            temperatura: 0.75,
+            max_tokens: 800
+        });
         
+        agregarAlHistorial(userId, 'system', `[Razonamiento: análisis profundo]`);
         agregarAlHistorial(userId, 'assistant', respuestaFinal);
         return respuestaFinal;
         
