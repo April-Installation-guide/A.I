@@ -1092,14 +1092,15 @@ class AdvancedIntentionSystem {
             safety: 0.15
         };
         
+        // FIXED: Asegurar que todas las propiedades existan
         const fused = {
             messageType: this.weightedDecision(
-                analyses.context.messageType,
-                analyses.intentions.primaryCategory,
+                analyses.context?.messageType || 'general',
+                analyses.intentions?.primaryCategory || 'general',
                 weights
             ),
             entities: this.mergeEntities(
-                analyses.entities.entities,
+                analyses.entities?.entities || [],
                 analyses.context
             ),
             intention: this.resolveIntention(
@@ -1145,8 +1146,17 @@ class AdvancedIntentionSystem {
     }
     
     resolveIntention(intentions, context, safety) {
-        const primary = intentions.primaryCategory;
-        const confidence = intentions.confidence;
+        // FIXED: Verificar que intentions sea válido
+        if (!intentions) {
+            return {
+                category: 'general',
+                confidence: 0.5,
+                isAmbiguous: true
+            };
+        }
+        
+        const primary = intentions.primaryCategory || 'general';
+        const confidence = intentions.confidence || 0.5;
         
         if (safety.level >= 3) {
             return {
@@ -1168,9 +1178,9 @@ class AdvancedIntentionSystem {
         
         return {
             category: primary,
-            subcategory: intentions.secondaryCategories[0] || 'general',
+            subcategory: intentions.secondaryCategories?.[0] || 'general',
             confidence: confidence,
-            isAmbiguous: intentions.isAmbiguous
+            isAmbiguous: intentions.isAmbiguous || false
         };
     }
     
@@ -1190,9 +1200,9 @@ class AdvancedIntentionSystem {
     
     calculateOverallConfidence(analyses) {
         const confidences = [
-            analyses.intentions.confidence * 0.4,
-            analyses.entities.confidence * 0.3,
-            analyses.safety.score * 0.2,
+            analyses.intentions?.confidence || 0 * 0.4,
+            analyses.entities?.confidence || 0 * 0.3,
+            analyses.safety?.score || 0 * 0.2,
             0.1 // contexto básico
         ];
         
@@ -1253,6 +1263,7 @@ class AdvancedIntentionSystem {
     }
     
     makeFinalDecision(analysis, confidence, isCoherent) {
+        // FIXED: Asegurar que siempre se retorne una decisión válida
         if (!isCoherent || confidence < 0.3) {
             return this.handleUncertainCase(analysis);
         }
@@ -1263,6 +1274,11 @@ class AdvancedIntentionSystem {
         
         if (analysis.safetyLevel >= 2) {
             return this.createCautiousDecision(analysis);
+        }
+        
+        // FIXED: Verificar que analysis.intention exista
+        if (!analysis.intention || !analysis.intention.category) {
+            return this.createGeneralDecision(analysis);
         }
         
         switch (analysis.intention.category) {
@@ -1394,6 +1410,13 @@ class AdvancedIntentionSystem {
         
         try {
             const result = await this.analyzeMessage(message, metadata);
+            
+            // FIXED: Verificar que el resultado sea válido
+            if (!result || !result.decision) {
+                console.warn('⚠️ [AIS] Resultado de análisis inválido, usando fallback');
+                return this.fallbackAnalysis(message, metadata);
+            }
+            
             return this.formatForIntegration(result);
             
         } catch (error) {
@@ -1403,13 +1426,26 @@ class AdvancedIntentionSystem {
     }
     
     formatForIntegration(analysis) {
+        // FIXED: Manejar casos donde analysis o analysis.decision sean undefined
+        if (!analysis || !analysis.decision || !analysis.decision.primaryCategory) {
+            console.warn('⚠️ [AIS] Análisis incompleto, usando fallback');
+            return {
+                type: 'general',
+                confidence: 0.3,
+                shouldProcess: true,
+                bypassFilter: false,
+                recommendedModule: 'general',
+                responseStyle: { tone: 'neutral' }
+            };
+        }
+        
         return {
             type: analysis.decision.primaryCategory,
-            confidence: analysis.confidence,
+            confidence: analysis.confidence || 0.3,
             shouldProcess: analysis.decision.action !== 'block_and_respond',
             bypassFilter: analysis.decision.bypassFilter || false,
-            recommendedModule: analysis.decision.module,
-            responseStyle: analysis.decision.responseStyle
+            recommendedModule: analysis.decision.module || 'general',
+            responseStyle: analysis.decision.responseStyle || { tone: 'neutral' }
         };
     }
     
