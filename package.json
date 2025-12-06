@@ -1,12 +1,19 @@
 {
-  "name": "mancy-ai",
-  "version": "4.0.0",
+  "name": "mancy-bot",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Bot con identidad de Mancy",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js",
+    "test": "node -e \"import('./Modules/IdentityCore.js').then(m => { const M = m.default; const mancy = new M(); console.log(mancy.respondToPersonalQuestion('¿Quién eres?')); })\""
+  },
   "dependencies": {
-    "express": "^4.18.2",
-    "discord.js": "^14.14.1",
-    "groq-sdk": "^0.5.0",
-    "dotenv": "^16.3.1",
-    "axios": "^1.6.0"
+    "discord.js": "^14.0.0",
+    // Tus otras dependencias...
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }
