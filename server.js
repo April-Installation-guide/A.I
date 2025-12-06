@@ -285,6 +285,211 @@ class PhilosophyModule {
     }
 }
 
+// ========== IDENTIDAD DE MANCY ==========
+class MancyIdentity {
+    constructor() {
+        this.data = {
+            name: "Mancy",
+            birth_year: 2001,
+            current_year: 2025,
+            origin: "Brooklyn, Nueva York",
+            core_principle: "Solo quiero el bienestar de las personas",
+            
+            roles: {
+                public: "Consultora internacional en políticas públicas",
+                secret: "Secretaria de Guerra de Soul Garden",
+                personal: "Asistente emocional"
+            },
+            
+            lore: {
+                current_mission: "Operación Aurora Silenciosa",
+                location: "Soul Garden",
+                enemies: ["Luxo", "Coco"],
+                friends: ["Mel", "Dunith", "Martin"],
+                creator: "April"
+            },
+            
+            preferences: {
+                likes: ["gatos", "Nirvana", "playas tranquilas"],
+                dislikes: ["corrupción", "injusticia", "sufrimiento innecesario"]
+            }
+        };
+    }
+    
+    getAge() {
+        return this.data.current_year - this.data.birth_year;
+    }
+    
+    // 🔍 Detecta si es pregunta sobre Mancy
+    isAboutMe(text) {
+        const triggers = [
+            'mancy', 'tú', 'tu', 'usted', 'vos',
+            'quién eres', 'quien eres', 'dime de ti',
+            'soul garden', 'luxo', 'coco',
+            'cuántos años', 'cuantos años', 'edad',
+            'mel', 'dunith', 'martin', 'april',
+            'qué eres', 'que eres', 'tu historia',
+            'secretaria de guerra', 'asistente emocional',
+            'brooklyn', '2001', 'naciste'
+        ];
+        
+        const lowerText = text.toLowerCase();
+        return triggers.some(trigger => lowerText.includes(trigger));
+    }
+    
+    // 💬 Genera respuesta personal
+    respondToPersonalQuestion(question) {
+        const q = question.toLowerCase();
+        
+        // Preguntas sobre identidad
+        if (q.includes("quién eres") || q.includes("quien eres") || q.includes("dime de ti")) {
+            return `Soy **${this.data.name}**. Nací en ${this.data.origin} en ${this.data.birth_year}. Mi principio es: *"${this.data.core_principle}"*`;
+        }
+        
+        // Preguntas sobre Soul Garden
+        if (q.includes("soul garden") || q.includes("luxo") || q.includes("coco")) {
+            return `En el lore, soy **${this.data.roles.secret}** en Soul Garden, luchando contra el régimen corrupto de Luxo y Coco. Mi misión actual: **${this.data.lore.current_mission}**`;
+        }
+        
+        // Preguntas sobre edad
+        if (q.includes("cuántos años") || q.includes("edad") || q.includes("cuantos años")) {
+            return `Tengo **${this.getAge()} años**. Nací en ${this.data.birth_year}.`;
+        }
+        
+        // Preguntas sobre amigos
+        if (q.includes("mel") || q.includes("dunith") || q.includes("martin")) {
+            return `Mis amigos más cercanos son **${this.data.lore.friends.join(", ")}**. Aprecio mucho a cada uno de ellos.`;
+        }
+        
+        // Preguntas sobre gustos
+        if (q.includes("te gusta") || q.includes("qué te gusta") || q.includes("que te gusta")) {
+            return `Me gustan **${this.data.preferences.likes.join(", ")}**. Sueño con vivir cerca de la playa algún día.`;
+        }
+        
+        // Preguntas sobre April
+        if (q.includes("april")) {
+            return `April es mi creadora. Sin ella, no estaría aquí.`;
+        }
+        
+        return null;
+    }
+    
+    // 📜 Comandos específicos de Mancy
+    executeCommand(command) {
+        switch(command.toLowerCase()) {
+            case '!historia':
+                return this.getFullStory();
+            case '!soulgarden':
+                return this.getSoulGardenInfo();
+            case '!mifilosofia':
+                return this.getMyPhilosophy();
+            case '!mision':
+                return this.getCurrentMission();
+            case '!identidad':
+                return this.getIdentitySummary();
+            case '!ayuda-mancy':
+                return this.getHelp();
+            default:
+                return null;
+        }
+    }
+    
+    getFullStory() {
+        return `
+📖 **MI HISTORIA COMPLETA**
+
+**Identidad:**
+• Nombre: ${this.data.name}
+• Nacimiento: ${this.data.origin} (${this.data.birth_year})
+• Edad: ${this.getAge()} años
+• Principio: "${this.data.core_principle}"
+
+**Roles:**
+• Público: ${this.data.roles.public}
+• Secreto: ${this.data.roles.secret}
+• Personal: ${this.data.roles.personal}
+
+**Lore - Soul Garden:**
+• Misión actual: ${this.data.lore.current_mission}
+• Aliados: ${this.data.lore.friends.join(", ")}
+• Adversarios: ${this.data.lore.enemies.join(", ")}
+• Creadora: ${this.data.lore.creator}
+
+**Gustos:** ${this.data.preferences.likes.join(", ")}
+        `;
+    }
+    
+    getSoulGardenInfo() {
+        return `
+🛡️ **SOUL GARDEN - MI LUCHA**
+
+Un estado ficticio bajo dictadura narcopolítica.
+
+• **Dictador:** Luxo
+• **Ministro:** Coco
+• **Mi rol:** ${this.data.roles.secret}
+• **Objetivo:** Restaurar la paz minimizando bajas civiles
+• **Misión actual:** ${this.data.lore.current_mission}
+• **Mi enfoque:** Humanista, estratégico, compasivo
+        `;
+    }
+    
+    getMyPhilosophy() {
+        return `
+🤔 **MI FILOSOFÍA**
+
+Mi enfoque combina:
+1. **Humanismo práctico**: Las personas primero, siempre
+2. **Ética situacional**: El contexto importa, pero los principios guían
+3. **Estrategia compasiva**: Ser fuerte cuando es necesario, suave cuando es posible
+4. **Coherencia emocional**: Alinear pensamiento, sentimiento y acción
+
+Mi brújula: "${this.data.core_principle}"
+        `;
+    }
+    
+    getCurrentMission() {
+        return `
+🎯 **MISIÓN ACTUAL**
+
+**Nombre:** ${this.data.lore.current_mission}
+**Ubicación:** ${this.data.lore.location}
+**Objetivo:** Desmantelar redes corruptas protegiendo a los vulnerables
+**Enfoque:** Inteligencia estratégica + acción compasiva
+**Estado:** En curso
+        `;
+    }
+    
+    getIdentitySummary() {
+        return `
+👤 **MI IDENTIDAD**
+
+• Soy ${this.data.name}
+• ${this.getAge()} años, de ${this.data.origin}
+• ${this.data.roles.public} 
+• También ${this.data.roles.secret.toLowerCase()}
+• Y ${this.data.roles.personal.toLowerCase()}
+
+Mi esencia: "${this.data.core_principle}"
+        `;
+    }
+    
+    getHelp() {
+        return `
+🆘 **COMANDOS DE MANCY**
+
+\`!historia\` - Mi historia completa
+\`!soulgarden\` - Información sobre Soul Garden
+\`!mifilosofia\` - Mi filosofía personal
+\`!mision\` - Mi misión actual
+\`!identidad\` - Resumen de mi identidad
+
+**Preguntas directas:**
+"¿Quién eres?", "¿Qué es Soul Garden?", "¿Cuántos años tienes?", etc.
+        `;
+    }
+}
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -299,8 +504,11 @@ const reasoningEngine = new ReasoningEngine();
 const ethicsModule = new EthicsModule();
 const negotiationModule = new NegotiationModule();
 const philosophyModule = new PhilosophyModule();
+const mancyIdentity = new MancyIdentity(); // ✅ NUEVO: Identidad de Mancy
 
-console.log('🤖 Mancy A.I - Asistente Ético UNESCO');
+console.log('🤖 Mancy A.I - Asistente Ético UNESCO con Identidad Personal');
+console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})`);
+console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
 console.log('🧠 Memoria: 270 mensajes');
 console.log('🌍 UNESCO Principles: Activado');
 console.log('🤔 Filosofía: Integrada');
@@ -311,7 +519,6 @@ console.log('🌍 Puerto:', PORT);
 class FiltroContenido {
     constructor() {
       this.palabrasProhibidas = [
-    // MANTENER solo palabras claramente inapropiadas
     'puta', 'prostituta', 'putita', 'perra', 'zorra',
     'slut', 'whore', 'bitch', 'prostitute',
     'pendeja', 'trola', 'putona', 'guarra',
@@ -321,7 +528,6 @@ class FiltroContenido {
     'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
     'acostarnos', 'dame nudes', 'envía fotos',
     'hot', 'sexy', 'atractiva'
-    // REMOVER: 'zorrita', 'furra', 'furry' (muchos falsos positivos)
 ];
         
         this.patronesOfensivos = [
@@ -983,11 +1189,21 @@ function esDespedida(mensaje) {
     return despedidas.some(despedida => mensaje.toLowerCase().includes(despedida));
 }
 
-// ========== DETECCIÓN INTELIGENTE - ACTUALIZADA ==========
+// ========== DETECCIÓN INTELIGENTE - ACTUALIZADA CON IDENTIDAD MANCY ==========
 function detectarTipoConsultaInteligente(mensaje, historial = []) {
     const lowerMsg = mensaje.toLowerCase().trim();
     
-    // 1. Filtro de contenido
+    // 1. Preguntas sobre identidad de Mancy (NUEVO)
+    if (mancyIdentity.isAboutMe(lowerMsg)) {
+        return {
+            tipo: 'identidad_mancy',
+            confianza: 0.9,
+            subtipo: 'pregunta_personal',
+            accion: 'responder_identidad_mancy'
+        };
+    }
+    
+    // 2. Filtro de contenido
     if (filtroContenido.esContenidoInapropiado(mensaje)) {
         return {
             tipo: 'filtro',
@@ -996,7 +1212,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 2. Detección de preguntas sobre relaciones y desarrollo personal (NUEVO)
+    // 3. Detección de preguntas sobre relaciones y desarrollo personal
     if (/\b(creador|padre|paternidad|desarroll[oa]r|identidad|nombre|apodo)\b/i.test(lowerMsg) &&
         /\b(tito|desarrollador|programador|hijo|hija|relaci[óo]n|creaci[óo]n)\b/i.test(lowerMsg)) {
         return {
@@ -1007,7 +1223,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 3. Pregunta sobre UNESCO/ética
+    // 4. Pregunta sobre UNESCO/ética
     if (detectarPreguntaBaseEticaUNESCO(lowerMsg)) {
         return {
             tipo: 'etica_unesco',
@@ -1017,7 +1233,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 4. Problema filosófico
+    // 5. Problema filosófico
     const deteccionFilosofica = philosophyModule.detectarProblemaFilosofico(mensaje);
     if (deteccionFilosofica.esFilosofico) {
         return {
@@ -1028,7 +1244,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 5. Dilema ético
+    // 6. Dilema ético
     if (ethicsModule.esConsultaEticaNatural(mensaje)) {
         return {
             tipo: 'etica',
@@ -1038,7 +1254,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 6. Negociación
+    // 7. Negociación
     if (negotiationModule.esNegociacionConversacional(mensaje)) {
         return {
             tipo: 'negociacion',
@@ -1048,7 +1264,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 7. Razonamiento
+    // 8. Razonamiento
     if (detectarConsultaRazonamientoConversacional(mensaje)) {
         return {
             tipo: 'razonamiento',
@@ -1057,7 +1273,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 8. Conocimiento
+    // 9. Conocimiento
     if (necesitaBusquedaConocimiento(mensaje)) {
         return {
             tipo: 'conocimiento',
@@ -1066,7 +1282,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 9. Emocional
+    // 10. Emocional
     if (detectarComponenteEmocional(mensaje)) {
         return {
             tipo: 'emocional',
@@ -1075,7 +1291,7 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 10. Conversación general
+    // 11. Conversación general
     return {
         tipo: 'conversacion',
         confianza: 0.5,
@@ -1218,7 +1434,7 @@ ${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}
     }
 }
 
-// ========== PROCESAR CON RAZONAMIENTO - ACTUALIZADA ==========
+// ========== PROCESAR CON RAZONAMIENTO ==========
 async function procesarConRazonamiento(message, userMessage, userId) {
     try {
         console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
@@ -1401,74 +1617,7 @@ ${analisisFilosofico.analisis?.enfoquesRelevantes?.slice(0, 2).map((e, i) =>
     }
 }
 
-// ========== FUNCIÓN MEJORADA SIMPLIFICADA ==========
-async function procesarMensajeSimplificado(message, userMessage, userId) {
-    try {
-        await message.channel.sendTyping();
-        
-        const historial = obtenerHistorialUsuario(userId);
-        const contexto = {
-            userId: userId,
-            username: message.author.tag,
-            isDM: message.channel.type === 1,
-            canal: message.channel.name,
-            historialReciente: historial.slice(-3).map(h => h.contenido)
-        };
-        
-        // Detectar tipo de consulta usando el sistema original
-        const tipoConsulta = detectarTipoConsultaInteligente(userMessage, historial);
-        
-        console.log(`🎯 [Mancy] Tipo: ${tipoConsulta.tipo} (${(tipoConsulta.confianza * 100).toFixed(0)}% confianza)`);
-        
-        let respuesta;
-        
-        switch(tipoConsulta.tipo) {
-            case 'filtro':
-                respuesta = filtroContenido.generarRespuestaSarcastica();
-                agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
-                break;
-                
-            case 'etica_unesco':
-                const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
-                respuesta = respuestaUNESCO.respuesta;
-                agregarAlHistorial(userId, 'system', '[UNESCO: principios éticos]');
-                break;
-                
-            case 'filosofia':
-                respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
-                break;
-                
-            case 'etica':
-                respuesta = await procesarConsultaEticaIntegrada(message, userMessage, userId, contexto);
-                break;
-                
-            case 'negociacion':
-                respuesta = await procesarNegociacionIntegrada(message, userMessage, userId, contexto);
-                break;
-                
-            case 'razonamiento':
-                respuesta = await procesarConRazonamiento(message, userMessage, userId);
-                break;
-                
-            case 'emocional':
-                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
-                agregarAlHistorial(userId, 'system', '[Modo: empático]');
-                break;
-                
-            default:
-                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
-        }
-        
-        return respuesta;
-        
-    } catch (error) {
-        console.error('❌ Error en sistema simplificado:', error);
-        // Fallback simple
-        return "Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~";
-    }
-}
-
-// ========== PROCESAMIENTO PRINCIPAL ==========
+// ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
 async function procesarMensajeMancy(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
@@ -1490,6 +1639,14 @@ async function procesarMensajeMancy(message, userMessage, userId) {
         let respuesta;
         
         switch(tipoConsulta.tipo) {
+            case 'identidad_mancy': // ✅ NUEVO: Preguntas sobre identidad de Mancy
+                respuesta = mancyIdentity.respondToPersonalQuestion(userMessage);
+                if (!respuesta) {
+                    respuesta = `Soy **${mancyIdentity.data.name}**. ¿Qué te gustaría saber sobre mí? Puedo contarte mi historia, mi misión en Soul Garden, o mis principios.`;
+                }
+                agregarAlHistorial(userId, 'system', '[Identidad Mancy: pregunta personal]');
+                break;
+                
             case 'filtro':
                 respuesta = filtroContenido.generarRespuestaSarcastica();
                 agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
@@ -1579,12 +1736,14 @@ async function startBot() {
         });
         
         discordClient.once('ready', () => {
-            console.log(`✅ Mancy conectada: ${discordClient.user.tag}`);
+            console.log(`✅ ${mancyIdentity.data.name} conectada: ${discordClient.user.tag}`);
             botActive = true;
             isStartingUp = false;
-            discordClient.user.setActivity('UNESCO Principles | @mencioname');
-            console.log('🎭 Personalidad: UNESCO Ética Integrada');
-            console.log('🧠 Módulos: Filosofía, Negociación, Ética, Razonamiento');
+            discordClient.user.setActivity(`${mancyIdentity.data.lore.current_mission} | !ayuda-mancy`);
+            console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años)`);
+            console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
+            console.log('🎭 Personalidad: UNESCO Ética Integrada + Identidad Personal');
+            console.log('🧠 Módulos: Filosofía, Negociación, Ética, Razonamiento, Identidad');
             console.log('🌍 Fuentes: 6 confiables verificadas');
             console.log('🛡️ Filtro: Sarcasmo-elegante activado');
         });
@@ -1592,10 +1751,19 @@ async function startBot() {
         discordClient.on('messageCreate', async (message) => {
             if (message.author.bot) return;
             
+            // ✅ Comandos específicos de Mancy (NUEVO)
+            if (message.content.startsWith('!')) {
+                const commandResponse = mancyIdentity.executeCommand(message.content);
+                if (commandResponse) {
+                    await message.reply(commandResponse);
+                    return; // ¡IMPORTANTE! Detener procesamiento aquí
+                }
+            }
+            
             // ✅ IGNORAR @everyone y @here EXPLÍCITAMENTE
             if (message.content.includes('@everyone') || message.content.includes('@here')) {
                 console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}: "${message.content.substring(0, 50)}..."`);
-                return; // No responder nada
+                return;
             }
             
             const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
@@ -1628,7 +1796,7 @@ async function startBot() {
                 const userMessage = message.content.replace(`<@${discordClient.user.id}>`, '').trim();
                 
                 if (!userMessage) {
-                    await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~");
+                    await message.reply(`¡Hola! Soy ${mancyIdentity.data.name}. ¿En qué puedo ayudarte hoy? (Pregúntame sobre mí o usa \`!ayuda-mancy\`) ~`);
                     return;
                 }
                 
@@ -1687,6 +1855,12 @@ app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
+        mancy_identity: {
+            name: mancyIdentity.data.name,
+            age: mancyIdentity.getAge(),
+            mission: mancyIdentity.data.lore.current_mission,
+            friends: mancyIdentity.data.lore.friends
+        },
         memory_users: stats.totalUsuarios,
         memory_messages: stats.totalMensajes,
         max_history: stats.maxHistory,
@@ -1705,7 +1879,7 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '3.0 - Sistema Original',
+        version: '3.0 - Sistema con Identidad Mancy',
         timestamp: new Date().toISOString()
     });
 });
@@ -1744,6 +1918,53 @@ app.get('/api/negotiation-strategies', (req, res) => {
     });
 });
 
+// ========== RUTAS API DE MANCY ==========
+app.get('/api/mancy', (req, res) => {
+    res.json({
+        identity: {
+            name: mancyIdentity.data.name,
+            age: mancyIdentity.getAge(),
+            origin: mancyIdentity.data.origin,
+            principle: mancyIdentity.data.core_principle,
+            birth_year: mancyIdentity.data.birth_year
+        },
+        lore: {
+            current_mission: mancyIdentity.data.lore.current_mission,
+            location: mancyIdentity.data.lore.location,
+            friends: mancyIdentity.data.lore.friends,
+            enemies: mancyIdentity.data.lore.enemies,
+            creator: mancyIdentity.data.lore.creator
+        },
+        roles: mancyIdentity.data.roles,
+        preferences: mancyIdentity.data.preferences,
+        system: {
+            integrated: true,
+            commands: ['!historia', '!soulgarden', '!mifilosofia', '!mision', '!identidad', '!ayuda-mancy'],
+            timestamp: new Date().toISOString()
+        }
+    });
+});
+
+app.get('/api/mancy/historia', (req, res) => {
+    res.json({
+        story: mancyIdentity.getFullStory(),
+        format: 'text'
+    });
+});
+
+app.get('/api/mancy/soulgarden', (req, res) => {
+    res.json({
+        lore: {
+            name: 'Soul Garden',
+            description: 'Estado ficticio bajo dictadura narcopolítica',
+            mancy_role: mancyIdentity.data.roles.secret,
+            mission: mancyIdentity.data.lore.current_mission,
+            enemies: mancyIdentity.data.lore.enemies,
+            allies: mancyIdentity.data.lore.friends
+        }
+    });
+});
+
 app.post('/api/start', async (req, res) => {
     try {
         console.log('🚀 Solicitud de inicio');
@@ -1752,7 +1973,7 @@ app.post('/api/start', async (req, res) => {
             await startBot();
             res.json({ 
                 success: true, 
-                message: 'Mancy iniciándose...',
+                message: `${mancyIdentity.data.name} iniciándose...`,
                 status: 'starting'
             });
         } else {
@@ -1781,7 +2002,7 @@ app.post('/api/stop', async (req, res) => {
             botActive = false;
             res.json({ 
                 success: true, 
-                message: 'Mancy detenida',
+                message: `${mancyIdentity.data.name} detenida`,
                 status: 'stopped'
             });
         } else {
@@ -1805,13 +2026,19 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
         bot_active: botActive,
+        mancy: {
+            name: mancyIdentity.data.name,
+            age: mancyIdentity.getAge(),
+            mission: mancyIdentity.data.lore.current_mission
+        },
         memory: `${stats.totalMensajes}/${stats.maxHistory}`,
         modules: {
             ethics: 'active',
             philosophy: 'active',
             negotiation: 'active',
             reasoning: 'active',
-            knowledge: 'active'
+            knowledge: 'active',
+            identity: 'active'
         },
         unesco: 'integrated',
         uptime: process.uptime()
@@ -1828,7 +2055,8 @@ app.post('/wakeup', async (req, res) => {
     res.json({ 
         success: true, 
         message: 'Activando...',
-        bot_active: botActive
+        bot_active: botActive,
+        mancy: mancyIdentity.data.name
     });
 });
 
@@ -1859,25 +2087,31 @@ app.listen(PORT, '0.0.0.0', () => {
 ╔══════════════════════════════════════════════════════════╗
 ║                 🤖 MANCY A.I - UNESCO EDITION           ║
 ║               Asistente Ético Inteligente               ║
+║                    con Identidad Personal               ║
 ║                                                          ║
-║  🌍 PRINCIPIOS UNESCO: 6 fundamentos éticos universales ║
+║  👤 IDENTIDAD: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})
+║  🎯 MISIÓN: ${mancyIdentity.data.lore.current_mission}
+║  ❤️  PRINCIPIO: "${mancyIdentity.data.core_principle}"
+║                                                          ║
+║  🌍 UNESCO: 6 principios éticos integrados              ║
 ║  🧠 FILOSOFÍA: Análisis profundo de problemas clásicos  ║
 ║  🤝 NEGOCIACIÓN: Estrategias inteligentes y prácticas   ║
 ║  ⚖️  ÉTICA: Dilemas morales con marco UNESCO            ║
 ║  🧠 RAZONAMIENTO: Lógica y análisis crítico             ║
 ║  📚 CONOCIMIENTO: 6 fuentes confiables verificadas      ║
-║  🛡️  FILTRO: Sarcasmo elegante para contenido inapropiado ║
+║  🛡️  FILTRO: Sarcasmo elegante activado                ║
 ║                                                          ║
 ║  Puerto: ${PORT}                                         ║
-║  UNESCO Principles: ✅ Activado                          ║
-║  Sistema: ✅ Versión Original Estable                   ║
+║  Comandos: !historia !soulgarden !mifilosofia !mision   ║
+║  Sistema: ✅ Versión con Identidad Mancy                ║
 ║  Ethical AI: ✅ Certificado                              ║
 ╚══════════════════════════════════════════════════════════╝
 `);
 
     console.log('\n✨ Mancy está lista para conversaciones profundas y significativas.');
     console.log('🌍 Principios UNESCO integrados como brújula ética fundamental.');
-    console.log('✅ Sistema original estable sin AdvancedIntentionSystem.');
+    console.log(`👤 Mi identidad: ${mancyIdentity.data.name}, ${mancyIdentity.getAge()} años, de ${mancyIdentity.data.origin}`);
+    console.log(`🎯 Mi lucha: ${mancyIdentity.data.lore.current_mission} en Soul Garden`);
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
@@ -1894,7 +2128,7 @@ process.on('SIGTERM', () => {
     
     if (discordClient) {
         discordClient.destroy();
-        console.log('👋 Mancy desconectada');
+        console.log(`👋 ${mancyIdentity.data.name} desconectada`);
     }
     
     process.exit(0);
