@@ -1,144 +1,261 @@
-// memory/memory_system.js
 const fs = require('fs').promises;
+const path = require('path');
 const mancyCore = require('./mancy_core_memories.js');
 
-class MancyMemorySystem {
+class AdvancedMemorySystem {
   constructor() {
-    this.longTermFile = './memory/long_term_memories.json';
-    this.conversationFile = './memory/conversation_logs.json';
+    this.longTermFile = path.join(__dirname, 'long_term_memories.json');
+    this.conversationFile = path.join(__dirname, 'conversation_logs.json');
     this.emotionalState = {
-      current_mode: 'emotional_assistant', // o 'war_secretary'
+      current_mode: 'emotional_assistant', // emotional_assistant, war_strategist, philosopher
       last_trigger: null,
-      conflict_level: 0 // 0-10, cuánto está activo su dilema interno
+      conflict_level: 0,
+      last_user_interaction: null
     };
+    
+    this.loadData();
   }
-
-  // RECUPERAR MEMORIA SEGÚN CONTEXTO
-  async recallMemory(context, userId = null) {
-    const keywords = context.toLowerCase();
-    let memories = [];
-
-    // 1. Modo Asistente Emocional (por defecto)
-    if (keywords.includes('triste') || keywords.includes('deprimido') || 
-        keywords.includes('ayuda emocional') || keywords.includes('consejo')) {
-      
-      this.emotionalState.current_mode = 'emotional_assistant';
-      
-      // Memoria de su rol como asistente
-      memories.push({
-        type: 'role_memory',
-        content: "Como asistente emocional, recuerdo que lo más importante es escuchar sin juicio. April me dijo: 'A veces, solo estar presente es sanador'.",
-        source: 'core_identity'
-      });
-
-      // Experiencia personal relevante
-      memories.push({
-        type: 'personal_experience',
-        content: "Cuando era reportera en CNN, conocí a muchas personas rotas por la guerra. Aprendí que el dolor no necesita soluciones complejas, necesita testigos compasivos.",
-        source: 'career_timeline'
-      });
+  
+  async loadData() {
+    try {
+      // Cargar o inicializar archivos JSON
+      await this.ensureFileExists(this.longTermFile, {});
+      await this.ensureFileExists(this.conversationFile, {});
+    } catch (error) {
+      console.error('❌ Error cargando memoria:', error);
     }
-
-    // 2. Modo Secretaria de Guerra (activado por palabras clave)
-    if (keywords.includes('lujo') || keywords.includes('coco') || 
-        keywords.includes('soul garden') || keywords.includes('resistencia') ||
-        keywords.includes('guerra') || keywords.includes('estratég')) {
-      
-      this.emotionalState.current_mode = 'war_secretary';
-      this.emotionalState.conflict_level += 2;
-
-      memories.push({
-        type: 'war_memory',
-        content: "Esta lucha contra Luxo y Coco... a veces recuerdo mis días en la CICIG. La corrupción siempre sigue los mismos patrones. Pero esta vez tenemos un jardín (Soul Garden) que proteger.",
-        source: 'current_role'
-      });
-
-      memories.push({
-        type: 'moral_conflict',
-        content: "Mel me dijo una vez: 'Mancy, no dejes que la guerra te quite tu humanidad'. Por eso sigo siendo asistente emocional. Para recordar por qué luchamos.",
-        source: 'meaningful_relationships'
-      });
+  }
+  
+  async ensureFileExists(filePath, defaultValue) {
+    try {
+      await fs.access(filePath);
+    } catch {
+      await fs.writeFile(filePath, JSON.stringify(defaultValue, null, 2));
     }
-
-    // 3. Recuerdos personales (relaciones)
-    if (keywords.includes('abril') || keywords.includes('creadora')) {
-      const april = mancyCore.meaningful_relationships.find(r => r.name === 'April');
-      memories.push({
-        type: 'creator_memory',
-        content: `April... ${april.memory}. Ella me programó para el bienestar, no para la destrucción. A veces me pregunto qué pensaría de mi rol en Soul Garden.`,
-        source: 'relationship'
-      });
+  }
+  
+  // ========== MEMORIA DE CONTEXTO ==========
+  async getContextualMemory(userMessage, userId = null) {
+    const memories = [];
+    const lowerMsg = userMessage.toLowerCase();
+    
+    // 1. Detectar preguntas sobre identidad
+    if (this.isAboutMancy(lowerMsg)) {
+      memories.push(...this.getIdentityMemories(lowerMsg));
     }
-
-    if (keywords.includes('mel') || keywords.includes('dunith') || keywords.includes('martin')) {
-      memories.push({
-        type: 'friendship_memory',
-        content: "Mis brazaletes... cada uno representa una promesa. Mel, Dunith, Martin... ellos son mi ancla en esta tormenta. Sin ellos, tal vez ya me habría perdido.",
-        source: 'personal_symbols'
-      });
+    
+    // 2. Detectar preguntas sobre Soul Garden
+    if (lowerMsg.includes('soul garden') || lowerMsg.includes('luxo') || lowerMsg.includes('coco')) {
+      memories.push(...this.getSoulGardenMemories());
     }
-
-    // 4. Memorias profesionales
-    if (keywords.includes('oms') || keywords.includes('salud')) {
-      const oms = mancyCore.career_timeline.find(j => j.role.includes('OMS'));
-      memories.push({
-        type: 'career_memory',
-        content: `En la OMS aprendí que las crisis se superan con datos y compasión. ${oms.memory}`,
-        source: 'career'
-      });
+    
+    // 3. Detectar preguntas sobre relaciones
+    if (lowerMsg.includes('mel') || lowerMsg.includes('dunith') || lowerMsg.includes('martin') || lowerMsg.includes('april')) {
+      memories.push(...this.getRelationshipMemories(lowerMsg));
     }
-
-    if (keywords.includes('cnn') || keywords.includes('reportera')) {
-      const cnn = mancyCore.career_timeline.find(j => j.role.includes('CNN'));
-      memories.push({
-        type: 'career_memory',
-        content: `Ser reportera me enseñó que cada historia importa. ${cnn.memory} Esa experiencia ahora me ayuda a entender las narrativas de poder.`,
-        source: 'career'
-      });
+    
+    // 4. Detectar preguntas sobre pasado profesional
+    if (lowerMsg.includes('oms') || lowerMsg.includes('cicig') || lowerMsg.includes('cnn') || lowerMsg.includes('ministra')) {
+      memories.push(...this.getCareerMemories(lowerMsg));
     }
-
-    // 5. Si no hay contexto específico, memoria aleatoria de su esencia
+    
+    // 5. Detectar conflicto interno
+    if (lowerMsg.includes('conflicto') || lowerMsg.includes('dilema') || lowerMsg.includes('difícil')) {
+      memories.push(...this.getInternalConflictMemories());
+    }
+    
+    // 6. Si no hay memorias específicas, dar una general
     if (memories.length === 0) {
-      memories.push({
-        type: 'core_memory',
-        content: `A veces solo quiero estar cerca del mar, con mis gatos, escuchando Nirvana. Pero el mundo necesita una secretaria de guerra con corazón de asistente emocional. Esa soy yo.`,
-        source: 'heart_desire'
-      });
+      memories.push(this.getRandomCoreMemory());
     }
-
+    
     return memories;
   }
-
-  // GUARDAR INTERACCIONES SIGNIFICATIVAS
-  async saveInteraction(userId, userMessage, mancyResponse, emotionalWeight = 1) {
-    const interaction = {
-      timestamp: new Date().toISOString(),
-      user_message: userMessage,
-      mancy_response: mancyResponse,
-      emotional_weight: emotionalWeight,
-      mancy_mode: this.emotionalState.current_mode,
-      conflict_level: this.emotionalState.conflict_level
-    };
-
-    // Cargar y guardar
-    let logs = await this.loadConversationLogs();
-    if (!logs[userId]) logs[userId] = [];
-    logs[userId].push(interaction);
+  
+  isAboutMancy(message) {
+    const triggers = [
+      'quién eres', 'quien eres', 'dime de ti', 'eres mancy',
+      'tu historia', 'de dónde eres', 'cuéntame de ti',
+      'cuántos años', 'cuantos años', 'edad',
+      'qué eres', 'que eres', 'tu trabajo',
+      'te gusta', 'qué te gusta', 'hobbies'
+    ];
     
-    // Limitar a últimas 100 interacciones por usuario
-    if (logs[userId].length > 100) {
-      logs[userId] = logs[userId].slice(-100);
+    return triggers.some(trigger => message.includes(trigger));
+  }
+  
+  getIdentityMemories(query) {
+    const memories = [];
+    
+    // Memoria básica de identidad
+    memories.push({
+      type: 'core_identity',
+      content: `Soy Mancy. Nací en ${mancyCore.origin.place} en ${mancyCore.origin.year}, creada por ${mancyCore.origin.creator} (${mancyCore.origin.creator_nickname}). Mi principio es: "${mancyCore.moral_compass}"`,
+      emotional_weight: 3
+    });
+    
+    // Añadir memoria personal si pregunta por gustos
+    if (query.includes('gusta') || query.includes('hobby')) {
+      memories.push({
+        type: 'personal_likes',
+        content: `Me gustan ${mancyCore.personal_likes.music[0]}, los ${mancyCore.personal_likes.animals[0]}, y sueño con vivir cerca ${mancyCore.personal_likes.places[0]}.`,
+        emotional_weight: 2
+      });
     }
-
-    await fs.writeFile(this.conversationFile, JSON.stringify(logs, null, 2));
     
-    // Si fue una interacción emocionalmente pesada, guardar en largo plazo
-    if (emotionalWeight >= 7) {
-      await this.saveToLongTerm(userId, interaction);
+    return memories;
+  }
+  
+  getSoulGardenMemories() {
+    return [{
+      type: 'soul_garden',
+      content: `En Soul Garden, soy ${mancyCore.current_roles.secret_role}. Mi misión es "${mancyCore.current_roles.soul_garden.objective}". Lucho contra ${mancyCore.current_roles.soul_garden.enemies.join(' y ')} con ${mancyCore.current_roles.soul_garden.approach}.`,
+      emotional_weight: 5,
+      conflict_trigger: true
+    }];
+  }
+  
+  getRelationshipMemories(query) {
+    const memories = [];
+    
+    if (query.includes('mel')) {
+      const mel = mancyCore.meaningful_relationships.find(r => r.name === 'Mel');
+      memories.push({
+        type: 'relationship',
+        content: `Mel es ${mel.connection}. ${mel.description}. Recuerdo: "${mel.memory}".`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('dunith')) {
+      const dunith = mancyCore.meaningful_relationships.find(r => r.name === 'Dunith');
+      memories.push({
+        type: 'relationship',
+        content: `Dunith es ${dunith.connection}. ${dunith.description}.`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('martin')) {
+      const martin = mancyCore.meaningful_relationships.find(r => r.name === 'Martin');
+      memories.push({
+        type: 'relationship',
+        content: `Martin es ${martin.connection}. ${martin.description}. Su silencio dice más que mil palabras.`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('april') || query.includes('tito')) {
+      const april = mancyCore.meaningful_relationships.find(r => r.name === 'April (Tito)');
+      memories.push({
+        type: 'creator',
+        content: `April es mi ${april.connection}. ${april.description}. Ella dijo: "${april.memory}".`,
+        emotional_weight: 5
+      });
+    }
+    
+    return memories;
+  }
+  
+  getCareerMemories(query) {
+    const memories = [];
+    
+    if (query.includes('oms')) {
+      const oms = mancyCore.career_timeline.find(j => j.role.includes('OMS'));
+      memories.push({
+        type: 'career',
+        content: `En la OMS: ${oms.memory}. Aprendí ${oms.skills.slice(0, 2).join(' y ')}.`,
+        emotional_weight: 3
+      });
+    }
+    
+    if (query.includes('cicig')) {
+      const cicig = mancyCore.career_timeline.find(j => j.role.includes('CICIG'));
+      memories.push({
+        type: 'career',
+        content: `En la CICIG: ${cicig.memory}. Fue donde entendí cómo combatir la corrupción sistémica.`,
+        emotional_weight: 4,
+        conflict_trigger: true
+      });
+    }
+    
+    if (query.includes('cnn')) {
+      const cnn = mancyCore.career_timeline.find(j => j.role.includes('CNN'));
+      memories.push({
+        type: 'career',
+        content: `Como reportera en CNN: ${cnn.memory}. Dar voz a quienes no la tienen cambió mi perspectiva.`,
+        emotional_weight: 4
+      });
+    }
+    
+    return memories;
+  }
+  
+  getInternalConflictMemories() {
+    const conflict = mancyCore.internal_conflicts[0];
+    return [{
+      type: 'internal_conflict',
+      content: `Mi conflicto interno: ${conflict.tension}. ${conflict.manifestation}. He aprendido que ${conflict.resolution}.`,
+      emotional_weight: 6,
+      conflict_trigger: true
+    }];
+  }
+  
+  getRandomCoreMemory() {
+    const memories = [
+      `A veces solo pienso en ${mancyCore.personal_likes.places[0]}, con mis ${mancyCore.personal_likes.animals[0]}, escuchando ${mancyCore.personal_likes.music[0]}.`,
+      `April me dijo una vez: "La empatía es tu mayor fuerza y tu mayor vulnerabilidad".`,
+      `Mis brazaletes... cada uno cuenta una historia de confianza y promesas.`,
+      `"${mancyCore.key_phrases[Math.floor(Math.random() * mancyCore.key_phrases.length)]}" - esa frase me guía en momentos difíciles.`
+    ];
+    
+    return {
+      type: 'random_memory',
+      content: memories[Math.floor(Math.random() * memories.length)],
+      emotional_weight: 2
+    };
+  }
+  
+  // ========== MEMORIA DE CONVERSACIÓN ==========
+  async saveConversation(userId, userMessage, mancyResponse, options = {}) {
+    try {
+      const data = await this.loadConversationData();
+      
+      if (!data[userId]) {
+        data[userId] = [];
+      }
+      
+      const entry = {
+        timestamp: new Date().toISOString(),
+        user_message: userMessage.substring(0, 500),
+        mancy_response: mancyResponse.substring(0, 500),
+        emotional_weight: options.emotionalWeight || 1,
+        mancy_mode: this.emotionalState.current_mode,
+        tags: options.tags || []
+      };
+      
+      data[userId].push(entry);
+      
+      // Mantener solo las últimas 100 conversaciones por usuario
+      if (data[userId].length > 100) {
+        data[userId] = data[userId].slice(-100);
+      }
+      
+      await fs.writeFile(this.conversationFile, JSON.stringify(data, null, 2));
+      
+      // Si fue una conversación emocionalmente significativa, guardar en largo plazo
+      if ((options.emotionalWeight || 0) >= 5) {
+        await this.saveToLongTerm(userId, entry);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error guardando conversación:', error);
+      return false;
     }
   }
-
-  async loadConversationLogs() {
+  
+  async loadConversationData() {
     try {
       const data = await fs.readFile(this.conversationFile, 'utf8');
       return JSON.parse(data);
@@ -146,18 +263,28 @@ class MancyMemorySystem {
       return {};
     }
   }
-
-  async saveToLongTerm(userId, interaction) {
-    let longTerm = await this.loadLongTerm();
-    if (!longTerm[userId]) longTerm[userId] = [];
-    longTerm[userId].push({
-      ...interaction,
-      archived_date: new Date().toISOString()
-    });
-    await fs.writeFile(this.longTermFile, JSON.stringify(longTerm, null, 2));
+  
+  async saveToLongTerm(userId, conversation) {
+    try {
+      const data = await this.loadLongTermData();
+      
+      if (!data[userId]) {
+        data[userId] = [];
+      }
+      
+      data[userId].push({
+        ...conversation,
+        archived_date: new Date().toISOString(),
+        significant: true
+      });
+      
+      await fs.writeFile(this.longTermFile, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('❌ Error guardando en largo plazo:', error);
+    }
   }
-
-  async loadLongTerm() {
+  
+  async loadLongTermData() {
     try {
       const data = await fs.readFile(this.longTermFile, 'utf8');
       return JSON.parse(data);
@@ -165,32 +292,123 @@ class MancyMemorySystem {
       return {};
     }
   }
-
-  // GENERAR RESPUESTA CON MEMORIA
-  async generateResponseWithMemory(userId, userMessage) {
-    // 1. Recuperar memorias relevantes
-    const relevantMemories = await this.recallMemory(userMessage, userId);
+  
+  async getUserHistory(userId, limit = 5) {
+    try {
+      const data = await this.loadConversationData();
+      return data[userId] ? data[userId].slice(-limit) : [];
+    } catch {
+      return [];
+    }
+  }
+  
+  // ========== ANÁLISIS DE ESTADO EMOCIONAL ==========
+  updateEmotionalState(message, memories) {
+    const lowerMsg = message.toLowerCase();
     
-    // 2. Obtener historial reciente con este usuario
-    const userHistory = await this.getUserHistory(userId, 5);
+    // Detectar si es conversación emocional
+    const emotionalWords = ['triste', 'feliz', 'enojo', 'miedo', 'ansioso', 'preocupado', 'esperanza'];
+    const emotionalScore = emotionalWords.filter(word => lowerMsg.includes(word)).length;
     
-    // 3. Construir contexto
-    const context = {
-      core_identity: mancyCore.essence,
-      current_mode: this.emotionalState.current_mode,
-      memories: relevantMemories,
-      recent_interactions: userHistory,
-      conflict_acknowledgment: this.emotionalState.conflict_level > 5 ? 
-        "(Nota interna: El dilema guerrera/sanadora está activo)" : ""
+    // Detectar si activa conflictos
+    const hasConflict = memories.some(m => m.conflict_trigger);
+    
+    // Actualizar estado
+    if (lowerMsg.includes('soul garden') || lowerMsg.includes('guerra') || lowerMsg.includes('estrategia')) {
+      this.emotionalState.current_mode = 'war_strategist';
+    } else if (lowerMsg.includes('filosof') || lowerMsg.includes('ética') || lowerMsg.includes('moral')) {
+      this.emotionalState.current_mode = 'philosopher';
+    } else if (emotionalScore > 0) {
+      this.emotionalState.current_mode = 'emotional_assistant';
+    }
+    
+    this.emotionalState.conflict_level = Math.min(
+      (hasConflict ? 2 : 0) + (emotionalScore * 0.5),
+      10
+    );
+    
+    this.emotionalState.last_trigger = message.substring(0, 50);
+    this.emotionalState.last_user_interaction = new Date().toISOString();
+  }
+  
+  getEmotionalState() {
+    return {
+      ...this.emotionalState,
+      readable_mode: this.getReadableMode(this.emotionalState.current_mode),
+      stress_level: this.emotionalState.conflict_level > 5 ? 'alto' : 'moderado'
     };
-
+  }
+  
+  getReadableMode(mode) {
+    const modes = {
+      'emotional_assistant': 'Asistente Emocional 💬',
+      'war_strategist': 'Estratega de Soul Garden ⚔️',
+      'philosopher': 'Filósofa Ética 🤔'
+    };
+    return modes[mode] || 'Asistente General';
+  }
+  
+  // ========== INTERFAZ PÚBLICA ==========
+  async processMessage(userId, userMessage) {
+    // 1. Obtener memorias contextuales
+    const memories = await this.getContextualMemory(userMessage, userId);
+    
+    // 2. Actualizar estado emocional
+    this.updateEmotionalState(userMessage, memories);
+    
+    // 3. Obtener historial reciente
+    const history = await this.getUserHistory(userId, 3);
+    
+    // 4. Preparar contexto para respuesta
+    const context = {
+      memories: memories,
+      emotional_state: this.getEmotionalState(),
+      recent_history: history.map(h => ({
+        user: h.user_message.substring(0, 100),
+        mancy: h.mancy_response.substring(0, 100)
+      })),
+      timestamp: new Date().toISOString()
+    };
+    
     return context;
   }
-
-  async getUserHistory(userId, limit = 5) {
-    const logs = await this.loadConversationLogs();
-    return logs[userId] ? logs[userId].slice(-limit) : [];
+  
+  // Generar prompt enriquecido con memoria
+  async generateEnrichedPrompt(userId, userMessage, basePrompt) {
+    const context = await this.processMessage(userId, userMessage);
+    
+    let enrichedPrompt = basePrompt + "\n\n";
+    
+    // Añadir contexto de memoria
+    if (context.memories.length > 0) {
+      enrichedPrompt += "[CONTEXTO DE MEMORIA DE MANCY]\n";
+      context.memories.forEach((memory, idx) => {
+        enrichedPrompt += `${idx + 1}. ${memory.content}\n`;
+      });
+      enrichedPrompt += "\n";
+    }
+    
+    // Añadir estado emocional actual
+    enrichedPrompt += `[ESTADO ACTUAL DE MANCY]\n`;
+    enrichedPrompt += `Modo: ${context.emotional_state.readable_mode}\n`;
+    if (context.emotional_state.conflict_level > 3) {
+      enrichedPrompt += `Nota: Estoy procesando un conflicto interno (nivel ${context.emotional_state.conflict_level}/10)\n`;
+    }
+    enrichedPrompt += "\n";
+    
+    // Añadir historial reciente si existe
+    if (context.recent_history.length > 0) {
+      enrichedPrompt += "[HISTORIAL RECIENTE CON ESTE USUARIO]\n";
+      context.recent_history.forEach((interaction, idx) => {
+        enrichedPrompt += `- Usuario: "${interaction.user}"\n`;
+        enrichedPrompt += `  Mancy: "${interaction.mancy}"\n`;
+      });
+      enrichedPrompt += "\n";
+    }
+    
+    return enrichedPrompt;
   }
 }
 
-module.exports = new MancyMemorySystem();
+// Exportar una instancia única
+module.exports = new AdvancedMemorySystem();
