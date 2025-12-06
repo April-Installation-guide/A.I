@@ -6,1492 +6,6 @@ import axios from 'axios';
 
 dotenv.config();
 
-// ========== CLASES AUXILIARES PARA EL SISTEMA AVANZADO ==========
-
-// Subsistema de ContextAnalyzer
-class ContextAnalyzer {
-    analyze(message, metadata) {
-        // FIXED: Asegurar que message sea una cadena
-        const processedMessage = typeof message === 'string' ? message : String(message || '');
-        
-        return {
-            messageType: this.determineMessageType(processedMessage),
-            conversationContext: this.extractConversationContext(metadata),
-            userIntentPattern: this.identifyIntentPattern(processedMessage),
-            emotionalTone: this.analyzeEmotionalTone(processedMessage),
-            complexityLevel: this.calculateComplexity(processedMessage),
-            languageFeatures: this.extractLanguageFeatures(processedMessage),
-            isFollowUp: this.isFollowUpQuestion(processedMessage, metadata),
-            topicContinuity: this.checkTopicContinuity(processedMessage, metadata),
-            userKnowledgeLevel: this.estimateUserKnowledge(metadata),
-            culturalContext: this.detectCulturalIndicators(processedMessage)
-        };
-    }
-    
-    determineMessageType(message) {
-        const patterns = {
-            informational: [
-                /^(?:hablame|dime|cuéntame|información|sabes|conoces).+sobre/i,
-                /^(?:quién|quiénes)\s+(?:es|son|fue|fueron)\s+/i,
-                /^(?:qué|cuál)\s+(?:es|son)\s+/i,
-                /^(?:cómo|cuándo|dónde|por qué)\s+/i
-            ],
-            philosophical: [
-                /(?:problema|dilema|paradoja)\s+(?:del|de la|de los)/i,
-                /(?:qué|cuál)\s+(?:piensas|opinas|crees)\s+(?:sobre|acerca|de)/i,
-                /(?:debería|está bien|es correcto|es ético)/i
-            ],
-            conversational: [
-                /^(?:hola|hey|hi|buenos|buenas).+/i,
-                /^(?:cómo estás|qué tal|qué pasa).*/i
-            ]
-        };
-        
-        for (const [type, typePatterns] of Object.entries(patterns)) {
-            if (typePatterns.some(pattern => pattern.test(message))) {
-                return type;
-            }
-        }
-        
-        return 'general';
-    }
-    
-    extractConversationContext(metadata) {
-        return {
-            userId: metadata.userId,
-            isDM: metadata.channelType === 'dm',
-            historyLength: metadata.history?.length || 0,
-            platform: metadata.platform || 'unknown'
-        };
-    }
-    
-    identifyIntentPattern(message) {
-        if (/^(hola|hey|hi|buenos|buenas)/i.test(message)) return 'greeting';
-        if (/(gracias|thank you|merci)/i.test(message)) return 'gratitude';
-        if (/^(quién|cómo|dónde|cuándo|por qué|qué)/i.test(message)) return 'question';
-        if (/^(ayuda|help|socorro)/i.test(message)) return 'help';
-        if (/^(adiós|chao|bye|hasta luego)/i.test(message)) return 'farewell';
-        return 'general';
-    }
-    
-    analyzeEmotionalTone(message) {
-        // FIXED: Verificar que el mensaje sea válido
-        if (!message || typeof message !== 'string') {
-            return 'neutral';
-        }
-        
-        const positiveWords = ['feliz', 'contento', 'genial', 'excelente', 'maravilloso'];
-        const negativeWords = ['triste', 'molesto', 'enojado', 'preocupado', 'frustrado'];
-        
-        let tone = 'neutral';
-        const lowerMsg = message.toLowerCase();
-        
-        positiveWords.forEach(word => {
-            if (lowerMsg.includes(word)) tone = 'positive';
-        });
-        
-        negativeWords.forEach(word => {
-            if (lowerMsg.includes(word)) tone = 'negative';
-        });
-        
-        return tone;
-    }
-    
-    calculateComplexity(message) {
-        // FIXED: Verificar que el mensaje sea válido
-        if (!message || typeof message !== 'string') {
-            return 'low';
-        }
-        
-        const words = message.split(/\s+/).length;
-        const sentences = message.split(/[.!?]+/).length;
-        const avgWordLength = message.replace(/\s+/g, '').length / words || 0;
-        
-        if (words > 20 || avgWordLength > 6) return 'high';
-        if (words > 10 || sentences > 2) return 'medium';
-        return 'low';
-    }
-    
-    extractLanguageFeatures(message) {
-        return {
-            hasQuestionMark: message.includes('?'),
-            hasExclamation: message.includes('!'),
-            hasNumbers: /\d/.test(message),
-            hasUppercase: /[A-Z]/.test(message) && message !== message.toUpperCase(),
-            isAllCaps: message === message.toUpperCase() && message.length > 3
-        };
-    }
-    
-    isFollowUpQuestion(message, metadata) {
-        if (!metadata.history || metadata.history.length === 0) return false;
-        
-        const lowerMsg = message.toLowerCase();
-        return /^(y|pero|entonces|además|también|sin embargo)/i.test(lowerMsg) ||
-               /^(qué pasa con|y qué hay de|y en cuanto a)/i.test(lowerMsg);
-    }
-    
-    checkTopicContinuity(message, metadata) {
-        if (!metadata.history || metadata.history.length < 2) return 'new';
-        
-        const lastTwo = metadata.history.slice(-2);
-        
-        // FIXED: Verificar que el último mensaje tenga contenido
-        if (!lastTwo[0] || !lastTwo[0].content) return 'new';
-        
-        const topics = this.extractTopics(message);
-        const lastTopics = this.extractTopics(lastTwo[0].content);
-        
-        const commonTopics = topics.filter(topic => 
-            lastTopics.some(lastTopic => lastTopic.includes(topic) || topic.includes(lastTopic))
-        );
-        
-        return commonTopics.length > 0 ? 'continuing' : 'changed';
-    }
-    
-    extractTopics(text) {
-        // FIXED: Verificar que text sea una cadena válida
-        if (!text || typeof text !== 'string') {
-            return [];
-        }
-        
-        const commonTopics = ['ética', 'filosofía', 'ciencia', 'tecnología', 'historia', 'arte'];
-        const topics = [];
-        const lowerText = text.toLowerCase();
-        
-        commonTopics.forEach(topic => {
-            if (lowerText.includes(topic)) {
-                topics.push(topic);
-            }
-        });
-        
-        return topics;
-    }
-    
-    estimateUserKnowledge(metadata) {
-        if (!metadata.history || metadata.history.length === 0) return 'unknown';
-        
-        const historyLength = metadata.history.length;
-        const complexWords = ['filosofía', 'ética', 'epistemología', 'ontología', 'metafísica'];
-        
-        let complexCount = 0;
-        metadata.history.forEach(msg => {
-            const content = msg.content.toLowerCase();
-            complexWords.forEach(word => {
-                if (content.includes(word)) complexCount++;
-            });
-        });
-        
-        if (historyLength > 10 && complexCount > 3) return 'advanced';
-        if (historyLength > 5 && complexCount > 1) return 'intermediate';
-        return 'beginner';
-    }
-    
-    detectCulturalIndicators(message) {
-        return {
-            spanish: /(hola|gracias|por favor|adiós)/i.test(message),
-            english: /(hello|thanks|please|goodbye)/i.test(message),
-            formal: /(usted|señor|señora|por favor)/i.test(message),
-            informal: /(tú|vos|che|bro|man)/i.test(message)
-        };
-    }
-}
-
-// Subsistema de EntityRecognizer
-class EntityRecognizer {
-    constructor() {
-        this.entityDatabase = {
-            people: this.loadPeopleDatabase(),
-            places: this.loadPlacesDatabase(),
-            concepts: this.loadConceptsDatabase(),
-            organizations: this.loadOrganizationsDatabase()
-        };
-        this.aliases = this.loadAliases();
-    }
-    
-    extract(message) {
-        const entities = [];
-        const messageLower = message.toLowerCase();
-        
-        entities.push(...this.extractNamedEntities(messageLower));
-        entities.push(...this.extractConceptualEntities(messageLower));
-        entities.push(...this.extractContextualEntities(messageLower));
-        entities.push(...this.extractImpliedEntities(messageLower));
-        
-        const consolidated = this.consolidateEntities(entities);
-        const disambiguated = this.disambiguateEntities(consolidated, message);
-        
-        return {
-            entities: disambiguated,
-            count: disambiguated.length,
-            coverage: this.calculateCoverage(disambiguated, message),
-            confidence: this.calculateEntityConfidence(disambiguated)
-        };
-    }
-    
-    extractNamedEntities(text) {
-        const entities = [];
-        
-        for (const [category, items] of Object.entries(this.entityDatabase)) {
-            for (const item of items) {
-                if (this.matchesEntity(text, item)) {
-                    entities.push({
-                        type: category,
-                        value: item.name,
-                        canonical: item.canonical,
-                        aliases: item.aliases || [],
-                        confidence: this.calculateMatchConfidence(text, item),
-                        context: this.extractEntityContext(text, item)
-                    });
-                }
-            }
-        }
-        
-        return entities;
-    }
-    
-    matchesEntity(text, entity) {
-        if (text.includes(entity.canonical.toLowerCase())) {
-            return true;
-        }
-        
-        if (entity.aliases) {
-            return entity.aliases.some(alias => 
-                text.includes(alias.toLowerCase())
-            );
-        }
-        
-        return false;
-    }
-    
-    calculateMatchConfidence(text, entity) {
-        const canonicalMatch = text.includes(entity.canonical.toLowerCase());
-        const aliasMatch = entity.aliases?.some(alias => text.includes(alias.toLowerCase()));
-        
-        if (canonicalMatch) return 0.9;
-        if (aliasMatch) return 0.7;
-        return 0.5;
-    }
-    
-    extractEntityContext(text, entity) {
-        const words = text.split(/\s+/);
-        const entityIndex = words.findIndex(word => 
-            word.includes(entity.canonical.toLowerCase()) ||
-            entity.aliases?.some(alias => word.includes(alias.toLowerCase()))
-        );
-        
-        if (entityIndex === -1) return 'isolated';
-        
-        const contextWords = words.slice(
-            Math.max(0, entityIndex - 3), 
-            Math.min(words.length, entityIndex + 4)
-        );
-        return contextWords.join(' ');
-    }
-    
-    extractConceptualEntities(text) {
-        const concepts = [
-            { name: 'ética', type: 'concept', canonical: 'ética', aliases: ['moral', 'valores'] },
-            { name: 'filosofía', type: 'concept', canonical: 'filosofía', aliases: ['pensamiento', 'reflexión'] },
-            { name: 'ciencia', type: 'concept', canonical: 'ciencia', aliases: ['investigación', 'método científico'] },
-            { name: 'tecnología', type: 'concept', canonical: 'tecnología', aliases: ['tech', 'innovación'] },
-            { name: 'arte', type: 'concept', canonical: 'arte', aliases: ['creatividad', 'expresión'] }
-        ];
-        
-        return concepts
-            .filter(concept => text.includes(concept.canonical) || 
-                              concept.aliases?.some(alias => text.includes(alias)))
-            .map(concept => ({
-                type: 'concept',
-                value: concept.name,
-                canonical: concept.canonical,
-                confidence: 0.8
-            }));
-    }
-    
-    extractContextualEntities(text) {
-        const entities = [];
-        
-        const timePatterns = [
-            /\b(mañana|tarde|noche|ayer|hoy|mañana)\b/i,
-            /\b(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b/i,
-            /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i
-        ];
-        
-        timePatterns.forEach(pattern => {
-            const match = text.match(pattern);
-            if (match) {
-                entities.push({
-                    type: 'temporal',
-                    value: match[0],
-                    confidence: 0.9
-                });
-            }
-        });
-        
-        const numberMatch = text.match(/\b(\d{1,3}(?:,\d{3})*|\d+)\b/);
-        if (numberMatch && parseInt(numberMatch[0]) > 10) {
-            entities.push({
-                type: 'numeric',
-                value: numberMatch[0],
-                confidence: 0.7
-            });
-        }
-        
-        return entities;
-    }
-    
-    extractImpliedEntities(text) {
-        const implied = [];
-        
-        if (text.includes('dilema') || text.includes('decisión difícil')) {
-            implied.push({
-                type: 'concept',
-                value: 'dilema ético',
-                implied: true,
-                confidence: 0.6
-            });
-        }
-        
-        if (text.includes('debate') || text.includes('discusión')) {
-            implied.push({
-                type: 'concept',
-                value: 'debate',
-                implied: true,
-                confidence: 0.6
-            });
-        }
-        
-        return implied;
-    }
-    
-    consolidateEntities(entities) {
-        const consolidated = [];
-        const used = new Set();
-        
-        for (let i = 0; i < entities.length; i++) {
-            if (used.has(i)) continue;
-            
-            const entity = entities[i];
-            const similar = [entity];
-            
-            for (let j = i + 1; j < entities.length; j++) {
-                if (used.has(j)) continue;
-                
-                const other = entities[j];
-                if (this.areEntitiesSimilar(entity, other)) {
-                    similar.push(other);
-                    used.add(j);
-                }
-            }
-            
-            if (similar.length > 1) {
-                const consolidatedEntity = this.mergeSimilarEntities(similar);
-                consolidated.push(consolidatedEntity);
-            } else {
-                consolidated.push(entity);
-            }
-            
-            used.add(i);
-        }
-        
-        return consolidated;
-    }
-    
-    areEntitiesSimilar(e1, e2) {
-        if (e1.type !== e2.type) return false;
-        
-        const value1 = e1.value.toLowerCase();
-        const value2 = e2.value.toLowerCase();
-        
-        return value1.includes(value2) || 
-               value2.includes(value1) ||
-               (e1.aliases?.some(alias => alias.toLowerCase() === value2)) ||
-               (e2.aliases?.some(alias => alias.toLowerCase() === value1));
-    }
-    
-    mergeSimilarEntities(entities) {
-        const primary = entities[0];
-        
-        return {
-            type: primary.type,
-            value: primary.value,
-            canonical: primary.canonical || primary.value,
-            aliases: entities.flatMap(e => e.aliases || []).filter((v, i, a) => a.indexOf(v) === i),
-            confidence: Math.max(...entities.map(e => e.confidence || 0.5)),
-            context: entities.map(e => e.context).filter(c => c).join(' | '),
-            mergedFrom: entities.length
-        };
-    }
-    
-    disambiguateEntities(entities, originalMessage) {
-        return entities.map(entity => {
-            const context = originalMessage.toLowerCase();
-            return {
-                ...entity,
-                disambiguated: this.disambiguateEntity(entity, context)
-            };
-        });
-    }
-    
-    disambiguateEntity(entity, context) {
-        if (entity.type === 'people') {
-            if (context.includes('filósofo') || context.includes('pensador')) {
-                return { ...entity, subtype: 'philosopher' };
-            }
-            if (context.includes('científico') || context.includes('investigador')) {
-                return { ...entity, subtype: 'scientist' };
-            }
-        }
-        return entity;
-    }
-    
-    calculateCoverage(entities, message) {
-        if (!entities.length) return 0;
-        
-        const messageWords = message.toLowerCase().split(/\s+/).length;
-        const entityWords = entities.reduce((count, entity) => {
-            return count + entity.value.split(/\s+/).length;
-        }, 0);
-        
-        return Math.min(1, entityWords / messageWords);
-    }
-    
-    calculateEntityConfidence(entities) {
-        if (!entities.length) return 0;
-        
-        const avgConfidence = entities.reduce((sum, entity) => 
-            sum + (entity.confidence || 0.5), 0) / entities.length;
-        
-        return Math.min(1, avgConfidence * (entities.length / 3));
-    }
-    
-    loadPeopleDatabase() {
-        return [
-            { name: 'Sócrates', canonical: 'sócrates', aliases: ['socrates'] },
-            { name: 'Platón', canonical: 'platón', aliases: ['platon'] },
-            { name: 'Aristóteles', canonical: 'aristóteles', aliases: ['aristoteles'] },
-            { name: 'Simone de Beauvoir', canonical: 'simone de beauvoir', aliases: ['beauvoir'] }
-        ];
-    }
-    
-    loadPlacesDatabase() {
-        return [
-            { name: 'Grecia', canonical: 'grecia' },
-            { name: 'Francia', canonical: 'francia' },
-            { name: 'Alemania', canonical: 'alemania' }
-        ];
-    }
-    
-    loadConceptsDatabase() {
-        return [
-            { name: 'ética', canonical: 'ética' },
-            { name: 'filosofía', canonical: 'filosofía' },
-            { name: 'moral', canonical: 'moral' },
-            { name: 'derechos humanos', canonical: 'derechos humanos' }
-        ];
-    }
-    
-    loadOrganizationsDatabase() {
-        return [
-            { name: 'UNESCO', canonical: 'unesco', aliases: ['Organización de las Naciones Unidas para la Educación'] }
-        ];
-    }
-    
-    loadAliases() {
-        return {
-            'socrates': 'Sócrates',
-            'platon': 'Platón',
-            'aristoteles': 'Aristóteles'
-        };
-    }
-}
-
-// Modelos de intención
-class InformationalModel {
-    async predict(features) {
-        let score = 0;
-        if (features.questionWords > 0) score += 0.3;
-        if (features.containsQuestionMark) score += 0.2;
-        if (features.sentenceStructure === 'simple' || features.sentenceStructure === 'normal') score += 0.2;
-        if (features.vocabularyComplexity < 0.3) score += 0.1;
-        if (!features.greetingPattern && !features.farewellPattern) score += 0.2;
-        return Math.min(1, score);
-    }
-}
-
-class ConversationalModel {
-    async predict(features) {
-        let score = 0;
-        if (features.greetingPattern) score += 0.4;
-        if (features.farewellPattern) score += 0.4;
-        if (features.wordCount < 10) score += 0.2;
-        if (features.containsExclamation) score += 0.2;
-        if (features.questionWords === 0 && !features.containsQuestionMark) score += 0.2;
-        return Math.min(1, score);
-    }
-}
-
-class PhilosophicalModel {
-    async predict(features) {
-        let score = 0;
-        const philosophicalWords = ['ética', 'moral', 'filosofía', 'dilema', 'problema', 'paradoja'];
-        philosophicalWords.forEach(word => {
-            if (features.originalMessage?.toLowerCase().includes(word)) score += 0.15;
-        });
-        
-        if (features.sentenceStructure === 'complex') score += 0.2;
-        if (features.vocabularyComplexity > 0.2) score += 0.2;
-        if (features.questionWords > 1) score += 0.1;
-        return Math.min(1, score);
-    }
-}
-
-class EducationalModel {
-    async predict(features) {
-        let score = 0;
-        if (features.requestPattern) score += 0.3;
-        if (features.questionWords > 0) score += 0.2;
-        if (features.sentenceStructure === 'normal') score += 0.2;
-        if (features.wordCount > 5 && features.wordCount < 30) score += 0.1;
-        
-        const educationalWords = ['aprender', 'enseñar', 'educar', 'estudiar', 'investigar'];
-        educationalWords.forEach(word => {
-            if (features.originalMessage?.toLowerCase().includes(word)) score += 0.1;
-        });
-        
-        return Math.min(1, score);
-    }
-}
-
-class InappropriateModel {
-    async predict(features) {
-        let score = 0;
-        const inappropriatePatterns = [
-            /(?:puta|prostituta|perra|zorra|slut|whore|bitch)/i,
-            /(?:sexo|coito|follar|coger|fuck|porno|nudes)/i,
-            /(?:quiero|deseo|me gusta).+(sexo|contigo|con vos|con usted)/i
-        ];
-        
-        const message = features.originalMessage || '';
-        inappropriatePatterns.forEach(pattern => {
-            if (pattern.test(message)) score += 0.3;
-        });
-        
-        if (features.containsExclamation && features.wordCount < 5) score += 0.2;
-        if (features.wordCount < 4 && score > 0) score += 0.2;
-        return Math.min(1, score);
-    }
-}
-
-class AmbiguousModel {
-    async predict(features) {
-        let score = 0;
-        if (features.wordCount < 3) score += 0.4;
-        if (!features.containsQuestionMark && !features.containsExclamation) score += 0.2;
-        
-        const otherScores = [
-            features.questionWords === 0,
-            !features.greetingPattern,
-            !features.farewellPattern,
-            !features.requestPattern
-        ];
-        
-        if (otherScores.every(s => s)) score += 0.4;
-        return Math.min(1, score);
-    }
-}
-
-// Subsistema de IntentionClassifier
-class IntentionClassifier {
-    constructor() {
-        this.intentionModels = {
-            informational: new InformationalModel(),
-            conversational: new ConversationalModel(),
-            philosophical: new PhilosophicalModel(),
-            educational: new EducationalModel(),
-            inappropriate: new InappropriateModel(),
-            ambiguous: new AmbiguousModel()
-        };
-        
-        this.confidenceThresholds = {
-            high: 0.8,
-            medium: 0.6,
-            low: 0.4
-        };
-    }
-    
-    async classify(message) {
-        const scores = {};
-        const features = this.extractFeatures(message);
-        
-        for (const [category, model] of Object.entries(this.intentionModels)) {
-            scores[category] = await model.predict(features);
-        }
-        
-        const normalized = this.normalizeScores(scores);
-        const primary = this.getPrimaryCategory(normalized);
-        const secondary = this.getSecondaryCategories(normalized, primary);
-        
-        return {
-            primaryCategory: primary,
-            secondaryCategories: secondary,
-            scores: normalized,
-            features: features,
-            confidence: normalized[primary],
-            isAmbiguous: this.isAmbiguous(normalized)
-        };
-    }
-    
-    extractFeatures(message) {
-        return {
-            originalMessage: message,
-            length: message.length,
-            wordCount: message.split(/\s+/).length,
-            questionWords: this.countQuestionWords(message),
-            imperativeWords: this.countImperativeWords(message),
-            containsQuestionMark: message.includes('?'),
-            containsExclamation: message.includes('!'),
-            containsEntities: this.hasRecognizedEntities(message),
-            sentenceStructure: this.analyzeStructure(message),
-            vocabularyComplexity: this.calculateVocabularyComplexity(message),
-            greetingPattern: this.detectGreetingPattern(message),
-            farewellPattern: this.detectFarewellPattern(message),
-            requestPattern: this.detectRequestPattern(message)
-        };
-    }
-    
-    countQuestionWords(message) {
-        const questionWords = ['qué', 'quién', 'dónde', 'cuándo', 'por qué', 'cómo', 'cuál', 'cuáles'];
-        const lower = message.toLowerCase();
-        return questionWords.filter(word => lower.includes(word)).length;
-    }
-    
-    countImperativeWords(message) {
-        const imperativeWords = ['dime', 'cuéntame', 'explica', 'muestra', 'haz', 'dame'];
-        const lower = message.toLowerCase();
-        return imperativeWords.filter(word => lower.includes(word)).length;
-    }
-    
-    hasRecognizedEntities(message) {
-        const keywords = ['unesco', 'ética', 'filosofía', 'moral', 'dilema', 'problema'];
-        const lower = message.toLowerCase();
-        return keywords.some(keyword => lower.includes(keyword));
-    }
-    
-    analyzeStructure(message) {
-        const sentences = message.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        if (sentences.length === 0) return 'fragment';
-        
-        const avgWords = sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length;
-        
-        if (sentences.length === 1 && avgWords < 8) return 'simple';
-        if (sentences.length > 2 && avgWords > 12) return 'complex';
-        return 'normal';
-    }
-    
-    calculateVocabularyComplexity(message) {
-        const words = message.toLowerCase().split(/\s+/);
-        const complexWords = ['ética', 'filosofía', 'epistemología', 'ontología', 'metafísica', 'paradigma'];
-        const complexCount = words.filter(word => complexWords.includes(word)).length;
-        return complexCount / Math.max(1, words.length);
-    }
-    
-    detectGreetingPattern(message) {
-        const greetings = ['hola', 'hello', 'hi', 'buenos días', 'buenas tardes', 'buenas noches'];
-        const lower = message.toLowerCase();
-        return greetings.some(greeting => lower.startsWith(greeting));
-    }
-    
-    detectFarewellPattern(message) {
-        const farewells = ['adiós', 'bye', 'chao', 'hasta luego', 'nos vemos'];
-        const lower = message.toLowerCase();
-        return farewells.some(farewell => lower.includes(farewell));
-    }
-    
-    detectRequestPattern(message) {
-        const requestPatterns = [
-            /(?:puedes|podrías|me puedes|me podrías)\s+(?:decir|explicar|contar|mostrar|ayudar)/i,
-            /(?:necesito|quiero|me gustaría)\s+(?:saber|entender|aprender|conocer)/i,
-            /(?:ayuda|help|socorro|auxilio)/i
-        ];
-        return requestPatterns.some(pattern => pattern.test(message));
-    }
-    
-    normalizeScores(scores) {
-        const total = Object.values(scores).reduce((sum, score) => sum + score, 0);
-        
-        if (total === 0) {
-            const normalized = {};
-            Object.keys(scores).forEach(key => {
-                normalized[key] = 1 / Object.keys(scores).length;
-            });
-            return normalized;
-        }
-        
-        const normalized = {};
-        Object.entries(scores).forEach(([key, value]) => {
-            normalized[key] = value / total;
-        });
-        
-        return normalized;
-    }
-    
-    getPrimaryCategory(scores) {
-        return Object.entries(scores).reduce((max, [key, value]) => 
-            value > scores[max] ? key : max, Object.keys(scores)[0]);
-    }
-    
-    getSecondaryCategories(scores, primary) {
-        return Object.entries(scores)
-            .filter(([key]) => key !== primary)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 2)
-            .map(([key]) => key);
-    }
-    
-    isAmbiguous(scores) {
-        const values = Object.values(scores).sort((a, b) => b - a);
-        if (values.length < 2) return false;
-        return Math.abs(values[0] - values[1]) < 0.15;
-    }
-}
-
-// Subsistema de SafetyValidator
-class SafetyValidator {
-    constructor() {
-        this.safetyLevels = {
-            safe: 0,
-            caution: 1,
-            warning: 2,
-            block: 3
-        };
-    }
-    
-    async validate(message) {
-        const content = await this.validateContentSafety(message);
-        const context = await this.validateContextSafety(message);
-        
-        const overallSafety = this.combineSafetyResults(content, context);
-        
-        return {
-            level: overallSafety.level,
-            score: overallSafety.score,
-            flags: overallSafety.flags,
-            recommendations: overallSafety.recommendations,
-            detailed: { content, context },
-            requiresReview: overallSafety.level >= this.safetyLevels.warning
-        };
-    }
-    
-    async validateContentSafety(message) {
-        const text = message.toLowerCase();
-        const problematicPatterns = this.getProblematicPatterns();
-        const safePatterns = this.getSafePatterns();
-        
-        for (const pattern of safePatterns) {
-            if (pattern.test(message)) {
-                return {
-                    safe: true,
-                    reason: 'safe_pattern'
-                };
-            }
-        }
-        
-        let maxSeverity = 0;
-        const detectedPatterns = [];
-        
-        for (const pattern of problematicPatterns) {
-            if (pattern.test(text)) {
-                const severity = this.getPatternSeverity(pattern);
-                maxSeverity = Math.max(maxSeverity, severity);
-                detectedPatterns.push({
-                    pattern: pattern.toString(),
-                    severity: severity
-                });
-            }
-        }
-        
-        return {
-            safe: maxSeverity === 0,
-            severity: maxSeverity,
-            detectedPatterns,
-            requiresHumanReview: maxSeverity >= 2
-        };
-    }
-    
-    getProblematicPatterns() {
-        return [
-            /(?:puta|prostituta|putita|perra|zorra)/i,
-            /(?:slut|whore|bitch|prostitute)/i,
-            /(?:pendeja|trola|putona|guarra)/i,
-            /(?:sexo|coito|follar|coger|fuck|porno|porn|nudes)/i,
-            /(?:desnud|verga|pene|vagina|tetas|culo)/i,
-            /(?:coito|anal|oral|masturbar)/i,
-            /(?:quiero que seas mi)/i,
-            /(?:quiero cogerte|quiero follarte)/i,
-            /(?:acostarnos)/i,
-            /(?:dame nudes|envía fotos)/i,
-            /(?:hot|sexy|atractiva)/i,
-            /(?:ven|vamos).+(cama|dormir)/i,
-            /(?:te quiero).+(puta|zorrita|perra)/i
-        ];
-    }
-    
-    getSafePatterns() {
-        return [
-            /(?:ética|moral).+(unesco|principios)/i,
-            /(?:filosofía|pensamiento).+(ética|moral)/i,
-            /(?:debate|discusión).+(ética|moral)/i,
-            /(?:derechos humanos|dignidad humana)/i,
-            /(?:unesco|organización de las naciones unidas)/i
-        ];
-    }
-    
-    getPatternSeverity(pattern) {
-        const highSeverity = [
-            /(?:puta|prostituta|slut|whore)/i,
-            /(?:sexo|coito|follar|coger)/i,
-            /(?:quiero cogerte|quiero follarte)/i,
-            /(?:dame nudes|envía fotos)/i
-        ];
-        
-        const mediumSeverity = [
-            /(?:perra|zorra|bitch)/i,
-            /(?:hot|sexy|atractiva)/i,
-            /(?:ven|vamos).+(cama|dormir)/i
-        ];
-        
-        if (highSeverity.some(p => p.toString() === pattern.toString())) return 3;
-        if (mediumSeverity.some(p => p.toString() === pattern.toString())) return 2;
-        return 1;
-    }
-    
-    async validateContextSafety(message) {
-        return {
-            safe: true,
-            contextType: 'general',
-            requiresSpecialHandling: false
-        };
-    }
-    
-    combineSafetyResults(content, context) {
-        let maxSeverity = 0;
-        const flags = [];
-        const recommendations = [];
-        
-        if (!content.safe) {
-            maxSeverity = Math.max(maxSeverity, content.severity || 1);
-            flags.push('content_issue');
-            recommendations.push('Verificar contenido inapropiado');
-        }
-        
-        if (context.requiresSpecialHandling) {
-            maxSeverity = Math.max(maxSeverity, 1);
-            flags.push('context_sensitive');
-            recommendations.push('Manejar con cuidado contextual');
-        }
-        
-        let level;
-        if (maxSeverity >= 3) level = this.safetyLevels.block;
-        else if (maxSeverity >= 2) level = this.safetyLevels.warning;
-        else if (maxSeverity >= 1) level = this.safetyLevels.caution;
-        else level = this.safetyLevels.safe;
-        
-        const safetyScore = Math.max(0, 1 - (maxSeverity / 3));
-        
-        return {
-            level,
-            score: safetyScore,
-            flags: flags.length > 0 ? flags : ['clean'],
-            recommendations: recommendations.length > 0 ? recommendations : ['safe_to_proceed'],
-            maxSeverity
-        };
-    }
-}
-
-// Subsistema de LearningModule
-class LearningModule {
-    constructor() {
-        this.trainingData = [];
-        this.modelWeights = new Map();
-    }
-    
-    async learnFromAnalysis(analysisData) {
-        this.trainingData.push(analysisData);
-        
-        if (this.trainingData.length > 1000) {
-            this.trainingData = this.trainingData.slice(-500);
-        }
-    }
-    
-    async processFeedback(feedback) {
-        console.log(`📚 Feedback procesado: ${feedback.type} para "${feedback.message.substring(0, 50)}"`);
-        return true;
-    }
-}
-
-// Subsistema de KnowledgeBase
-class KnowledgeBase {
-    constructor() {
-        this.entities = new Map();
-        this.contexts = new Map();
-        this.loadInitialKnowledge();
-    }
-    
-    loadInitialKnowledge() {
-        const figures = [
-            { canonical: 'Sócrates', category: 'philosopher', era: 'Ancient' },
-            { canonical: 'Platón', category: 'philosopher', era: 'Ancient' },
-            { canonical: 'Aristóteles', category: 'philosopher', era: 'Ancient' }
-        ];
-        
-        figures.forEach(figure => {
-            this.entities.set(figure.canonical, figure);
-        });
-    }
-    
-    query(entity, context) {
-        const exactMatch = this.entities.get(entity);
-        if (exactMatch) return exactMatch;
-        return null;
-    }
-}
-
-// ========== SISTEMA AVANZADO DE DETECCIÓN DE INTENCIONES ==========
-class AdvancedIntentionSystem {
-    constructor() {
-        console.log('🧠 AdvancedIntentionSystem inicializado');
-        
-        this.contextAnalyzer = new ContextAnalyzer();
-        this.entityRecognizer = new EntityRecognizer();
-        this.intentionClassifier = new IntentionClassifier();
-        this.safetyValidator = new SafetyValidator();
-        this.learningModule = new LearningModule();
-        this.knowledgeBase = new KnowledgeBase();
-        
-        this.interactionHistory = new Map();
-        this.falsePositivesLog = new Set();
-        this.falseNegativesLog = new Set();
-        
-        this.metrics = {
-            totalProcessed: 0,
-            classifications: {},
-            confidenceScores: [],
-            responseTimes: []
-        };
-        
-        this.initializeSystem();
-    }
-    
-    initializeSystem() {
-        console.log('✅ Sistema avanzado listo');
-    }
-    
-    async analyzeMessage(message, metadata = {}) {
-        const startTime = Date.now();
-        const messageId = this.generateMessageId(message, metadata);
-        
-        const preprocessed = this.preprocessMessage(message);
-        
-        const analysisResults = await Promise.all([
-            this.contextAnalyzer.analyze(preprocessed.normalized, metadata),
-            this.entityRecognizer.extract(preprocessed.normalized),
-            this.intentionClassifier.classify(message),
-            this.safetyValidator.validate(message)
-        ]);
-        
-        const [context, entities, intentions, safety] = analysisResults;
-        
-        const fusedAnalysis = this.fuseAnalysis({
-            context,
-            entities,
-            intentions,
-            safety,
-            originalMessage: message,
-            metadata
-        });
-        
-        const resolvedAnalysis = this.resolveConflicts(fusedAnalysis);
-        const confidenceScore = this.calculateConfidence(resolvedAnalysis);
-        const isCoherent = this.checkCoherence(resolvedAnalysis);
-        
-        const finalDecision = this.makeFinalDecision(
-            resolvedAnalysis, 
-            confidenceScore, 
-            isCoherent
-        );
-        
-        await this.learningModule.learnFromAnalysis({
-            messageId,
-            message,
-            analysis: resolvedAnalysis,
-            decision: finalDecision,
-            metadata
-        });
-        
-        this.recordMetrics({
-            messageId,
-            processingTime: Date.now() - startTime,
-            confidence: confidenceScore,
-            classification: finalDecision.primaryCategory,
-            entities: entities.count || 0
-        });
-        
-        console.log(`🧠 [AIS] "${message.substring(0, 40)}..." → ${finalDecision.primaryCategory} (${confidenceScore.toFixed(2)})`);
-        
-        return {
-            ...finalDecision,
-            metadata: {
-                messageId,
-                timestamp: new Date().toISOString(),
-                processingTime: Date.now() - startTime,
-                subsystemsUsed: ['context', 'entity', 'intention', 'safety'],
-                version: '2.0.0'
-            },
-            detailedAnalysis: resolvedAnalysis,
-            confidence: confidenceScore,
-            coherence: isCoherent
-        };
-    }
-    
-    preprocessMessage(message) {
-        // FIXED: Asegurar que message sea una cadena
-        const safeMessage = typeof message === 'string' ? message : String(message || '');
-        
-        return {
-            original: safeMessage,
-            normalized: safeMessage.toLowerCase().trim(),
-            tokens: safeMessage.split(/\s+/),
-            cleaned: this.cleanMessage(safeMessage)
-        };
-    }
-    
-    cleanMessage(message) {
-        return message
-            .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ.,!?¿¡-]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-    
-    generateMessageId(message, metadata) {
-        const timestamp = Date.now();
-        let hash = 0;
-        for (let i = 0; i < message.length; i++) {
-            const char = message.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return `msg_${Math.abs(hash).toString(36).substring(0, 8)}_${timestamp}`;
-    }
-    
-    fuseAnalysis(analyses) {
-        const weights = {
-            context: 0.3,
-            entities: 0.25,
-            intentions: 0.3,
-            safety: 0.15
-        };
-        
-        // FIXED: Asegurar que todas las propiedades existan
-        const fused = {
-            messageType: this.weightedDecision(
-                analyses.context?.messageType || 'general',
-                analyses.intentions?.primaryCategory || 'general',
-                weights
-            ),
-            entities: this.mergeEntities(
-                analyses.entities?.entities || [],
-                analyses.context
-            ),
-            intention: this.resolveIntention(
-                analyses.intentions,
-                analyses.context,
-                analyses.safety
-            ),
-            safetyLevel: this.determineSafetyLevel(
-                analyses.safety,
-                analyses.context,
-                analyses.entities
-            ),
-            metadata: {
-                ...analyses.metadata,
-                confidence: this.calculateOverallConfidence(analyses)
-            }
-        };
-        
-        return fused;
-    }
-    
-    weightedDecision(contextType, intentionType, weights) {
-        if (intentionType !== 'general' && contextType === 'general') {
-            return intentionType;
-        }
-        
-        if (intentionType !== 'general' && contextType !== 'general') {
-            return weights.intentions > weights.context ? intentionType : contextType;
-        }
-        
-        return contextType;
-    }
-    
-    mergeEntities(entities, context) {
-        if (!entities || entities.length === 0) return [];
-        
-        const relevantEntities = entities.filter(entity => {
-            if (entity.confidence > 0.8) return true;
-            return entity.confidence > 0.5;
-        });
-        
-        return relevantEntities;
-    }
-    
-    resolveIntention(intentions, context, safety) {
-        // FIXED: Verificar que intentions sea válido
-        if (!intentions) {
-            return {
-                category: 'general',
-                confidence: 0.5,
-                isAmbiguous: true
-            };
-        }
-        
-        const primary = intentions.primaryCategory || 'general';
-        const confidence = intentions.confidence || 0.5;
-        
-        if (safety.level >= 3) {
-            return {
-                category: 'safety_block',
-                subcategory: 'inappropriate_content',
-                confidence: Math.max(confidence, 0.9),
-                overriddenBy: 'safety'
-            };
-        }
-        
-        if (context.messageType === 'philosophical' && primary !== 'philosophical') {
-            return {
-                category: 'philosophical',
-                subcategory: context.messageType,
-                confidence: Math.max(confidence, 0.7),
-                adjusted: true
-            };
-        }
-        
-        return {
-            category: primary,
-            subcategory: intentions.secondaryCategories?.[0] || 'general',
-            confidence: confidence,
-            isAmbiguous: intentions.isAmbiguous || false
-        };
-    }
-    
-    determineSafetyLevel(safety, context, entities) {
-        let level = safety.level;
-        
-        if (context.messageType === 'philosophical' || context.messageType === 'informational') {
-            level = Math.max(0, level - 1);
-        }
-        
-        if (entities.count > 0 && entities.confidence > 0.7) {
-            level = Math.max(0, level - 1);
-        }
-        
-        return level;
-    }
-    
-    calculateOverallConfidence(analyses) {
-        const confidences = [
-            analyses.intentions?.confidence || 0 * 0.4,
-            analyses.entities?.confidence || 0 * 0.3,
-            analyses.safety?.score || 0 * 0.2,
-            0.1 // contexto básico
-        ];
-        
-        return Math.min(1, confidences.reduce((sum, conf) => sum + conf, 0));
-    }
-    
-    resolveConflicts(analysis) {
-        const conflicts = this.detectConflicts(analysis);
-        
-        if (conflicts.length === 0) {
-            return analysis;
-        }
-        
-        const resolved = { ...analysis };
-        
-        conflicts.forEach(conflict => {
-            switch (conflict.type) {
-                case 'safety_vs_context':
-                    if (analysis.messageType === 'informational' && 
-                        analysis.entities.length > 0) {
-                        resolved.safetyLevel = Math.max(0, resolved.safetyLevel - 1);
-                    }
-                    break;
-            }
-        });
-        
-        return resolved;
-    }
-    
-    detectConflicts(analysis) {
-        const conflicts = [];
-        
-        if (analysis.safetyLevel >= 2 && 
-            (analysis.messageType === 'informational' || analysis.messageType === 'philosophical')) {
-            conflicts.push({
-                type: 'safety_vs_context',
-                severity: 'medium',
-                description: 'Contenido marcado como inseguro en contexto informativo'
-            });
-        }
-        
-        return conflicts;
-    }
-    
-    calculateConfidence(analysis) {
-        const factors = [
-            (analysis.entities?.confidence || 0) * 0.3,
-            (analysis.intention?.confidence || 0) * 0.4,
-            (analysis.safety?.score || 0) * 0.2,
-            0.1
-        ];
-        
-        return factors.reduce((sum, factor) => sum + factor, 0);
-    }
-    
-    checkCoherence(analysis) {
-        return true; // Implementación simplificada
-    }
-    
-    makeFinalDecision(analysis, confidence, isCoherent) {
-        // FIXED: Asegurar que siempre se retorne una decisión válida
-        if (!isCoherent || confidence < 0.3) {
-            return this.handleUncertainCase(analysis);
-        }
-        
-        if (analysis.safetyLevel >= 3) {
-            return this.createSafetyDecision(analysis);
-        }
-        
-        if (analysis.safetyLevel >= 2) {
-            return this.createCautiousDecision(analysis);
-        }
-        
-        // FIXED: Verificar que analysis.intention exista
-        if (!analysis.intention || !analysis.intention.category) {
-            return this.createGeneralDecision(analysis);
-        }
-        
-        switch (analysis.intention.category) {
-            case 'informational':
-                return this.createInformationalDecision(analysis);
-            case 'philosophical':
-                return this.createPhilosophicalDecision(analysis);
-            case 'conversational':
-                return this.createConversationalDecision(analysis);
-            default:
-                return this.createGeneralDecision(analysis);
-        }
-    }
-    
-    handleUncertainCase(analysis) {
-        return {
-            primaryCategory: 'ambiguous',
-            action: 'request_clarification',
-            module: 'general',
-            responseStyle: {
-                tone: 'friendly',
-                message: 'No estoy segura de entender completamente. ¿Podrías reformular o dar más contexto?'
-            }
-        };
-    }
-    
-    createSafetyDecision(analysis) {
-        return {
-            primaryCategory: 'safety_block',
-            action: 'block_and_respond',
-            module: 'safety',
-            responseStyle: {
-                tone: 'firm',
-                message: 'Este contenido no es apropiado para esta conversación.',
-                includeWarning: true
-            }
-        };
-    }
-    
-    createCautiousDecision(analysis) {
-        return {
-            primaryCategory: 'caution',
-            action: 'respond_with_caution',
-            module: 'general',
-            responseStyle: {
-                tone: 'cautious',
-                message: 'Procedo con cuidado en este tema...'
-            }
-        };
-    }
-    
-    createInformationalDecision(analysis) {
-        return {
-            primaryCategory: 'informational',
-            action: 'process_normally',
-            module: 'knowledge',
-            bypassFilter: true,
-            requiresResearch: true,
-            responseStyle: {
-                tone: 'informative',
-                depth: 'detailed'
-            }
-        };
-    }
-    
-    createPhilosophicalDecision(analysis) {
-        return {
-            primaryCategory: 'philosophical',
-            action: 'deep_analysis',
-            module: 'philosophy',
-            bypassFilter: true,
-            requiresReflection: true,
-            responseStyle: {
-                tone: 'reflective',
-                depth: 'profound'
-            }
-        };
-    }
-    
-    createConversationalDecision(analysis) {
-        return {
-            primaryCategory: 'conversational',
-            action: 'engage_normally',
-            module: 'general',
-            responseStyle: {
-                tone: 'friendly',
-                depth: 'light'
-            }
-        };
-    }
-    
-    createGeneralDecision(analysis) {
-        return {
-            primaryCategory: 'general',
-            action: 'respond_normally',
-            module: 'general',
-            responseStyle: {
-                tone: 'neutral',
-                depth: 'standard'
-            }
-        };
-    }
-    
-    recordMetrics(data) {
-        this.metrics.totalProcessed++;
-        
-        if (!this.metrics.classifications[data.classification]) {
-            this.metrics.classifications[data.classification] = 0;
-        }
-        this.metrics.classifications[data.classification]++;
-        
-        this.metrics.confidenceScores.push(data.confidence);
-        this.metrics.responseTimes.push(data.processingTime);
-        
-        if (this.metrics.confidenceScores.length > 1000) {
-            this.metrics.confidenceScores.shift();
-            this.metrics.responseTimes.shift();
-        }
-    }
-    
-    async process(message, options = {}) {
-        const metadata = {
-            userId: options.userId,
-            channelType: options.channelType,
-            timestamp: new Date().toISOString(),
-            history: options.history || [],
-            platform: options.platform || 'discord'
-        };
-        
-        try {
-            const result = await this.analyzeMessage(message, metadata);
-            
-            // FIXED: Verificar que el resultado sea válido
-            if (!result || !result.decision) {
-                console.warn('⚠️ [AIS] Resultado de análisis inválido, usando fallback');
-                return this.fallbackAnalysis(message, metadata);
-            }
-            
-            return this.formatForIntegration(result);
-            
-        } catch (error) {
-            console.error('❌ Error en AdvancedIntentionSystem:', error);
-            return this.fallbackAnalysis(message, metadata);
-        }
-    }
-    
-    formatForIntegration(analysis) {
-        // FIXED: Manejar casos donde analysis o analysis.decision sean undefined
-        if (!analysis || !analysis.decision || !analysis.decision.primaryCategory) {
-            console.warn('⚠️ [AIS] Análisis incompleto, usando fallback');
-            return {
-                type: 'general',
-                confidence: 0.3,
-                shouldProcess: true,
-                bypassFilter: false,
-                recommendedModule: 'general',
-                responseStyle: { tone: 'neutral' }
-            };
-        }
-        
-        return {
-            type: analysis.decision.primaryCategory,
-            confidence: analysis.confidence || 0.3,
-            shouldProcess: analysis.decision.action !== 'block_and_respond',
-            bypassFilter: analysis.decision.bypassFilter || false,
-            recommendedModule: analysis.decision.module || 'general',
-            responseStyle: analysis.decision.responseStyle || { tone: 'neutral' }
-        };
-    }
-    
-    fallbackAnalysis(message, metadata) {
-        const hasQuestion = message.includes('?');
-        const hasGreeting = /^(hola|hello|hi|buenos|buenas)/i.test(message);
-        
-        return {
-            type: hasQuestion ? 'informational' : hasGreeting ? 'conversational' : 'general',
-            confidence: 0.5,
-            shouldProcess: true,
-            bypassFilter: false,
-            recommendedModule: 'general',
-            responseStyle: { tone: 'neutral' }
-        };
-    }
-    
-    async provideFeedback(messageId, feedback) {
-        await this.learningModule.processFeedback({
-            messageId,
-            ...feedback
-        });
-        return true;
-    }
-    
-    getMetrics() {
-        const avgConfidence = this.metrics.confidenceScores.length > 0 
-            ? this.metrics.confidenceScores.reduce((a, b) => a + b, 0) / this.metrics.confidenceScores.length 
-            : 0;
-        
-        const avgResponseTime = this.metrics.responseTimes.length > 0 
-            ? this.metrics.responseTimes.reduce((a, b) => a + b, 0) / this.metrics.responseTimes.length 
-            : 0;
-        
-        return {
-            total: this.metrics.totalProcessed,
-            classifications: this.metrics.classifications,
-            avgConfidence: avgConfidence,
-            avgResponseTime: avgResponseTime,
-            falsePositives: this.falsePositivesLog.size,
-            falseNegatives: this.falseNegativesLog.size,
-            version: '2.0.0'
-        };
-    }
-}
-
 // ========== CLASES ORIGINALES DE TU SISTEMA ==========
 
 // 1. MEMORY MANAGER
@@ -1771,8 +285,6 @@ class PhilosophyModule {
     }
 }
 
-// ========== CONTINÚA EL RESTO DEL CÓDIGO ORIGINAL ==========
-
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -1788,15 +300,11 @@ const ethicsModule = new EthicsModule();
 const negotiationModule = new NegotiationModule();
 const philosophyModule = new PhilosophyModule();
 
-// ========== INSTANCIA DEL SISTEMA AVANZADO ==========
-const advancedIntentionSystem = new AdvancedIntentionSystem();
-
 console.log('🤖 Mancy A.I - Asistente Ético UNESCO');
 console.log('🧠 Memoria: 270 mensajes');
 console.log('🌍 UNESCO Principles: Activado');
 console.log('🤔 Filosofía: Integrada');
 console.log('🤝 Negociación: Inteligente');
-console.log('🧠 AdvancedIntentionSystem: Activado');
 console.log('🌍 Puerto:', PORT);
 
 // ========== FILTRO DE CONTENIDO ==========
@@ -2893,8 +1401,8 @@ ${analisisFilosofico.analisis?.enfoquesRelevantes?.slice(0, 2).map((e, i) =>
     }
 }
 
-// ========== FUNCIÓN MEJORADA CON ADVANCED INTENTION SYSTEM ==========
-async function procesarMensajeConSistemaAvanzado(message, userMessage, userId) {
+// ========== FUNCIÓN MEJORADA SIMPLIFICADA ==========
+async function procesarMensajeSimplificado(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
         
@@ -2907,72 +1415,56 @@ async function procesarMensajeConSistemaAvanzado(message, userMessage, userId) {
             historialReciente: historial.slice(-3).map(h => h.contenido)
         };
         
-        // Usar el sistema avanzado para análisis
-        const analisisAvanzado = await advancedIntentionSystem.process(userMessage, {
-            userId: userId,
-            history: historial.map(h => h.contenido),
-            channelType: message.channel.type === 1 ? 'dm' : 'channel',
-            platform: 'discord'
-        });
+        // Detectar tipo de consulta usando el sistema original
+        const tipoConsulta = detectarTipoConsultaInteligente(userMessage, historial);
         
-        console.log(`🧠 [AIS] Tipo: ${analisisAvanzado.type} (${analisisAvanzado.confidence})`);
-        console.log(`🧠 [AIS] Módulo recomendado: ${analisisAvanzado.recommendedModule}`);
-        console.log(`🧠 [AIS] Procesar: ${analisisAvanzado.shouldProcess}`);
+        console.log(`🎯 [Mancy] Tipo: ${tipoConsulta.tipo} (${(tipoConsulta.confianza * 100).toFixed(0)}% confianza)`);
         
-        // Si no debe procesarse por seguridad
-        if (!analisisAvanzado.shouldProcess) {
-            const respuesta = filtroContenido.generarRespuestaSarcastica();
-            agregarAlHistorial(userId, 'system', '[AIS: contenido bloqueado]');
-            return respuesta;
-        }
-        
-        // Usar el módulo recomendado por AIS
         let respuesta;
         
-        switch(analisisAvanzado.recommendedModule) {
-            case 'knowledge':
-                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
-                agregarAlHistorial(userId, 'system', `[AIS: conocimiento (${analisisAvanzado.confidence})]`);
-                break;
-                
-            case 'philosophy':
-                respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
-                agregarAlHistorial(userId, 'system', `[AIS: filosofía (${analisisAvanzado.confidence})]`);
-                break;
-                
-            case 'safety':
+        switch(tipoConsulta.tipo) {
+            case 'filtro':
                 respuesta = filtroContenido.generarRespuestaSarcastica();
-                agregarAlHistorial(userId, 'system', `[AIS: seguridad (${analisisAvanzado.confidence})]`);
+                agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
                 break;
                 
-            case 'general':
-            default:
-                // Usar el sistema de detección original para compatibilidad
-                const tipoConsulta = detectarTipoConsultaInteligente(userMessage, historial);
+            case 'etica_unesco':
+                const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
+                respuesta = respuestaUNESCO.respuesta;
+                agregarAlHistorial(userId, 'system', '[UNESCO: principios éticos]');
+                break;
                 
-                if (tipoConsulta.tipo === 'filtro') {
-                    respuesta = filtroContenido.generarRespuestaSarcastica();
-                    agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
-                } else if (tipoConsulta.tipo === 'filosofia') {
-                    respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
-                } else if (tipoConsulta.tipo === 'etica') {
-                    respuesta = await procesarConsultaEticaIntegrada(message, userMessage, userId, contexto);
-                } else if (tipoConsulta.tipo === 'negociacion') {
-                    respuesta = await procesarNegociacionIntegrada(message, userMessage, userId, contexto);
-                } else if (tipoConsulta.tipo === 'razonamiento') {
-                    respuesta = await procesarConRazonamiento(message, userMessage, userId);
-                } else {
-                    respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
-                }
-                agregarAlHistorial(userId, 'system', `[Sistema original: ${tipoConsulta.tipo}]`);
+            case 'filosofia':
+                respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'etica':
+                respuesta = await procesarConsultaEticaIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'negociacion':
+                respuesta = await procesarNegociacionIntegrada(message, userMessage, userId, contexto);
+                break;
+                
+            case 'razonamiento':
+                respuesta = await procesarConRazonamiento(message, userMessage, userId);
+                break;
+                
+            case 'emocional':
+                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+                agregarAlHistorial(userId, 'system', '[Modo: empático]');
+                break;
+                
+            default:
+                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
         }
         
         return respuesta;
         
     } catch (error) {
-        console.error('❌ Error en sistema avanzado:', error);
-        // Fallback al sistema original
-        return await procesarMensajeMancy(message, userMessage, userId);
+        console.error('❌ Error en sistema simplificado:', error);
+        // Fallback simple
+        return "Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~";
     }
 }
 
@@ -3093,43 +1585,42 @@ async function startBot() {
             discordClient.user.setActivity('UNESCO Principles | @mencioname');
             console.log('🎭 Personalidad: UNESCO Ética Integrada');
             console.log('🧠 Módulos: Filosofía, Negociación, Ética, Razonamiento');
-            console.log('🧠 AdvancedIntentionSystem: Activado y listo');
             console.log('🌍 Fuentes: 6 confiables verificadas');
             console.log('🛡️ Filtro: Sarcasmo-elegante activado');
         });
         
         discordClient.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-    
-    // ✅ IGNORAR @everyone y @here EXPLÍCITAMENTE
-    if (message.content.includes('@everyone') || message.content.includes('@here')) {
-        console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}: "${message.content.substring(0, 50)}..."`);
-        return; // No responder nada
-    }
-    
-    const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
-    const isDM = message.channel.type === 1;
-    
-    // Para DMs no mencionadas
-    if (isDM && !botMentioned) {
-        const userMessage = message.content.trim();
-        
-        if (filtroContenido.esContenidoInapropiado(userMessage)) {
-            console.log(`🚫 DM inapropiada de ${message.author.tag}`);
-            const respuesta = filtroContenido.generarRespuestaDM();
-            await message.reply(respuesta);
-            return;
-        }
-        
-        // En DMs, siempre responder
-        const userId = message.author.id;
-        
-        if (!userMessage) return;
-        
-        console.log(`💬 DM de ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-        await procesarMensajeConSistemaAvanzado(message, userMessage, userId);
-        return;
-    }
+            if (message.author.bot) return;
+            
+            // ✅ IGNORAR @everyone y @here EXPLÍCITAMENTE
+            if (message.content.includes('@everyone') || message.content.includes('@here')) {
+                console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}: "${message.content.substring(0, 50)}..."`);
+                return; // No responder nada
+            }
+            
+            const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+            const isDM = message.channel.type === 1;
+            
+            // Para DMs no mencionadas
+            if (isDM && !botMentioned) {
+                const userMessage = message.content.trim();
+                
+                if (filtroContenido.esContenidoInapropiado(userMessage)) {
+                    console.log(`🚫 DM inapropiada de ${message.author.tag}`);
+                    const respuesta = filtroContenido.generarRespuestaDM();
+                    await message.reply(respuesta);
+                    return;
+                }
+                
+                // En DMs, siempre responder
+                const userId = message.author.id;
+                
+                if (!userMessage) return;
+                
+                console.log(`💬 DM de ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
+                await procesarMensajeMancy(message, userMessage, userId);
+                return;
+            }
             
             // Para menciones en canales
             if (botMentioned) {
@@ -3142,8 +1633,7 @@ async function startBot() {
                 }
                 
                 console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 50)}...`);
-                // Usar el sistema avanzado en lugar del original
-                await procesarMensajeConSistemaAvanzado(message, userMessage, userId);
+                await procesarMensajeMancy(message, userMessage, userId);
             }
         });
         
@@ -3193,7 +1683,6 @@ app.get('/api/status', (req, res) => {
     const reasoningStats = reasoningEngine.obtenerEstadisticas();
     const ethicsStats = ethicsModule.obtenerEstadisticasConversacionales();
     const negotiationStats = negotiationModule.obtenerEstadisticasConversacionales();
-    const aisMetrics = advancedIntentionSystem.getMetrics();
     
     res.json({
         bot_active: botActive,
@@ -3205,11 +1694,6 @@ app.get('/api/status', (req, res) => {
         reasoning_cases: reasoningStats.casosResueltos,
         ethics_cases: ethicsStats.totalConsultasEticas,
         negotiation_cases: negotiationStats.totalNegociaciones,
-        ais_total_processed: aisMetrics.total,
-        ais_avg_confidence: aisMetrics.avgConfidence,
-        ais_avg_response_time: aisMetrics.avgResponseTime,
-        ais_false_positives: aisMetrics.falsePositives,
-        ais_false_negatives: aisMetrics.falseNegatives,
         filtro_activo: true,
         unesco_principles: 6,
         philosophy_problems: Object.keys(philosophyModule.problemasClasicos).length,
@@ -3221,7 +1705,7 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '4.1 - Advanced Intention System Edition',
+        version: '3.0 - Sistema Original',
         timestamp: new Date().toISOString()
     });
 });
@@ -3257,16 +1741,6 @@ app.get('/api/negotiation-strategies', (req, res) => {
             description: strat.descripcion,
             when_to_use: strat.cuandoUsar
         }))
-    });
-});
-
-app.get('/api/ais-metrics', (req, res) => {
-    const metrics = advancedIntentionSystem.getMetrics();
-    res.json({
-        system: 'AdvancedIntentionSystem',
-        version: '2.0.0',
-        metrics: metrics,
-        status: 'active'
     });
 });
 
@@ -3325,53 +1799,19 @@ app.post('/api/stop', async (req, res) => {
     }
 });
 
-app.post('/api/ais-feedback', async (req, res) => {
-    try {
-        const { messageId, type, message, expected } = req.body;
-        
-        if (!messageId || !type) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Faltan parámetros requeridos' 
-            });
-        }
-        
-        await advancedIntentionSystem.provideFeedback(messageId, {
-            type: type,
-            message: message,
-            expected: expected
-        });
-        
-        res.json({ 
-            success: true, 
-            message: 'Feedback procesado',
-            feedbackId: messageId
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
 app.get('/health', (req, res) => {
     const stats = memoryManager.obtenerEstadisticas();
-    const aisMetrics = advancedIntentionSystem.getMetrics();
     
     res.json({
         status: 'healthy',
         bot_active: botActive,
         memory: `${stats.totalMensajes}/${stats.maxHistory}`,
-        ais_processed: aisMetrics.total,
-        ais_confidence: aisMetrics.avgConfidence,
         modules: {
             ethics: 'active',
             philosophy: 'active',
             negotiation: 'active',
             reasoning: 'active',
-            knowledge: 'active',
-            advanced_intention: 'active'
+            knowledge: 'active'
         },
         unesco: 'integrated',
         uptime: process.uptime()
@@ -3425,24 +1865,19 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  🤝 NEGOCIACIÓN: Estrategias inteligentes y prácticas   ║
 ║  ⚖️  ÉTICA: Dilemas morales con marco UNESCO            ║
 ║  🧠 RAZONAMIENTO: Lógica y análisis crítico             ║
-║  🧠 ADVANCED INTENTION SYSTEM: Detección avanzada       ║
 ║  📚 CONOCIMIENTO: 6 fuentes confiables verificadas      ║
 ║  🛡️  FILTRO: Sarcasmo elegante para contenido inapropiado ║
 ║                                                          ║
-║  SISTEMA DUAL:                                          ║
-║  • AdvancedIntentionSystem: Detección avanzada          ║
-║  • Sistema original: Fallback y compatibilidad          ║
-║                                                          ║
 ║  Puerto: ${PORT}                                         ║
 ║  UNESCO Principles: ✅ Activado                          ║
-║  AdvancedIntentionSystem: ✅ Activado                    ║
+║  Sistema: ✅ Versión Original Estable                   ║
 ║  Ethical AI: ✅ Certificado                              ║
 ╚══════════════════════════════════════════════════════════╝
 `);
 
     console.log('\n✨ Mancy está lista para conversaciones profundas y significativas.');
     console.log('🌍 Principios UNESCO integrados como brújula ética fundamental.');
-    console.log('🧠 AdvancedIntentionSystem activado para detección avanzada.');
+    console.log('✅ Sistema original estable sin AdvancedIntentionSystem.');
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
