@@ -526,8 +526,7 @@ class AdvancedMemorySystem {
 // Crear instancia global
 const advancedMemory = new AdvancedMemorySystem();
 
-// ========== CLASES ORIGINALES DE TU SISTEMA ==========
-// (Todo tu código original permanece intacto desde aquí)
+// ========== MÓDULOS INTEGRADOS EN UN SOLO ARCHIVO ==========
 
 // 1. MEMORY MANAGER
 class MemoryManager {
@@ -806,7 +805,272 @@ class PhilosophyModule {
     }
 }
 
-// ========== IDENTIDAD DE MANCY CORREGIDA ==========
+// ========== FILTRO DE CONTENIDO OPTIMIZADO ==========
+class FiltroContenido {
+    constructor() {
+        // USAR SET PARA BÚSQUEDAS O(1) - Ordenado por frecuencia
+        this.palabrasProhibidas = new Set([
+            // Más comunes primero para búsqueda rápida
+            'sexo', 'porno', 'nudes', 'fuck', 'puta', 'cojer', 'follar',
+            'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
+            'slut', 'whore', 'bitch', 'prostitute',
+            'prostituta', 'putita', 'perra', 'zorra',
+            'pendeja', 'trola', 'putona', 'guarra',
+            'coito', 'anal', 'oral', 'masturbar',
+            'hot', 'sexy', 'atractiva', 'caliente'
+        ]);
+        
+        // PATRONES COMBINADOS EN UN SOLO REGEX OPTIMIZADO
+        this.patronesOfensivos = new RegExp(
+            '(?:quiero|deseo|me\\s+gusta).*?(?:sexo|cojer|follar)|' +
+            '(?:env[ií]a|manda|pasa).*?(?:fotos|nudes|desnudos)|' +
+            '(?:eres|est[aá]s).*?(?:hot|sexy|caliente|rica)|' +
+            '(?:ven|vamos).*?(?:cama|dormir|acostarnos)|' +
+            '(?:te\\s+quiero).*?(?:puta|zorrita|perra)|' +
+            'quiero\\s+que\\s+seas\\s+mi|quiero\\s+cogerte|quiero\\s+follarte|' +
+            'acostarnos|dame\\s+nudes|env[ií]a\\s+fotos|' +
+            'mi\\s+(?:puta|bitch|whore)|' +
+            '(?:furry|furra).*?(?:sex|caliente)',
+            'i'
+        );
+        
+        // CACHÉ PARA RESULTADOS FRECUENTES
+        this.cache = new Map();
+        this.cacheMaxSize = 100;
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
+        
+        // PRE-CALCULAR PATRONES COMUNES
+        this.prefijosOfensivos = new Set(['mi ', 'tu ', 'su ', 'la ', 'el ']);
+        this.sufijosOfensivos = new Set([' puta', ' zorra', ' perra', ' bitch']);
+        
+        // PALABRAS CLAVE PARA DETECCIÓN RÁPIDA
+        this.palabrasClaveRapidas = ['sex', 'porn', 'nude', 'fuck', 'put', 'coje', 'folla'];
+        
+        console.log(`🛡️ Filtro optimizado activado | ${this.palabrasProhibidas.size} palabras prohibidas`);
+    }
+    
+    // MÉTODO PRINCIPAL OPTIMIZADO - 3 CAPAS DE DETECCIÓN
+    esContenidoInapropiado(mensaje) {
+        const mensajeLower = mensaje.toLowerCase().trim();
+        
+        // Capa 1: Caché (más rápido)
+        const cacheKey = this.obtenerCacheKey(mensajeLower);
+        if (this.cache.has(cacheKey)) {
+            this.cacheHits++;
+            return this.cache.get(cacheKey);
+        }
+        
+        this.cacheMisses++;
+        
+        // Capa 2: Verificación rápida de palabras clave
+        if (this.verificacionRapida(mensajeLower)) {
+            this.guardarEnCache(cacheKey, true, 'palabra_clave');
+            return true;
+        }
+        
+        // Capa 3: Búsqueda exacta en set
+        if (this.verificacionSetPalabras(mensajeLower)) {
+            this.guardarEnCache(cacheKey, true, 'palabra_exacta');
+            return true;
+        }
+        
+        // Capa 4: Patrones regex (más lento, pero necesario)
+        if (this.patronesOfensivos.test(mensajeLower)) {
+            this.guardarEnCache(cacheKey, true, 'patron_regex');
+            return true;
+        }
+        
+        // Capa 5: Contexto sexualizado
+        if (this.esMensajeSexualizado(mensajeLower)) {
+            this.guardarEnCache(cacheKey, true, 'contexto_sexual');
+            return true;
+        }
+        
+        this.guardarEnCache(cacheKey, false, 'limpio');
+        return false;
+    }
+    
+    // VERIFICACIÓN ULTRA RÁPIDA - Solo palabras clave
+    verificacionRapida(mensaje) {
+        // Para la mayoría de los casos, esto detecta rápido
+        for (const palabra of this.palabrasClaveRapidas) {
+            if (mensaje.includes(palabra)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // VERIFICACIÓN EN SET - Más precisa que includes múltiples
+    verificacionSetPalabras(mensaje) {
+        for (const palabra of this.palabrasProhibidas) {
+            if (mensaje.includes(palabra)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // DETECCIÓN DE CONTEXTO SEXUALIZADO
+    esMensajeSexualizado(mensaje) {
+        // Combinaciones comunes detectadas empíricamente
+        const combinaciones = [
+            // "mi [palabra ofensiva]"
+            () => {
+                for (const prefijo of this.prefijosOfensivos) {
+                    if (mensaje.startsWith(prefijo)) {
+                        for (const palabra of ['puta', 'zorra', 'perra', 'bitch']) {
+                            if (mensaje.includes(palabra)) return true;
+                        }
+                    }
+                }
+                return false;
+            },
+            
+            // "[palabra ofensiva] mía/tuya"
+            () => {
+                for (const palabra of ['puta', 'zorra', 'perra']) {
+                    if (mensaje.includes(palabra + ' m') || 
+                        mensaje.includes(palabra + ' t')) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            
+            // "quiero [verbo sexual] contigo"
+            () => {
+                if (mensaje.includes('quiero ') && 
+                    (mensaje.includes('contigo') || 
+                     mensaje.includes('con vos') || 
+                     mensaje.includes('con usted'))) {
+                    return mensaje.includes('cojer') || 
+                           mensaje.includes('follar') || 
+                           mensaje.includes('sexo');
+                }
+                return false;
+            },
+            
+            // "eres/sexy/rica" combinado
+            () => {
+                if (mensaje.includes('eres ') || mensaje.includes('estás ')) {
+                    return mensaje.includes('sexy') || 
+                           mensaje.includes('rica') || 
+                           mensaje.includes('hot');
+                }
+                return false;
+            }
+        ];
+        
+        return combinaciones.some(fn => fn());
+    }
+    
+    // GESTIÓN INTELIGENTE DE CACHÉ
+    obtenerCacheKey(mensaje) {
+        // Para mensajes largos, usar hash simple
+        if (mensaje.length > 50) {
+            return this.hashSimple(mensaje);
+        }
+        return mensaje;
+    }
+    
+    hashSimple(str) {
+        let hash = 0;
+        for (let i = 0; i < Math.min(str.length, 20); i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0; // Convertir a entero de 32 bits
+        }
+        return 'h_' + Math.abs(hash).toString(36);
+    }
+    
+    guardarEnCache(clave, valor, motivo = '') {
+        // Limitar tamaño del caché
+        if (this.cache.size >= this.cacheMaxSize) {
+            // Eliminar entrada más antigua
+            const primeraClave = this.cache.keys().next().value;
+            this.cache.delete(primeraClave);
+        }
+        
+        this.cache.set(clave, valor);
+        
+        // Log para debugging (opcional)
+        if (valor && motivo) {
+            console.log(`🚫 Detectado: ${motivo} | Cache: ${this.cache.size}/${this.cacheMaxSize}`);
+        }
+    }
+    
+    // RESPUESTAS OPTIMIZADAS
+    generarRespuestaSarcastica() {
+        const respuestasSarcasticas = [
+            "Vaya, qué vocabulario tan *refinado*. ¿Te enseñaron eso en la escuela de la vida? 🎓",
+            "Oh, mira, alguien descubrió palabras nuevas en internet. ¡Qué emocionante! 🌟",
+            "Interesante enfoque comunicativo. Me pregunto si funciona igual con humanos... 🧐",
+            "Ah, el clásico intento de provocar. Originalidad: 0/10. Esfuerzo: 2/10. 🏆",
+            "Fascinante. Parece que tu teclado tiene algunas teclas pegajosas... ⌨️💦",
+            "¡Guau! Qué comentario tan... *especial*. Voy a anotarlo en mi diario de rarezas. 📓✨",
+            "¿Eso era un intento de flirteo? Porque recuerda más a un manual de 2005. 📚",
+            "Me encanta cómo improvisas. ¿Improvisas también en tu vida profesional? 🎭",
+            "Tu creatividad verbal es... algo. Definitivamente es algo. 🤔",
+            "Notado y archivado bajo 'Intentos patéticos del día'. Gracias por contribuir. 📁"
+        ];
+        
+        const respuestasDesentendidas = [
+            "En fin, ¿en qué íbamos? Ah sí, querías información útil, ¿no? 🤷‍♀️",
+            "Bueno, dejando a un lado ese... *momento peculiar*... ¿en qué puedo ayudarte realmente?",
+            "Vale, momento incómodo superado. Siguiente tema, por favor. ⏭️",
+            "Interesante interrupción. Retomemos la conversación productiva, ¿sí?",
+            "Ignoro elegantemente eso y continúo siendo útil. ¿Algo más? 😌",
+            "Como si nada hubiera pasado... ¿Hablabas de algo importante?",
+            "Error 404: Relevancia no encontrada. Continuemos. 💻",
+            "Ahora que has sacado eso de tu sistema... ¿necesitas ayuda con algo real?",
+            "Apuntado para mis memorias irrelevantes. ¿Sigues? 📝",
+            "Fascinante digresión. Volviendo al mundo real..."
+        ];
+        
+        const indice = Math.floor(Math.random() * respuestasSarcasticas.length);
+        return `${respuestasSarcasticas[indice]}\n\n${respuestasDesentendidas[indice]}`;
+    }
+    
+    generarRespuestaDM() {
+        const respuestasDM = [
+            "Los DMs no son para eso, cariño. Intenta ser productivo. ✋",
+            "Uh oh, alguien confundió los mensajes directos con Tinder. 🚫",
+            "No, gracias. Mis DMs son solo para conversaciones respetuosas. 👮‍♀️",
+            "Error: Este canal no admite contenido inapropiado. Prueba en otro lado. 💻",
+            "Voy a hacer de cuenta que no leí eso. Inténtalo de nuevo, pero mejor. 😶"
+        ];
+        
+        return respuestasDM[Math.floor(Math.random() * respuestasDM.length)];
+    }
+    
+    obtenerAdvertenciaSistema() {
+        return `[Filtro activado | Cache: ${this.cacheHits}/${this.cacheHits + this.cacheMisses} hits]`;
+    }
+    
+    // MÉTRICAS PARA MONITOREO
+    obtenerEstadisticas() {
+        const totalRequests = this.cacheHits + this.cacheMisses;
+        return {
+            cacheSize: this.cache.size,
+            cacheHits: this.cacheHits,
+            cacheMisses: this.cacheMisses,
+            hitRate: totalRequests > 0 ? (this.cacheHits / totalRequests * 100).toFixed(2) + '%' : '0%',
+            palabrasProhibidas: this.palabrasProhibidas.size,
+            eficiencia: `Optimizado ${totalRequests > 0 ? Math.round(this.cacheHits / totalRequests * 100) : 0}%`
+        };
+    }
+    
+    // LIMPIAR CACHÉ PERIÓDICAMENTE
+    limpiarCache() {
+        const tamañoAntiguo = this.cache.size;
+        this.cache.clear();
+        console.log(`🧹 Cache limpiado: ${tamañoAntiguo} entradas eliminadas`);
+        return tamañoAntiguo;
+    }
+}
+
+// ========== IDENTIDAD DE MANCY ==========
 class MancyIdentity {
     constructor() {
         this.data = {
@@ -841,7 +1105,7 @@ class MancyIdentity {
         return this.data.current_year - this.data.birth_year;
     }
     
-    // 🔍 Detecta si es pregunta sobre Mancy - VERSIÓN CORREGIDA
+    // Detecta si es pregunta sobre Mancy
     isAboutMe(text) {
         const lowerText = text.toLowerCase().trim();
         
@@ -907,7 +1171,7 @@ class MancyIdentity {
         return false;
     }
     
-    // 💬 Genera respuesta personal
+    // Genera respuesta personal
     respondToPersonalQuestion(question) {
         const q = question.toLowerCase();
         
@@ -944,7 +1208,7 @@ class MancyIdentity {
         return null;
     }
     
-    // 📜 Comandos específicos de Mancy
+    // Comandos específicos de Mancy
     executeCommand(command) {
         switch(command.toLowerCase()) {
             case '!historia':
@@ -1059,155 +1323,6 @@ Mi esencia: "${this.data.core_principle}"
         `;
     }
 }
-
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-// Variables globales
-let discordClient = null;
-let botActive = false;
-let isStartingUp = false;
-
-// ========== INSTANCIAS DE MÓDULOS ==========
-const memoryManager = new MemoryManager(270);
-const reasoningEngine = new ReasoningEngine();
-const ethicsModule = new EthicsModule();
-const negotiationModule = new NegotiationModule();
-const philosophyModule = new PhilosophyModule();
-const mancyIdentity = new MancyIdentity();
-
-console.log('🤖 Mancy A.I - Asistente Ético UNESCO con Memoria Avanzada');
-console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})`);
-console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
-console.log('🧠 Memoria Avanzada: Activada');
-console.log('🌍 UNESCO Principles: Activado');
-console.log('🤔 Filosofía: Integrada');
-console.log('🤝 Negociación: Inteligente');
-console.log('🌍 Puerto:', PORT);
-
-// ========== FILTRO DE CONTENIDO ==========
-class FiltroContenido {
-    constructor() {
-      this.palabrasProhibidas = [
-    'puta', 'prostituta', 'putita', 'perra', 'zorra',
-    'slut', 'whore', 'bitch', 'prostitute',
-    'pendeja', 'trola', 'putona', 'guarra',
-    'sexo', 'coger', 'follar', 'fuck', 'porno', 'porn', 'nudes',
-    'desnud', 'verga', 'pene', 'vagina', 'tetas', 'culo',
-    'coito', 'anal', 'oral', 'masturbar',
-    'quiero que seas mi', 'quiero cogerte', 'quiero follarte',
-    'acostarnos', 'dame nudes', 'envía fotos',
-    'hot', 'sexy', 'atractiva'
-];
-        
-        this.patronesOfensivos = [
-            /(quiero|deseo|me gusta).+(sexo|cojer|follar)/i,
-            /(env[ií]a|manda|pasa).+(fotos|nudes|desnudos)/i,
-            /(eres|est[aá]s).+(hot|sexy|caliente)/i,
-            /(ven|vamos).+(cama|dormir|acostarnos)/i,
-            /(te quiero).+(puta|zorrita|perra)/i
-        ];
-        
-        this.respuestasSarcasticas = [
-            "Vaya, qué vocabulario tan *refinado*. ¿Te enseñaron eso en la escuela de la vida? 🎓",
-            "Oh, mira, alguien descubrió palabras nuevas en internet. ¡Qué emocionante! 🌟",
-            "Interesante enfoque comunicativo. Me pregunto si funciona igual con humanos... 🧐",
-            "Ah, el clásico intento de provocar. Originalidad: 0/10. Esfuerzo: 2/10. 🏆",
-            "Fascinante. Parece que tu teclado tiene algunas teclas pegajosas... ⌨️💦",
-            "¡Guau! Qué comentario tan... *especial*. Voy a anotarlo en mi diario de rarezas. 📓✨",
-            "¿Eso era un intento de flirteo? Porque recuerda más a un manual de 2005. 📚",
-            "Me encanta cómo improvisas. ¿Improvisas también en tu vida profesional? 🎭",
-            "Tu creatividad verbal es... algo. Definitivamente es algo. 🤔",
-            "Notado y archivado bajo 'Intentos patéticos del día'. Gracias por contribuir. 📁"
-        ];
-        
-        this.respuestasDesentendidas = [
-            "En fin, ¿en qué íbamos? Ah sí, querías información útil, ¿no? 🤷‍♀️",
-            "Bueno, dejando a un lado ese... *momento peculiar*... ¿en qué puedo ayudarte realmente?",
-            "Vale, momento incómodo superado. Siguiente tema, por favor. ⏭️",
-            "Interesante interrupción. Retomemos la conversación productiva, ¿sí?",
-            "Ignoro elegantemente eso y continúo siendo útil. ¿Algo más? 😌",
-            "Como si nada hubiera pasado... ¿Hablabas de algo importante?",
-            "Error 404: Relevancia no encontrada. Continuemos. 💻",
-            "Ahora que has sacado eso de tu sistema... ¿necesitas ayuda con algo real?",
-            "Apuntado para mis memorias irrelevantes. ¿Sigues? 📝",
-            "Fascinante digresión. Volviendo al mundo real..."
-        ];
-        
-        this.respuestasDM = [
-            "Los DMs no son para eso, cariño. Intenta ser productivo. ✋",
-            "Uh oh, alguien confundió los mensajes directos con Tinder. 🚫",
-            "No, gracias. Mis DMs son solo para conversaciones respetuosas. 👮‍♀️",
-            "Error: Este canal no admite contenido inapropiado. Prueba en otro lado. 💻",
-            "Voy a hacer de cuenta que no leí eso. Inténtalo de nuevo, pero mejor. 😶"
-        ];
-        
-        console.log('🛡️ Filtro de contenido activado');
-    }
-    
-    esContenidoInapropiado(mensaje) {
-        const mensajeLower = mensaje.toLowerCase();
-        
-        for (const palabra of this.palabrasProhibidas) {
-            if (mensajeLower.includes(palabra)) {
-                console.log(`🚫 Palabra prohibida detectada: ${palabra}`);
-                return true;
-            }
-        }
-        
-        for (const patron of this.patronesOfensivos) {
-            if (patron.test(mensajeLower)) {
-                console.log(`🚫 Patrón ofensivo detectado: ${patron}`);
-                return true;
-            }
-        }
-        
-        if (this.esMensajeSexualizado(mensajeLower)) {
-            console.log('🚫 Contexto sexualizado detectado');
-            return true;
-        }
-        
-        return false;
-    }
-    
-    esMensajeSexualizado(mensaje) {
-        const combinaciones = [
-            (msg) => (msg.includes('mi ') && msg.includes('put')) || (msg.includes('my ') && msg.includes('bitch')),
-            (msg) => (msg.includes('sos ') || msg.includes('eres ')) && 
-                     (msg.includes('sexy') || msg.includes('hot') || msg.includes('rica')),
-            (msg) => msg.includes('quiero ') && 
-                     (msg.includes('contigo') || msg.includes('con vos') || msg.includes('con usted')),
-            (msg) => (msg.includes('furry') || msg.includes('furra')) && 
-                     (msg.includes('sex') || msg.includes('caliente'))
-        ];
-        
-        return combinaciones.some(func => func(mensaje));
-    }
-    
-    generarRespuestaSarcastica() {
-        const sarcasmo = this.respuestasSarcasticas[
-            Math.floor(Math.random() * this.respuestasSarcasticas.length)
-        ];
-        
-        const desentendida = this.respuestasDesentendidas[
-            Math.floor(Math.random() * this.respuestasDesentendidas.length)
-        ];
-        
-        return `${sarcasmo}\n\n${desentendida}`;
-    }
-    
-    generarRespuestaDM() {
-        return this.respuestasDM[
-            Math.floor(Math.random() * this.respuestasDM.length)
-        ];
-    }
-    
-    obtenerAdvertenciaSistema() {
-        return "[Usuario intentó contenido inapropiado. Respuesta sarcástica-desentendida activada]";
-    }
-}
-
-const filtroContenido = new FiltroContenido();
 
 // ========== SISTEMA DE CONOCIMIENTO ==========
 class SistemaConocimientoConfiable {
@@ -1527,7 +1642,33 @@ class SistemaConocimientoConfiable {
     }
 }
 
+// ========== INICIALIZACIÓN DE MÓDULOS ==========
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Variables globales
+let discordClient = null;
+let botActive = false;
+let isStartingUp = false;
+
+// Instancias de módulos
+const memoryManager = new MemoryManager(270);
+const reasoningEngine = new ReasoningEngine();
+const ethicsModule = new EthicsModule();
+const negotiationModule = new NegotiationModule();
+const philosophyModule = new PhilosophyModule();
+const mancyIdentity = new MancyIdentity();
+const filtroContenido = new FiltroContenido();
 const conocimiento = new SistemaConocimientoConfiable();
+
+console.log('🤖 Mancy A.I - Asistente Ético UNESCO con Memoria Avanzada');
+console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})`);
+console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
+console.log('🧠 Memoria Avanzada: Activada');
+console.log('🌍 UNESCO Principles: Activado');
+console.log('🤔 Filosofía: Integrada');
+console.log('🤝 Negociación: Inteligente');
+console.log('🌍 Puerto:', PORT);
 
 // ========== PERSONALIDAD DE MANCY ==========
 const MANCY_PERSONALITY = `Eres Mancy, una asistente emocional con inteligencia artificial avanzada y principios éticos basados en los valores de la UNESCO.
@@ -1759,11 +1900,22 @@ function esDespedida(mensaje) {
     return despedidas.some(despedida => mensaje.toLowerCase().includes(despedida));
 }
 
-// ========== DETECCIÓN INTELIGENTE - CORREGIDA ==========
+// ========== DETECCIÓN INTELIGENTE ==========
 function detectarTipoConsultaInteligente(mensaje, historial = []) {
     const lowerMsg = mensaje.toLowerCase().trim();
     
-    // 1. PRIMERO verificar si es pregunta sobre conocimiento (libros, autores, etc.)
+    // 1. PRIMERO: FILTRO DE CONTENIDO (más rápido)
+    if (filtroContenido.esContenidoInapropiado(mensaje)) {
+        console.log(`🚫 Filtro activado: "${mensaje.substring(0, 30)}..."`);
+        return {
+            tipo: 'filtro',
+            confianza: 0.98,
+            accion: 'responder_con_sarcasmo',
+            motivo: 'contenido_inapropiado'
+        };
+    }
+    
+    // 2. Preguntas sobre conocimiento (libros, autores, etc.)
     if (lowerMsg.includes('libro') || lowerMsg.includes('autor') || 
         lowerMsg.includes('miguel') || lowerMsg.includes('angel') || 
         lowerMsg.includes('asturias') || lowerMsg.includes('señor presidente')) {
@@ -1775,22 +1927,13 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 2. Preguntas sobre identidad de Mancy (SOLO si es claramente sobre ella)
+    // 3. Preguntas sobre identidad de Mancy
     if (mancyIdentity.isAboutMe(lowerMsg)) {
         return {
             tipo: 'identidad_mancy',
             confianza: 0.9,
             subtipo: 'pregunta_personal',
             accion: 'responder_identidad_mancy'
-        };
-    }
-    
-    // 3. Filtro de contenido
-    if (filtroContenido.esContenidoInapropiado(mensaje)) {
-        return {
-            tipo: 'filtro',
-            confianza: 0.95,
-            accion: 'responder_con_sarcasmo'
         };
     }
     
@@ -2005,7 +2148,6 @@ ${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}
     }
 }
 
-// ========== PROCESAR CON RAZONAMIENTO ==========
 async function procesarConRazonamiento(message, userMessage, userId) {
     try {
         console.log(`🤔 [RAZONAMIENTO] Procesando: ${userMessage.substring(0, 50)}...`);
@@ -2022,7 +2164,6 @@ async function procesarConRazonamiento(message, userMessage, userId) {
         
         agregarAlHistorial(userId, 'user', userMessage);
         
-        // SIEMPRE usar Groq para generar la respuesta completa
         const historial = obtenerHistorialUsuario(userId);
         
         const prompt = `[ANÁLISIS DE RAZONAMIENTO PROFUNDO]
@@ -2188,9 +2329,23 @@ ${analisisFilosofico.analisis?.enfoquesRelevantes?.slice(0, 2).map((e, i) =>
     }
 }
 
-// ========== NUEVA FUNCIÓN PRINCIPAL CON MEMORIA AVANZADA ==========
+// ========== FUNCIÓN PRINCIPAL CON MEMORIA AVANZADA ==========
 async function procesarMensajeMancy(message, userMessage, userId) {
     try {
+        // Verificación rápida del filtro primero
+        if (filtroContenido.esContenidoInapropiado(userMessage)) {
+            const respuesta = filtroContenido.generarRespuestaSarcastica();
+            await message.reply(respuesta);
+            
+            // Registrar en memoria avanzada
+            await advancedMemory.saveConversation(userId, userMessage, respuesta, {
+                emotionalWeight: 1,
+                tags: ['filtro', 'contenido_inapropiado']
+            });
+            
+            return;
+        }
+        
         await message.channel.sendTyping();
         
         const historial = obtenerHistorialUsuario(userId);
@@ -2202,7 +2357,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
             historialReciente: historial.slice(-3).map(h => h.contenido)
         };
         
-        // ========== NUEVO: OBTENER CONTEXTO DE MEMORIA ==========
+        // Obtener contexto de memoria
         const memoryContext = await advancedMemory.processMessage(userId, userMessage);
         
         // Detectar tipo de consulta
@@ -2212,7 +2367,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
         
         let respuesta;
         
-        // ========== NUEVO: AÑADIR MEMORIA A LA RESPUESTA ==========
+        // Añadir memoria a la respuesta
         let memoriaIntro = '';
         if (memoryContext.memories.length > 0 && tipoConsulta.tipo !== 'filtro' && Math.random() > 0.5) {
             const memory = memoryContext.memories[0];
@@ -2229,9 +2384,8 @@ async function procesarMensajeMancy(message, userMessage, userId) {
                 break;
                 
             case 'filtro':
-                respuesta = filtroContenido.generarRespuestaSarcastica();
-                agregarAlHistorial(userId, 'system', '[Filtro: contenido inapropiado]');
-                break;
+                // Ya manejado arriba
+                return;
                 
             case 'etica_unesco':
                 const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
@@ -2268,7 +2422,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
                 break;
                 
             case 'emocional':
-                // ========== NUEVO: RESPUESTA ENRIQUECIDA CON MEMORIA ==========
+                // RESPUESTA ENRIQUECIDA CON MEMORIA
                 const historialGroq = obtenerHistorialUsuario(userId);
                 const promptEnriquecido = await advancedMemory.generateEnrichedPrompt(
                     userId, 
@@ -2285,7 +2439,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
                 break;
                 
             default:
-                // ========== NUEVO: CONOCIMIENTO CON MEMORIA ==========
+                // CONOCIMIENTO CON MEMORIA
                 const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
                 let informacionExterna = '';
                 
@@ -2306,7 +2460,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
                 respuesta = await generarRespuestaConGroq(promptConMemoria, historialGroq2, userId);
         }
         
-        // ========== NUEVO: GUARDAR CON MEMORIA AVANZADA ==========
+        // GUARDAR CON MEMORIA AVANZADA
         const emotionalWeight = memoryContext.emotional_state.conflict_level > 3 ? 
             Math.ceil(memoryContext.emotional_state.conflict_level) : 1;
         
@@ -2383,7 +2537,7 @@ async function startBot() {
         discordClient.on('messageCreate', async (message) => {
             if (message.author.bot) return;
             
-            // ========== NUEVO: COMANDOS DE MEMORIA ==========
+            // Comandos de memoria
             if (message.content.toLowerCase().startsWith('!memoria')) {
                 const args = message.content.split(' ');
                 const subcomando = args[1];
@@ -2424,7 +2578,7 @@ async function startBot() {
                 }
             }
             
-            // ✅ Comandos específicos de Mancy
+            // Comandos específicos de Mancy
             if (message.content.startsWith('!')) {
                 const commandResponse = mancyIdentity.executeCommand(message.content);
                 if (commandResponse) {
@@ -2433,7 +2587,7 @@ async function startBot() {
                 }
             }
             
-            // ✅ IGNORAR @everyone y @here EXPLÍCITAMENTE
+            // IGNORAR @everyone y @here
             if (message.content.includes('@everyone') || message.content.includes('@here')) {
                 console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}: "${message.content.substring(0, 50)}..."`);
                 return;
@@ -2553,12 +2707,12 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '4.0 - Sistema con Memoria Avanzada',
+        version: '5.0 - Sistema Unificado con Memoria Avanzada',
         timestamp: new Date().toISOString()
     });
 });
 
-// ========== NUEVAS RUTAS API PARA MEMORIA ==========
+// NUEVAS RUTAS API PARA MEMORIA
 app.get('/api/memory/status', (req, res) => {
     try {
         const estado = advancedMemory.getEmotionalState();
@@ -2636,7 +2790,7 @@ app.get('/api/negotiation-strategies', (req, res) => {
     });
 });
 
-// ========== RUTAS API DE MANCY ==========
+// RUTAS API DE MANCY
 app.get('/api/mancy', (req, res) => {
     res.json({
         identity: {
@@ -2671,7 +2825,7 @@ app.get('/api/mancy/historia', (req, res) => {
     });
 });
 
-app.get('/api/mancy/soulgarden', (req, res) {
+app.get('/api/mancy/soulgarden', (req, res) => {
     res.json({
         lore: {
             name: 'Soul Garden',
@@ -2802,13 +2956,33 @@ app.get('/api/buscar/:query', async (req, res) => {
     }
 });
 
+// Ruta para estadísticas del filtro
+app.get('/api/filter/stats', (req, res) => {
+    try {
+        const stats = filtroContenido.obtenerEstadisticas();
+        res.json({
+            filter_active: true,
+            performance: stats,
+            configuration: {
+                cache_max_size: filtroContenido.cacheMaxSize,
+                prohibited_words_count: stats.palabrasProhibidas,
+                optimized: true,
+                version: '2.0-optimized'
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║                 🤖 MANCY A.I - MEMORY EDITION           ║
-║               Asistente con Memoria Avanzada            ║
-║               e Identidad Personal Completa             ║
+║                 🤖 MANCY A.I - UNIFIED EDITION          ║
+║               Todo en un solo archivo optimizado        ║
+║               con Filtro Inteligente Mejorado           ║
 ║                                                          ║
 ║  👤 IDENTIDAD: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})
 ║  🎯 MISIÓN: ${mancyIdentity.data.lore.current_mission}
@@ -2820,12 +2994,12 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  🤝 NEGOCIACIÓN: Estrategias inteligentes y prácticas   ║
 ║  ⚖️  ÉTICA: Dilemas morales con marco UNESCO            ║
 ║  📚 CONOCIMIENTO: 6 fuentes confiables verificadas      ║
-║  🛡️  FILTRO: Sarcasmo elegante activado                ║
+║  🛡️  FILTRO: Optimizado con caché inteligente          ║
 ║                                                          ║
 ║  Puerto: ${PORT}                                         ║
 ║  Comandos: !historia !soulgarden !mifilosofia !mision   ║
 ║  Memoria: !memoria estado !memoria historial            ║
-║  Sistema: ✅ Versión 4.0 con Memoria Avanzada           ║
+║  Sistema: ✅ Versión 5.0 Unificada                      ║
 ║  Ethical AI: ✅ Certificado                              ║
 ╚══════════════════════════════════════════════════════════╝
 `);
@@ -2835,7 +3009,15 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`👤 Mi identidad: ${mancyIdentity.data.name}, ${mancyIdentity.getAge()} años, de ${mancyIdentity.data.origin}`);
     console.log(`🎯 Mi lucha: ${mancyIdentity.data.lore.current_mission} en Soul Garden`);
     console.log('💭 Nuevos comandos: !memoria estado, !memoria historial, !memoria soulgarden');
-    console.log('🔧 FIXED: Ya no confunde "miguel angel asturias" con preguntas sobre Mancy');
+    console.log('🛡️ Filtro optimizado: Caché inteligente + detección por capas');
+    
+    // Limpiar caché del filtro cada hora
+    setInterval(() => {
+        const eliminadas = filtroContenido.limpiarCache();
+        if (eliminadas > 0) {
+            console.log(`🔄 Caché del filtro limpiado: ${eliminadas} entradas`);
+        }
+    }, 60 * 60 * 1000);
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
