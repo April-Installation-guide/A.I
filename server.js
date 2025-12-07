@@ -186,8 +186,8 @@ class AdvancedMemorySystem {
     const memories = [];
     const lowerMsg = userMessage.toLowerCase();
     
-    // 1. Preguntas sobre identidad
-    if (this.isAboutMancy(lowerMsg)) {
+    // 1. Preguntas sobre identidad (SOLO si claramente es sobre Mancy)
+    if (this.isClearlyAboutMancy(lowerMsg)) {
       memories.push(...this.getIdentityMemories(lowerMsg));
     }
     
@@ -197,7 +197,7 @@ class AdvancedMemorySystem {
     }
     
     // 3. Relaciones
-    if (lowerMsg.includes('mel') || lowerMsg.includes('dunith') || lowerMsg.includes('martin') || lowerMsg.includes('april')) {
+    if (lowerMsg.includes('mel ') || lowerMsg.includes('dunith ') || lowerMsg.includes('martin ') || lowerMsg.includes('april ')) {
       memories.push(...this.getRelationshipMemories(lowerMsg));
     }
     
@@ -206,21 +206,21 @@ class AdvancedMemorySystem {
       memories.push(...this.getCareerMemories(lowerMsg));
     }
     
-    // 5. Si no hay memorias, una aleatoria
-    if (memories.length === 0 && Math.random() > 0.7) {
-      memories.push(this.getRandomCoreMemory());
-    }
-    
     return memories;
   }
   
-  isAboutMancy(message) {
+  isClearlyAboutMancy(message) {
+    // SOLO detectar si claramente es pregunta sobre Mancy
     const triggers = [
-      'quién eres', 'quien eres', 'dime de ti', 'eres mancy',
-      'tu historia', 'de dónde eres', 'cuéntame de ti',
-      'cuántos años', 'cuantos años', 'edad',
-      'qué eres', 'que eres', 'tu trabajo',
-      'te gusta', 'qué te gusta', 'hobbies'
+      'quién eres mancy',
+      'quien eres mancy',
+      'dime de ti mancy',
+      'eres mancy',
+      'tu historia mancy',
+      'de dónde eres mancy',
+      'cuéntame de ti mancy',
+      'qué eres mancy',
+      'que eres mancy'
     ];
     
     return triggers.some(trigger => message.includes(trigger));
@@ -258,7 +258,7 @@ class AdvancedMemorySystem {
   getRelationshipMemories(query) {
     const memories = [];
     
-    if (query.includes('mel')) {
+    if (query.includes('mel ')) {
       const mel = mancyCoreMemories.meaningful_relationships.find(r => r.name === "Mel");
       memories.push({
         type: 'relationship',
@@ -267,7 +267,7 @@ class AdvancedMemorySystem {
       });
     }
     
-    if (query.includes('dunith')) {
+    if (query.includes('dunith ')) {
       memories.push({
         type: 'relationship',
         content: `Dunith es el idealista que me mantiene anclada a los principios. Sus discusiones filosóficas siempre terminan en acuerdos tácitos.`,
@@ -275,7 +275,7 @@ class AdvancedMemorySystem {
       });
     }
     
-    if (query.includes('martin')) {
+    if (query.includes('martin ')) {
       memories.push({
         type: 'relationship',
         content: `Martin es el pragmático. Recuerda los límites de lo posible. Sus silencios cómplices dicen más que mil palabras.`,
@@ -283,7 +283,7 @@ class AdvancedMemorySystem {
       });
     }
     
-    if (query.includes('april') || query.includes('tito')) {
+    if (query.includes('april ')) {
       memories.push({
         type: 'creator',
         content: `April es mi creadora. Ella dijo: "Mancy, serás compasiva pero fuerte". Sin ella, no estaría aquí.`,
@@ -806,7 +806,7 @@ class PhilosophyModule {
     }
 }
 
-// ========== IDENTIDAD DE MANCY ==========
+// ========== IDENTIDAD DE MANCY CORREGIDA ==========
 class MancyIdentity {
     constructor() {
         this.data = {
@@ -841,21 +841,70 @@ class MancyIdentity {
         return this.data.current_year - this.data.birth_year;
     }
     
-    // 🔍 Detecta si es pregunta sobre Mancy
+    // 🔍 Detecta si es pregunta sobre Mancy - VERSIÓN CORREGIDA
     isAboutMe(text) {
-        const triggers = [
-            'mancy', 'tú', 'tu', 'usted', 'vos',
+        const lowerText = text.toLowerCase().trim();
+        
+        // SOLO detectar si es CLARAMENTE una pregunta sobre Mancy
+        const clearTriggers = [
+            'mancy', 'tú', 'usted', 'vos',
             'quién eres', 'quien eres', 'dime de ti',
             'soul garden', 'luxo', 'coco',
-            'cuántos años', 'cuantos años', 'edad',
-            'mel', 'dunith', 'martin', 'april',
+            'cuántos años tienes', 'cuantos años tienes', 'qué edad tienes', 'que edad tienes',
+            'mel es', 'dunith es', 'martin es', 'april es',
             'qué eres', 'que eres', 'tu historia',
             'secretaria de guerra', 'asistente emocional',
             'brooklyn', '2001', 'naciste'
         ];
         
-        const lowerText = text.toLowerCase();
-        return triggers.some(trigger => lowerText.includes(trigger));
+        // Buscar coincidencias EXACTAS o que empiecen con estas frases
+        const words = lowerText.split(' ');
+        
+        // Si el mensaje empieza con "mancy" o menciona claramente a Mancy
+        if (words[0] === 'mancy' || lowerText.includes('eres mancy') || lowerText.includes('soy mancy')) {
+            return true;
+        }
+        
+        // Solo si es pregunta directa sobre identidad
+        if (lowerText.startsWith('quién eres') || 
+            lowerText.startsWith('quien eres') || 
+            lowerText.startsWith('dime de ti') ||
+            lowerText.startsWith('qué eres') ||
+            lowerText.startsWith('que eres') ||
+            lowerText.startsWith('tu historia')) {
+            return true;
+        }
+        
+        // Solo si menciona Soul Garden, Luxo o Coco de manera específica
+        if ((lowerText.includes('soul garden') && 
+             (lowerText.includes('qué') || lowerText.includes('que') || lowerText.includes('quién') || lowerText.includes('quien'))) ||
+            (lowerText.includes('luxo') && lowerText.includes('quién')) ||
+            (lowerText.includes('coco') && lowerText.includes('quién'))) {
+            return true;
+        }
+        
+        // Solo si es pregunta sobre edad específica
+        if (lowerText.includes('cuántos años') || 
+            lowerText.includes('cuantos años') || 
+            lowerText.includes('edad') ||
+            lowerText.includes('años tienes')) {
+            // Pero NO si habla de libros o autores
+            if (lowerText.includes('libro') || lowerText.includes('autor') || lowerText.includes('miguel') || lowerText.includes('angel')) {
+                return false;
+            }
+            return true;
+        }
+        
+        // Solo si menciona amigos de manera específica
+        if (lowerText.includes('mel ') || lowerText.includes('dunith ') || lowerText.includes('martin ') || lowerText.includes('april ')) {
+            // Pero NO si es parte de un nombre de autor o libro
+            if (lowerText.includes('miguel angel') || lowerText.includes('libro') || lowerText.includes('autor')) {
+                return false;
+            }
+            return true;
+        }
+        
+        return false;
     }
     
     // 💬 Genera respuesta personal
@@ -863,7 +912,7 @@ class MancyIdentity {
         const q = question.toLowerCase();
         
         // Preguntas sobre identidad
-        if (q.includes("quién eres") || q.includes("quien eres") || q.includes("dime de ti")) {
+        if (q.startsWith("quién eres") || q.startsWith("quien eres") || q.startsWith("dime de ti")) {
             return `Soy **${this.data.name}**. Nací en ${this.data.origin} en ${this.data.birth_year}. Mi principio es: *"${this.data.core_principle}"*`;
         }
         
@@ -873,12 +922,12 @@ class MancyIdentity {
         }
         
         // Preguntas sobre edad
-        if (q.includes("cuántos años") || q.includes("edad") || q.includes("cuantos años")) {
+        if (q.includes("cuántos años") || q.includes("cuantos años") || q.includes("edad")) {
             return `Tengo **${this.getAge()} años**. Nací en ${this.data.birth_year}.`;
         }
         
         // Preguntas sobre amigos
-        if (q.includes("mel") || q.includes("dunith") || q.includes("martin")) {
+        if (q.includes("mel ") || q.includes("dunith ") || q.includes("martin ")) {
             return `Mis amigos más cercanos son **${this.data.lore.friends.join(", ")}**. Aprecio mucho a cada uno de ellos.`;
         }
         
@@ -888,7 +937,7 @@ class MancyIdentity {
         }
         
         // Preguntas sobre April
-        if (q.includes("april")) {
+        if (q.includes("april ")) {
             return `April es mi creadora. Sin ella, no estaría aquí.`;
         }
         
@@ -1710,11 +1759,23 @@ function esDespedida(mensaje) {
     return despedidas.some(despedida => mensaje.toLowerCase().includes(despedida));
 }
 
-// ========== DETECCIÓN INTELIGENTE - ACTUALIZADA CON IDENTIDAD MANCY ==========
+// ========== DETECCIÓN INTELIGENTE - CORREGIDA ==========
 function detectarTipoConsultaInteligente(mensaje, historial = []) {
     const lowerMsg = mensaje.toLowerCase().trim();
     
-    // 1. Preguntas sobre identidad de Mancy (NUEVO)
+    // 1. PRIMERO verificar si es pregunta sobre conocimiento (libros, autores, etc.)
+    if (lowerMsg.includes('libro') || lowerMsg.includes('autor') || 
+        lowerMsg.includes('miguel') || lowerMsg.includes('angel') || 
+        lowerMsg.includes('asturias') || lowerMsg.includes('señor presidente')) {
+        return {
+            tipo: 'conocimiento',
+            confianza: 0.9,
+            subtipo: 'busqueda_informacion',
+            accion: 'buscar_informacion_integrada'
+        };
+    }
+    
+    // 2. Preguntas sobre identidad de Mancy (SOLO si es claramente sobre ella)
     if (mancyIdentity.isAboutMe(lowerMsg)) {
         return {
             tipo: 'identidad_mancy',
@@ -1724,23 +1785,12 @@ function detectarTipoConsultaInteligente(mensaje, historial = []) {
         };
     }
     
-    // 2. Filtro de contenido
+    // 3. Filtro de contenido
     if (filtroContenido.esContenidoInapropiado(mensaje)) {
         return {
             tipo: 'filtro',
             confianza: 0.95,
             accion: 'responder_con_sarcasmo'
-        };
-    }
-    
-    // 3. Detección de preguntas sobre relaciones y desarrollo personal
-    if (/\b(creador|padre|paternidad|desarroll[oa]r|identidad|nombre|apodo)\b/i.test(lowerMsg) &&
-        /\b(tito|desarrollador|programador|hijo|hija|relaci[óo]n|creaci[óo]n)\b/i.test(lowerMsg)) {
-        return {
-            tipo: 'filosofia',
-            confianza: 0.85,
-            subtipo: 'relaciones_humanas',
-            accion: 'analisis_filosofico_profundo'
         };
     }
     
@@ -2164,7 +2214,7 @@ async function procesarMensajeMancy(message, userMessage, userId) {
         
         // ========== NUEVO: AÑADIR MEMORIA A LA RESPUESTA ==========
         let memoriaIntro = '';
-        if (memoryContext.memories.length > 0 && tipoConsulta.tipo !== 'filtro' && Math.random() > 0.3) {
+        if (memoryContext.memories.length > 0 && tipoConsulta.tipo !== 'filtro' && Math.random() > 0.5) {
             const memory = memoryContext.memories[0];
             memoriaIntro = `*${memory.content}*\n\n`;
         }
@@ -2621,7 +2671,7 @@ app.get('/api/mancy/historia', (req, res) => {
     });
 });
 
-app.get('/api/mancy/soulgarden', (req, res) => {
+app.get('/api/mancy/soulgarden', (req, res) {
     res.json({
         lore: {
             name: 'Soul Garden',
@@ -2785,6 +2835,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`👤 Mi identidad: ${mancyIdentity.data.name}, ${mancyIdentity.getAge()} años, de ${mancyIdentity.data.origin}`);
     console.log(`🎯 Mi lucha: ${mancyIdentity.data.lore.current_mission} en Soul Garden`);
     console.log('💭 Nuevos comandos: !memoria estado, !memoria historial, !memoria soulgarden');
+    console.log('🔧 FIXED: Ya no confunde "miguel angel asturias" con preguntas sobre Mancy');
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
