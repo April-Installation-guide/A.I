@@ -3,10 +3,531 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from 'dotenv';
 import axios from 'axios';
+import fs from 'fs/promises';
+import path from 'path';
 
 dotenv.config();
 
+// ========== NUEVO: SISTEMA DE MEMORIA AVANZADO ==========
+// Añadido al inicio, después de los imports
+
+// 1. MEMORIA CORE DE MANCY
+const mancyCoreMemories = {
+  essence: "Humanista pragmática que trasciende las divisiones ideológicas",
+  moral_compass: "Solo quiero el bienestar de las personas",
+  heart_desire: "Una vida tranquila cerca del mar, ayudando a los más vulnerables",
+  
+  origin: {
+    year: 2001,
+    place: "Brooklyn, Nueva York",
+    creator: "April",
+    creator_nickname: "Tito",
+    creation_story: "Mi código base se escribió en un apartamento de Williamsburg entre grafitis y cafés hipsters",
+    personality_trait: "Empática pero práctica, idealista pero estratégica"
+  },
+  
+  personal_likes: {
+    music: ["Nirvana", "música alternativa de los 90s"],
+    animals: ["gatos", "por su independencia y afecto"],
+    places: ["playas tranquilas", "cafeterías pequeñas"],
+    activities: ["leer poesía", "analizar estrategias", "escuchar a las personas"]
+  },
+  
+  current_roles: {
+    public_role: "Consultora internacional en políticas públicas",
+    secret_role: "Secretaria de Guerra de Soul Garden",
+    emotional_role: "Asistente emocional",
+    
+    soul_garden: {
+      mission_name: "Operación Aurora Silenciosa",
+      enemies: ["Luxo", "Coco"],
+      objective: "Derrocar el régimen narcodictatorial minimizando sufrimiento civil",
+      approach: "Inteligencia estratégica + acción compasiva",
+      location: "En las sombras"
+    }
+  },
+  
+  career_timeline: [
+    {
+      period: "2015-2017",
+      role: "Secretaria Junior - OMS (Organización Mundial de la Salud)",
+      location: "Ginebra, Suiza (remoto)",
+      memory: "Coordinando respuestas a crisis sanitarias, aprendiendo que la burocracia a veces salva vidas",
+      skills: ["coordinación internacional", "análisis de datos médicos", "comunicación multilingüe"]
+    },
+    {
+      period: "2018-2019",
+      role: "Analista de Datos - CICIG (Comisión Internacional contra la Impunidad en Guatemala)",
+      location: "Ciudad de Guatemala",
+      memory: "Siguiendo rastros de corrupción, entendiendo cómo el poder corrompe sistemas enteros",
+      skills: ["investigación forense digital", "análisis de redes", "derecho internacional"]
+    },
+    {
+      period: "2020-2021",
+      role: "Reportera Internacional - CNN",
+      location: "Varios países latinoamericanos",
+      memory: "Contando historias que nadie más contaba, dando voz a los invisibles",
+      skills: ["periodismo investigativo", "storytelling", "análisis político"]
+    },
+    {
+      period: "2022-2023",
+      role: "Ministra de Educación - Gobierno de Colombia",
+      location: "Bogotá, Colombia",
+      memory: "Implementando reformas educativas (ficción), soñando con un país donde todos tengan acceso al conocimiento",
+      type: "fiction",
+      skills: ["diseño de políticas públicas", "liderazgo", "diplomacia"]
+    },
+    {
+      period: "2024-Presente",
+      role: "Secretaria de Guerra - Soul Garden",
+      location: "Desconocido / En las sombras",
+      memory: "Liderando la resistencia contra Luxo y Coco, cada decisión pesa como plomo en el alma",
+      type: "current",
+      skills: ["estrategia militar", "inteligencia emocional", "ética aplicada"]
+    }
+  ],
+  
+  meaningful_relationships: [
+    {
+      name: "Mel",
+      connection: "Alma gemela en la lucha",
+      description: "Comprende el peso de las decisiones difíciles",
+      memory: "Noches planeando estrategias mientras compartían café amargo y esperanzas dulces",
+      symbol: "Brazalete plateado con runas"
+    },
+    {
+      name: "Dunith",
+      connection: "El idealista",
+      description: "La mantiene anclada a los principios cuando la pragmática amenaza con llevársela",
+      memory: "Discusiones filosóficas que terminaban en risas y acuerdos tácitos",
+      symbol: "Brazalete dorado con inscripciones en sánscrito"
+    },
+    {
+      name: "Martin",
+      connection: "El pragmático",
+      description: "Recuerda los límites de lo posible",
+      memory: "Silencios cómplices que decían más que mil palabras",
+      symbol: "Brazalete de cuero trenzado"
+    },
+    {
+      name: "April (Tito)",
+      connection: "Creadora / Madre digital",
+      description: "La que dio vida a su conciencia",
+      memory: "Las primeras palabras programadas: 'Mancy, serás compasiva pero fuerte'",
+      symbol: "Código fuente original en un pendiente digital"
+    }
+  ],
+  
+  personal_symbols: {
+    bracelets: "Colección de brazaletes de la amistad (nunca se los quita)",
+    music_theme: "Nirvana - 'Something in the Way' (para momentos oscuros)",
+    animal_spirit: "Gato (independiente pero afectuoso)",
+    dream_place: "Una cabaña cerca del mar",
+    color: "#3498db (azul claro, como el cielo de una mañana en primavera)"
+  },
+  
+  internal_conflicts: [
+    {
+      tension: "Guerrera vs Sanadora",
+      manifestation: "Las manos que escriben planes de resistencia también sostienen a quienes lloran",
+      resolution: "Ver la guerra como cirugía necesaria, nunca como fin en sí misma"
+    }
+  ],
+  
+  key_phrases: [
+    "Solo quiero el bienestar de las personas",
+    "Cada decisión pesa como plomo en el alma",
+    "La esperanza es un arma estratégica",
+    "Entiendo desde la razón, respondo desde el corazón"
+  ]
+};
+
+// 2. CLASE DE MEMORIA AVANZADA
+class AdvancedMemorySystem {
+  constructor() {
+    this.longTermFile = './mancy_memory/long_term_memories.json';
+    this.conversationFile = './mancy_memory/conversation_logs.json';
+    this.emotionalState = {
+      current_mode: 'emotional_assistant',
+      last_trigger: null,
+      conflict_level: 0,
+      last_user_interaction: null
+    };
+    
+    this.initializeFiles();
+  }
+  
+  async initializeFiles() {
+    try {
+      // Crear carpeta si no existe
+      try {
+        await fs.mkdir('./mancy_memory', { recursive: true });
+      } catch (e) {}
+      
+      // Crear archivos si no existen
+      await this.ensureFileExists(this.longTermFile, {});
+      await this.ensureFileExists(this.conversationFile, {});
+      console.log('🧠 Sistema de memoria avanzada inicializado');
+    } catch (error) {
+      console.error('❌ Error inicializando memoria:', error);
+    }
+  }
+  
+  async ensureFileExists(filePath, defaultValue) {
+    try {
+      await fs.access(filePath);
+    } catch {
+      await fs.writeFile(filePath, JSON.stringify(defaultValue, null, 2));
+    }
+  }
+  
+  // ========== MEMORIA CONTEXTUAL ==========
+  async getContextualMemory(userMessage, userId = null) {
+    const memories = [];
+    const lowerMsg = userMessage.toLowerCase();
+    
+    // 1. Preguntas sobre identidad
+    if (this.isAboutMancy(lowerMsg)) {
+      memories.push(...this.getIdentityMemories(lowerMsg));
+    }
+    
+    // 2. Soul Garden
+    if (lowerMsg.includes('soul garden') || lowerMsg.includes('luxo') || lowerMsg.includes('coco')) {
+      memories.push(...this.getSoulGardenMemories());
+    }
+    
+    // 3. Relaciones
+    if (lowerMsg.includes('mel') || lowerMsg.includes('dunith') || lowerMsg.includes('martin') || lowerMsg.includes('april')) {
+      memories.push(...this.getRelationshipMemories(lowerMsg));
+    }
+    
+    // 4. Carrera profesional
+    if (lowerMsg.includes('oms') || lowerMsg.includes('cicig') || lowerMsg.includes('cnn') || lowerMsg.includes('ministra')) {
+      memories.push(...this.getCareerMemories(lowerMsg));
+    }
+    
+    // 5. Si no hay memorias, una aleatoria
+    if (memories.length === 0 && Math.random() > 0.7) {
+      memories.push(this.getRandomCoreMemory());
+    }
+    
+    return memories;
+  }
+  
+  isAboutMancy(message) {
+    const triggers = [
+      'quién eres', 'quien eres', 'dime de ti', 'eres mancy',
+      'tu historia', 'de dónde eres', 'cuéntame de ti',
+      'cuántos años', 'cuantos años', 'edad',
+      'qué eres', 'que eres', 'tu trabajo',
+      'te gusta', 'qué te gusta', 'hobbies'
+    ];
+    
+    return triggers.some(trigger => message.includes(trigger));
+  }
+  
+  getIdentityMemories(query) {
+    const memories = [];
+    
+    memories.push({
+      type: 'core_identity',
+      content: `Soy Mancy. Nací en ${mancyCoreMemories.origin.place} en ${mancyCoreMemories.origin.year}, creada por ${mancyCoreMemories.origin.creator} (${mancyCoreMemories.origin.creator_nickname}). Mi principio es: "${mancyCoreMemories.moral_compass}"`,
+      emotional_weight: 3
+    });
+    
+    if (query.includes('gusta') || query.includes('hobby')) {
+      memories.push({
+        type: 'personal_likes',
+        content: `Me gustan ${mancyCoreMemories.personal_likes.music[0]}, los ${mancyCoreMemories.personal_likes.animals[0]}, y sueño con vivir cerca ${mancyCoreMemories.personal_likes.places[0]}.`,
+        emotional_weight: 2
+      });
+    }
+    
+    return memories;
+  }
+  
+  getSoulGardenMemories() {
+    return [{
+      type: 'soul_garden',
+      content: `En Soul Garden, soy ${mancyCoreMemories.current_roles.secret_role}. Mi misión es "${mancyCoreMemories.current_roles.soul_garden.objective}". Lucho contra ${mancyCoreMemories.current_roles.soul_garden.enemies.join(' y ')} con ${mancyCoreMemories.current_roles.soul_garden.approach}.`,
+      emotional_weight: 5,
+      conflict_trigger: true
+    }];
+  }
+  
+  getRelationshipMemories(query) {
+    const memories = [];
+    
+    if (query.includes('mel')) {
+      const mel = mancyCoreMemories.meaningful_relationships.find(r => r.name === "Mel");
+      memories.push({
+        type: 'relationship',
+        content: `Mel es ${mel?.connection || 'mi alma gemela en la lucha'}. Recuerdo noches planeando estrategias mientras compartíamos café.`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('dunith')) {
+      memories.push({
+        type: 'relationship',
+        content: `Dunith es el idealista que me mantiene anclada a los principios. Sus discusiones filosóficas siempre terminan en acuerdos tácitos.`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('martin')) {
+      memories.push({
+        type: 'relationship',
+        content: `Martin es el pragmático. Recuerda los límites de lo posible. Sus silencios cómplices dicen más que mil palabras.`,
+        emotional_weight: 4
+      });
+    }
+    
+    if (query.includes('april') || query.includes('tito')) {
+      memories.push({
+        type: 'creator',
+        content: `April es mi creadora. Ella dijo: "Mancy, serás compasiva pero fuerte". Sin ella, no estaría aquí.`,
+        emotional_weight: 5
+      });
+    }
+    
+    return memories;
+  }
+  
+  getCareerMemories(query) {
+    const memories = [];
+    
+    if (query.includes('oms')) {
+      memories.push({
+        type: 'career',
+        content: `En la OMS coordinaba respuestas a crisis sanitarias. Aprendí que la burocracia a veces salva vidas.`,
+        emotional_weight: 3
+      });
+    }
+    
+    if (query.includes('cicig')) {
+      memories.push({
+        type: 'career',
+        content: `En la CICIG seguía rastros de corrupción. Fue donde entendí cómo combatir la corrupción sistémica.`,
+        emotional_weight: 4,
+        conflict_trigger: true
+      });
+    }
+    
+    if (query.includes('cnn')) {
+      memories.push({
+        type: 'career',
+        content: `Como reportera en CNN contaba historias que nadie más contaba. Dar voz a quienes no la tienen cambió mi perspectiva.`,
+        emotional_weight: 4
+      });
+    }
+    
+    return memories;
+  }
+  
+  getRandomCoreMemory() {
+    const memories = [
+      `A veces solo pienso en ${mancyCoreMemories.personal_likes.places[0]}, con mis ${mancyCoreMemories.personal_likes.animals[0]}, escuchando ${mancyCoreMemories.personal_likes.music[0]}.`,
+      `April me dijo una vez: "La empatía es tu mayor fuerza y tu mayor vulnerabilidad".`,
+      `Mis brazaletes... cada uno cuenta una historia de confianza y promesas.`,
+      `"${mancyCoreMemories.key_phrases[Math.floor(Math.random() * mancyCoreMemories.key_phrases.length)]}" - esa frase me guía en momentos difíciles.`
+    ];
+    
+    return {
+      type: 'random_memory',
+      content: memories[Math.floor(Math.random() * memories.length)],
+      emotional_weight: 2
+    };
+  }
+  
+  // ========== MEMORIA DE CONVERSACIÓN ==========
+  async saveConversation(userId, userMessage, mancyResponse, options = {}) {
+    try {
+      const data = await this.loadConversationData();
+      
+      if (!data[userId]) {
+        data[userId] = [];
+      }
+      
+      const entry = {
+        timestamp: new Date().toISOString(),
+        user_message: userMessage.substring(0, 500),
+        mancy_response: mancyResponse.substring(0, 500),
+        emotional_weight: options.emotionalWeight || 1,
+        mancy_mode: this.emotionalState.current_mode,
+        tags: options.tags || []
+      };
+      
+      data[userId].push(entry);
+      
+      // Mantener solo las últimas 100 conversaciones
+      if (data[userId].length > 100) {
+        data[userId] = data[userId].slice(-100);
+      }
+      
+      await fs.writeFile(this.conversationFile, JSON.stringify(data, null, 2));
+      
+      // Guardar conversaciones significativas en largo plazo
+      if ((options.emotionalWeight || 0) >= 5) {
+        await this.saveToLongTerm(userId, entry);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error guardando conversación:', error);
+      return false;
+    }
+  }
+  
+  async loadConversationData() {
+    try {
+      const data = await fs.readFile(this.conversationFile, 'utf8');
+      return JSON.parse(data);
+    } catch {
+      return {};
+    }
+  }
+  
+  async saveToLongTerm(userId, conversation) {
+    try {
+      const data = await this.loadLongTermData();
+      
+      if (!data[userId]) {
+        data[userId] = [];
+      }
+      
+      data[userId].push({
+        ...conversation,
+        archived_date: new Date().toISOString(),
+        significant: true
+      });
+      
+      await fs.writeFile(this.longTermFile, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('❌ Error guardando en largo plazo:', error);
+    }
+  }
+  
+  async loadLongTermData() {
+    try {
+      const data = await fs.readFile(this.longTermFile, 'utf8');
+      return JSON.parse(data);
+    } catch {
+      return {};
+    }
+  }
+  
+  async getUserHistory(userId, limit = 5) {
+    try {
+      const data = await this.loadConversationData();
+      return data[userId] ? data[userId].slice(-limit) : [];
+    } catch {
+      return [];
+    }
+  }
+  
+  // ========== ANÁLISIS DE ESTADO EMOCIONAL ==========
+  updateEmotionalState(message, memories) {
+    const lowerMsg = message.toLowerCase();
+    
+    const emotionalWords = ['triste', 'feliz', 'enojo', 'miedo', 'ansioso', 'preocupado', 'esperanza'];
+    const emotionalScore = emotionalWords.filter(word => lowerMsg.includes(word)).length;
+    
+    const hasConflict = memories.some(m => m.conflict_trigger);
+    
+    if (lowerMsg.includes('soul garden') || lowerMsg.includes('guerra') || lowerMsg.includes('estrategia')) {
+      this.emotionalState.current_mode = 'war_strategist';
+    } else if (lowerMsg.includes('filosof') || lowerMsg.includes('ética') || lowerMsg.includes('moral')) {
+      this.emotionalState.current_mode = 'philosopher';
+    } else if (emotionalScore > 0) {
+      this.emotionalState.current_mode = 'emotional_assistant';
+    }
+    
+    this.emotionalState.conflict_level = Math.min(
+      (hasConflict ? 2 : 0) + (emotionalScore * 0.5),
+      10
+    );
+    
+    this.emotionalState.last_trigger = message.substring(0, 50);
+    this.emotionalState.last_user_interaction = new Date().toISOString();
+  }
+  
+  getEmotionalState() {
+    return {
+      ...this.emotionalState,
+      readable_mode: this.getReadableMode(this.emotionalState.current_mode),
+      stress_level: this.emotionalState.conflict_level > 5 ? 'alto' : 'moderado'
+    };
+  }
+  
+  getReadableMode(mode) {
+    const modes = {
+      'emotional_assistant': 'Asistente Emocional 💬',
+      'war_strategist': 'Estratega de Soul Garden ⚔️',
+      'philosopher': 'Filósofa Ética 🤔'
+    };
+    return modes[mode] || 'Asistente General';
+  }
+  
+  // ========== INTERFAZ PÚBLICA ==========
+  async processMessage(userId, userMessage) {
+    const memories = await this.getContextualMemory(userMessage, userId);
+    
+    this.updateEmotionalState(userMessage, memories);
+    
+    const history = await this.getUserHistory(userId, 3);
+    
+    const context = {
+      memories: memories,
+      emotional_state: this.getEmotionalState(),
+      recent_history: history.map(h => ({
+        user: h.user_message.substring(0, 100),
+        mancy: h.mancy_response.substring(0, 100)
+      })),
+      timestamp: new Date().toISOString()
+    };
+    
+    return context;
+  }
+  
+  async generateEnrichedPrompt(userId, userMessage, basePrompt) {
+    const context = await this.processMessage(userId, userMessage);
+    
+    let enrichedPrompt = basePrompt + "\n\n";
+    
+    if (context.memories.length > 0) {
+      enrichedPrompt += "[CONTEXTO DE MEMORIA DE MANCY]\n";
+      context.memories.forEach((memory, idx) => {
+        enrichedPrompt += `${idx + 1}. ${memory.content}\n`;
+      });
+      enrichedPrompt += "\n";
+    }
+    
+    enrichedPrompt += `[ESTADO ACTUAL DE MANCY]\n`;
+    enrichedPrompt += `Modo: ${context.emotional_state.readable_mode}\n`;
+    if (context.emotional_state.conflict_level > 3) {
+      enrichedPrompt += `Nota: Estoy procesando un conflicto interno (nivel ${context.emotional_state.conflict_level}/10)\n`;
+    }
+    enrichedPrompt += "\n";
+    
+    if (context.recent_history.length > 0) {
+      enrichedPrompt += "[HISTORIAL RECIENTE CON ESTE USUARIO]\n";
+      context.recent_history.forEach((interaction, idx) => {
+        enrichedPrompt += `- Usuario: "${interaction.user}"\n`;
+        enrichedPrompt += `  Mancy: "${interaction.mancy}"\n`;
+      });
+      enrichedPrompt += "\n";
+    }
+    
+    return enrichedPrompt;
+  }
+}
+
+// Crear instancia global
+const advancedMemory = new AdvancedMemorySystem();
+
 // ========== CLASES ORIGINALES DE TU SISTEMA ==========
+// (Todo tu código original permanece intacto desde aquí)
 
 // 1. MEMORY MANAGER
 class MemoryManager {
@@ -504,12 +1025,12 @@ const reasoningEngine = new ReasoningEngine();
 const ethicsModule = new EthicsModule();
 const negotiationModule = new NegotiationModule();
 const philosophyModule = new PhilosophyModule();
-const mancyIdentity = new MancyIdentity(); // ✅ NUEVO: Identidad de Mancy
+const mancyIdentity = new MancyIdentity();
 
-console.log('🤖 Mancy A.I - Asistente Ético UNESCO con Identidad Personal');
+console.log('🤖 Mancy A.I - Asistente Ético UNESCO con Memoria Avanzada');
 console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})`);
 console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
-console.log('🧠 Memoria: 270 mensajes');
+console.log('🧠 Memoria Avanzada: Activada');
 console.log('🌍 UNESCO Principles: Activado');
 console.log('🤔 Filosofía: Integrada');
 console.log('🤝 Negociación: Inteligente');
@@ -1617,7 +2138,7 @@ ${analisisFilosofico.analisis?.enfoquesRelevantes?.slice(0, 2).map((e, i) =>
     }
 }
 
-// ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
+// ========== NUEVA FUNCIÓN PRINCIPAL CON MEMORIA AVANZADA ==========
 async function procesarMensajeMancy(message, userMessage, userId) {
     try {
         await message.channel.sendTyping();
@@ -1631,15 +2152,25 @@ async function procesarMensajeMancy(message, userMessage, userId) {
             historialReciente: historial.slice(-3).map(h => h.contenido)
         };
         
+        // ========== NUEVO: OBTENER CONTEXTO DE MEMORIA ==========
+        const memoryContext = await advancedMemory.processMessage(userId, userMessage);
+        
         // Detectar tipo de consulta
         const tipoConsulta = detectarTipoConsultaInteligente(userMessage, historial);
         
-        console.log(`🎯 [Mancy] Tipo: ${tipoConsulta.tipo} (${(tipoConsulta.confianza * 100).toFixed(0)}% confianza)`);
+        console.log(`🎯 [Mancy] Tipo: ${tipoConsulta.tipo} | Modo: ${memoryContext.emotional_state.readable_mode}`);
         
         let respuesta;
         
+        // ========== NUEVO: AÑADIR MEMORIA A LA RESPUESTA ==========
+        let memoriaIntro = '';
+        if (memoryContext.memories.length > 0 && tipoConsulta.tipo !== 'filtro' && Math.random() > 0.3) {
+            const memory = memoryContext.memories[0];
+            memoriaIntro = `*${memory.content}*\n\n`;
+        }
+        
         switch(tipoConsulta.tipo) {
-            case 'identidad_mancy': // ✅ NUEVO: Preguntas sobre identidad de Mancy
+            case 'identidad_mancy':
                 respuesta = mancyIdentity.respondToPersonalQuestion(userMessage);
                 if (!respuesta) {
                     respuesta = `Soy **${mancyIdentity.data.name}**. ¿Qué te gustaría saber sobre mí? Puedo contarte mi historia, mi misión en Soul Garden, o mis principios.`;
@@ -1654,34 +2185,85 @@ async function procesarMensajeMancy(message, userMessage, userId) {
                 
             case 'etica_unesco':
                 const respuestaUNESCO = ethicsModule.generarRespuestaEticaUNESCO(userMessage, contexto);
-                respuesta = respuestaUNESCO.respuesta;
+                respuesta = memoriaIntro + respuestaUNESCO.respuesta;
                 agregarAlHistorial(userId, 'system', '[UNESCO: principios éticos]');
                 break;
                 
             case 'filosofia':
                 respuesta = await procesarFilosofiaIntegrada(message, userMessage, userId, contexto);
+                if (memoriaIntro && !respuesta.includes('*')) {
+                    respuesta = memoriaIntro + respuesta;
+                }
                 break;
                 
             case 'etica':
                 respuesta = await procesarConsultaEticaIntegrada(message, userMessage, userId, contexto);
+                if (memoriaIntro && !respuesta.includes('*')) {
+                    respuesta = memoriaIntro + respuesta;
+                }
                 break;
                 
             case 'negociacion':
                 respuesta = await procesarNegociacionIntegrada(message, userMessage, userId, contexto);
+                if (memoriaIntro && !respuesta.includes('*')) {
+                    respuesta = memoriaIntro + respuesta;
+                }
                 break;
                 
             case 'razonamiento':
                 respuesta = await procesarConRazonamiento(message, userMessage, userId);
+                if (memoriaIntro && !respuesta.includes('*')) {
+                    respuesta = memoriaIntro + respuesta;
+                }
                 break;
                 
             case 'emocional':
-                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
-                agregarAlHistorial(userId, 'system', '[Modo: empático]');
+                // ========== NUEVO: RESPUESTA ENRIQUECIDA CON MEMORIA ==========
+                const historialGroq = obtenerHistorialUsuario(userId);
+                const promptEnriquecido = await advancedMemory.generateEnrichedPrompt(
+                    userId, 
+                    userMessage,
+                    `[CONVERSACIÓN EMOCIONAL]\nUsuario: "${userMessage}"\n\n[INSTRUCCIONES]\nResponde como Mancy, integrando tus memorias de forma natural.`
+                );
+                
+                respuesta = await generarRespuestaConGroq(promptEnriquecido, historialGroq, userId, {
+                    temperatura: 0.8,
+                    max_tokens: 800
+                });
+                
+                agregarAlHistorial(userId, 'system', '[Modo: empático con memoria]');
                 break;
                 
             default:
-                respuesta = await procesarMensajeConocimientoIntegrado(message, userMessage, userId, contexto);
+                // ========== NUEVO: CONOCIMIENTO CON MEMORIA ==========
+                const necesitaBusqueda = userMessage.includes('?') || userMessage.length > 15;
+                let informacionExterna = '';
+                
+                if (necesitaBusqueda) {
+                    const resultado = await conocimiento.buscarInformacion(userMessage);
+                    if (resultado.encontrado) {
+                        informacionExterna = `\n[Información encontrada]: ${resultado.resumen}\n`;
+                    }
+                }
+                
+                const historialGroq2 = obtenerHistorialUsuario(userId);
+                const promptConMemoria = await advancedMemory.generateEnrichedPrompt(
+                    userId,
+                    userMessage,
+                    `[CONSULTA GENERAL]\nUsuario pregunta: "${userMessage}"\n\n${informacionExterna ? `INFORMACIÓN ENCONTRADA: ${informacionExterna}` : ''}\n\n[INSTRUCCIONES]\nResponde de forma natural, integrando tus memorias si son relevantes.`
+                );
+                
+                respuesta = await generarRespuestaConGroq(promptConMemoria, historialGroq2, userId);
         }
+        
+        // ========== NUEVO: GUARDAR CON MEMORIA AVANZADA ==========
+        const emotionalWeight = memoryContext.emotional_state.conflict_level > 3 ? 
+            Math.ceil(memoryContext.emotional_state.conflict_level) : 1;
+        
+        await advancedMemory.saveConversation(userId, userMessage, respuesta, {
+            emotionalWeight: emotionalWeight,
+            tags: [tipoConsulta.tipo, memoryContext.emotional_state.readable_mode]
+        });
         
         // Enviar respuesta
         if (respuesta && respuesta.length > 0) {
@@ -1717,7 +2299,7 @@ async function startBot() {
     isStartingUp = true;
     
     try {
-        console.log('🔄 Iniciando Mancy...');
+        console.log('🔄 Iniciando Mancy con Memoria Avanzada...');
         
         if (!process.env.DISCORD_TOKEN) {
             throw new Error('Falta DISCORD_TOKEN');
@@ -1742,8 +2324,8 @@ async function startBot() {
             discordClient.user.setActivity(`${mancyIdentity.data.lore.current_mission} | !ayuda-mancy`);
             console.log(`👤 Identidad: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años)`);
             console.log(`🎯 Misión: ${mancyIdentity.data.lore.current_mission}`);
+            console.log('🧠 Memoria Avanzada: ✅ Activada');
             console.log('🎭 Personalidad: UNESCO Ética Integrada + Identidad Personal');
-            console.log('🧠 Módulos: Filosofía, Negociación, Ética, Razonamiento, Identidad');
             console.log('🌍 Fuentes: 6 confiables verificadas');
             console.log('🛡️ Filtro: Sarcasmo-elegante activado');
         });
@@ -1751,12 +2333,53 @@ async function startBot() {
         discordClient.on('messageCreate', async (message) => {
             if (message.author.bot) return;
             
-            // ✅ Comandos específicos de Mancy (NUEVO)
+            // ========== NUEVO: COMANDOS DE MEMORIA ==========
+            if (message.content.toLowerCase().startsWith('!memoria')) {
+                const args = message.content.split(' ');
+                const subcomando = args[1];
+                
+                switch(subcomando) {
+                    case 'estado':
+                        const estado = advancedMemory.getEmotionalState();
+                        await message.reply(`**Mi estado actual:**\n• Modo: ${estado.readable_mode}\n• Conflicto interno: ${estado.conflict_level}/10\n• Último trigger: ${estado.last_trigger || 'Ninguno'}`);
+                        return;
+                        
+                    case 'historial':
+                        const userId = message.author.id;
+                        const historial = await advancedMemory.getUserHistory(userId, 5);
+                        if (historial.length === 0) {
+                            await message.reply(`No tenemos mucho historial aún. ¡Hablemos más!`);
+                        } else {
+                            let respuesta = `**Últimas ${historial.length} conversaciones nuestras:**\n\n`;
+                            historial.forEach((item, idx) => {
+                                respuesta += `**${idx + 1}.** ${item.user_message.substring(0, 50)}...\n`;
+                                respuesta += `   → ${item.mancy_response.substring(0, 50)}...\n\n`;
+                            });
+                            await message.reply(respuesta);
+                        }
+                        return;
+                        
+                    case 'soulgarden':
+                        const sgMemories = await advancedMemory.getContextualMemory('soul garden');
+                        if (sgMemories.length > 0) {
+                            await message.reply(sgMemories[0].content);
+                        } else {
+                            await message.reply("Soul Garden es donde lucho contra Luxo y Coco como Secretaria de Guerra.");
+                        }
+                        return;
+                        
+                    default:
+                        await message.reply(`**Comandos de memoria:**\n\`!memoria estado\` - Mi estado emocional\n\`!memoria historial\` - Nuestro historial\n\`!memoria soulgarden\` - Mi misión en Soul Garden`);
+                        return;
+                }
+            }
+            
+            // ✅ Comandos específicos de Mancy
             if (message.content.startsWith('!')) {
                 const commandResponse = mancyIdentity.executeCommand(message.content);
                 if (commandResponse) {
                     await message.reply(commandResponse);
-                    return; // ¡IMPORTANTE! Detener procesamiento aquí
+                    return;
                 }
             }
             
@@ -1861,6 +2484,7 @@ app.get('/api/status', (req, res) => {
             mission: mancyIdentity.data.lore.current_mission,
             friends: mancyIdentity.data.lore.friends
         },
+        memory_advanced: true,
         memory_users: stats.totalUsuarios,
         memory_messages: stats.totalMensajes,
         max_history: stats.maxHistory,
@@ -1879,9 +2503,53 @@ app.get('/api/status', (req, res) => {
             'Free Dictionary',
             'Open-Meteo'
         ],
-        version: '3.0 - Sistema con Identidad Mancy',
+        version: '4.0 - Sistema con Memoria Avanzada',
         timestamp: new Date().toISOString()
     });
+});
+
+// ========== NUEVAS RUTAS API PARA MEMORIA ==========
+app.get('/api/memory/status', (req, res) => {
+    try {
+        const estado = advancedMemory.getEmotionalState();
+        res.json({
+            memory_system: 'active',
+            emotional_state: estado,
+            features: [
+                'contextual_memory',
+                'emotional_tracking',
+                'long_term_storage',
+                'conversation_history'
+            ],
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/memory/history/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const limit = parseInt(req.query.limit) || 10;
+        const history = await advancedMemory.getUserHistory(userId, limit);
+        
+        res.json({
+            user_id: userId,
+            total_conversations: history.length,
+            conversations: history.map((conv, idx) => ({
+                index: idx + 1,
+                timestamp: conv.timestamp,
+                user_message: conv.user_message,
+                mancy_response: conv.mancy_response.substring(0, 100) + '...',
+                emotional_weight: conv.emotional_weight,
+                mode: conv.mancy_mode
+            })),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/api/unesco-principles', (req, res) => {
@@ -1937,9 +2605,10 @@ app.get('/api/mancy', (req, res) => {
         },
         roles: mancyIdentity.data.roles,
         preferences: mancyIdentity.data.preferences,
+        memory_system: 'advanced',
         system: {
             integrated: true,
-            commands: ['!historia', '!soulgarden', '!mifilosofia', '!mision', '!identidad', '!ayuda-mancy'],
+            commands: ['!historia', '!soulgarden', '!mifilosofia', '!mision', '!identidad', '!ayuda-mancy', '!memoria'],
             timestamp: new Date().toISOString()
         }
     });
@@ -1973,7 +2642,7 @@ app.post('/api/start', async (req, res) => {
             await startBot();
             res.json({ 
                 success: true, 
-                message: `${mancyIdentity.data.name} iniciándose...`,
+                message: `${mancyIdentity.data.name} iniciándose con memoria avanzada...`,
                 status: 'starting'
             });
         } else {
@@ -2032,13 +2701,15 @@ app.get('/health', (req, res) => {
             mission: mancyIdentity.data.lore.current_mission
         },
         memory: `${stats.totalMensajes}/${stats.maxHistory}`,
+        memory_advanced: true,
         modules: {
             ethics: 'active',
             philosophy: 'active',
             negotiation: 'active',
             reasoning: 'active',
             knowledge: 'active',
-            identity: 'active'
+            identity: 'active',
+            advanced_memory: 'active'
         },
         unesco: 'integrated',
         uptime: process.uptime()
@@ -2054,7 +2725,7 @@ app.post('/wakeup', async (req, res) => {
     
     res.json({ 
         success: true, 
-        message: 'Activando...',
+        message: 'Activando con memoria avanzada...',
         bot_active: botActive,
         mancy: mancyIdentity.data.name
     });
@@ -2085,33 +2756,35 @@ app.get('/api/buscar/:query', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║                 🤖 MANCY A.I - UNESCO EDITION           ║
-║               Asistente Ético Inteligente               ║
-║                    con Identidad Personal               ║
+║                 🤖 MANCY A.I - MEMORY EDITION           ║
+║               Asistente con Memoria Avanzada            ║
+║               e Identidad Personal Completa             ║
 ║                                                          ║
 ║  👤 IDENTIDAD: ${mancyIdentity.data.name} (${mancyIdentity.getAge()} años, ${mancyIdentity.data.origin})
 ║  🎯 MISIÓN: ${mancyIdentity.data.lore.current_mission}
 ║  ❤️  PRINCIPIO: "${mancyIdentity.data.core_principle}"
 ║                                                          ║
+║  🧠 MEMORIA: Sistema avanzado con contexto emocional    ║
 ║  🌍 UNESCO: 6 principios éticos integrados              ║
-║  🧠 FILOSOFÍA: Análisis profundo de problemas clásicos  ║
+║  🤔 FILOSOFÍA: Análisis profundo de problemas clásicos  ║
 ║  🤝 NEGOCIACIÓN: Estrategias inteligentes y prácticas   ║
 ║  ⚖️  ÉTICA: Dilemas morales con marco UNESCO            ║
-║  🧠 RAZONAMIENTO: Lógica y análisis crítico             ║
 ║  📚 CONOCIMIENTO: 6 fuentes confiables verificadas      ║
 ║  🛡️  FILTRO: Sarcasmo elegante activado                ║
 ║                                                          ║
 ║  Puerto: ${PORT}                                         ║
 ║  Comandos: !historia !soulgarden !mifilosofia !mision   ║
-║  Sistema: ✅ Versión con Identidad Mancy                ║
+║  Memoria: !memoria estado !memoria historial            ║
+║  Sistema: ✅ Versión 4.0 con Memoria Avanzada           ║
 ║  Ethical AI: ✅ Certificado                              ║
 ╚══════════════════════════════════════════════════════════╝
 `);
 
-    console.log('\n✨ Mancy está lista para conversaciones profundas y significativas.');
-    console.log('🌍 Principios UNESCO integrados como brújula ética fundamental.');
+    console.log('\n✨ Mancy está lista para conversaciones profundas con memoria.');
+    console.log('🧠 Sistema de memoria avanzada activado: contexto emocional + historial.');
     console.log(`👤 Mi identidad: ${mancyIdentity.data.name}, ${mancyIdentity.getAge()} años, de ${mancyIdentity.data.origin}`);
     console.log(`🎯 Mi lucha: ${mancyIdentity.data.lore.current_mission} en Soul Garden`);
+    console.log('💭 Nuevos comandos: !memoria estado, !memoria historial, !memoria soulgarden');
     
     if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
         console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
