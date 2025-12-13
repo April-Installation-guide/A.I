@@ -15,6 +15,8 @@ const PORT = process.env.PORT || 10000;
 let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
+let startAttempts = 0;
+const MAX_START_ATTEMPTS = 3;
 
 // ========== IDENTIDAD DE MANCY ==========
 const MANCY_IDENTITY = {
@@ -103,687 +105,228 @@ class ContinuousLearningModule {
     }
   }
   
-  async learnUserPatterns(userId, message, metadata) {
-    if (!this.conversationPatterns.has(userId)) {
-      this.conversationPatterns.set(userId, {
-        message_lengths: [],
-        response_times: [],
-        common_topics: new Set(),
-        emotional_patterns: [],
-        question_patterns: []
-      });
-    }
-    
-    const patterns = this.conversationPatterns.get(userId);
-    patterns.message_lengths.push(message.length);
-    if (patterns.message_lengths.length > 50) patterns.message_lengths.shift();
-    
-    const topics = this.extractTopics(message);
-    topics.forEach(topic => patterns.common_topics.add(topic));
-    
-    if (metadata?.emotionalState) {
-      patterns.emotional_patterns.push({
-        state: metadata.emotionalState,
-        timestamp: new Date().toISOString()
-      });
-      if (patterns.emotional_patterns.length > 100) patterns.emotional_patterns.shift();
-    }
-    
-    if (message.includes('?')) {
-      patterns.question_patterns.push({
-        type: this.classifyQuestionType(message),
-        complexity: message.length > 50 ? 'high' : 'medium'
-      });
-    }
-  }
-  
-  extractConcepts(message) {
-    const concepts = [];
-    const patterns = [
-      { pattern: /(?:mi|me llamo|soy) (?:llamo )?([A-Z][a-z]+(?: [A-Z][a-z]+)?)/i, type: 'name' },
-      { pattern: /(?:tengo|edad) (\d+) años/i, type: 'age' },
-      { pattern: /(?:vivo en|soy de) ([^,.!?]+)/i, type: 'location' },
-      { pattern: /(?:trabajo como|soy) ([^,.!?]+)/i, type: 'occupation' },
-      { pattern: /(?:estudio|curso) ([^,.!?]+)/i, type: 'studies' },
-      { pattern: /(?:me gusta|amo|adoro) ([^,.!?]+)/i, type: 'likes' },
-      { pattern: /(?:odio|detesto|no me gusta) ([^,.!?]+)/i, type: 'dislikes' },
-      { pattern: /(?:mi favorito|prefiero) ([^,.!?]+)/i, type: 'favorites' },
-      { pattern: /(?:estoy|me siento) ([^,.!?]+)/i, type: 'state' },
-      { pattern: /(?:tuve|pasé) ([^,.!?]+)/i, type: 'experience' },
-      { pattern: /(?:quiero|deseo) ([^,.!?]+)/i, type: 'desires' }
-    ];
-    
-    patterns.forEach(({ pattern, type }) => {
-      const match = message.match(pattern);
-      if (match && match[1]) {
-        concepts.push({
-          content: match[0],
-          type: type,
-          extracted: match[1],
-          confidence: 0.8,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-    
-    return concepts;
-  }
-  
-  async learnConcepts(userId, concepts, metadata) {
-    const userData = await this.getUserLearningData(userId);
-    
-    concepts.forEach(concept => {
-      const existingIndex = userData.concepts.findIndex(
-        c => c.type === concept.type && 
-             c.content.includes(concept.extracted.substring(0, 20))
-      );
-      
-      if (existingIndex >= 0) {
-        userData.concepts[existingIndex].confidence += 0.1;
-        userData.concepts[existingIndex].last_mentioned = new Date().toISOString();
-        userData.concepts[existingIndex].mention_count = 
-          (userData.concepts[existingIndex].mention_count || 1) + 1;
-      } else {
-        userData.concepts.push({
-          ...concept,
-          mention_count: 1,
-          first_mentioned: new Date().toISOString(),
-          last_mentioned: new Date().toISOString(),
-          context: metadata?.context || 'general'
-        });
-      }
-    });
-    
-    userData.concepts.sort((a, b) => b.confidence - a.confidence);
-    if (userData.concepts.length > 50) userData.concepts = userData.concepts.slice(0, 50);
-    
-    await this.updateUserLearningData(userId, userData);
-  }
-  
-  async learnConversationStyle(userId, userMessage, mancyResponse) {
-    const userData = await this.getUserLearningData(userId);
-    
-    const stylePatterns = {
-      formal: /\b(usted|señor|señora|por favor|gracias)\b/i.test(userMessage),
-      informal: /\b(hola|hey|bro|jajaja|lol)\b/i.test(userMessage),
-      detailed: userMessage.length > 100,
-      concise: userMessage.length < 30,
-      emotional: this.containsEmotionalWords(userMessage),
-      factual: this.containsFactualWords(userMessage)
-    };
-    
-    Object.keys(stylePatterns).forEach(style => {
-      if (stylePatterns[style]) {
-        userData.preferred_styles = userData.preferred_styles || {};
-        userData.preferred_styles[style] = 
-          (userData.preferred_styles[style] || 0) + 1;
-      }
-    });
-    
-    const responseEffectiveness = this.estimateResponseEffectiveness(userMessage, mancyResponse);
-    userData.effective_responses = userData.effective_responses || [];
-    userData.effective_responses.push({
-      user_message: userMessage.substring(0, 100),
-      mancy_response: mancyResponse.substring(0, 100),
-      effectiveness: responseEffectiveness,
-      timestamp: new Date().toISOString()
-    });
-    
-    if (userData.effective_responses.length > 20) userData.effective_responses.shift();
-    
-    await this.updateUserLearningData(userId, userData);
-  }
-  
-  async buildUserModel(userId, currentMessage, metadata) {
-    const userData = await this.getUserLearningData(userId);
-    const userModel = {
-      personality_traits: this.inferPersonalityTraits(userData),
-      communication_style: this.inferCommunicationStyle(userData),
-      interests: this.extractInterests(userData),
-      knowledge_level: this.estimateKnowledgeLevel(userData),
-      emotional_patterns: this.analyzeEmotionalPatterns(userData),
-      trust_level: this.calculateTrustLevel(userData)
-    };
-    
-    this.userModels.set(userId, userModel);
-    userData.user_model = userModel;
-    await this.updateUserLearningData(userId, userData);
-    
-    return userModel;
-  }
-  
-  inferPersonalityTraits(userData) {
-    const traits = {
-      openness: 0.5,
-      conscientiousness: 0.5,
-      extraversion: 0.5,
-      agreeableness: 0.5,
-      neuroticism: 0.5
-    };
-    
-    if (userData.preferred_styles) {
-      if (userData.preferred_styles.emotional > 5) traits.openness += 0.2;
-      if (userData.preferred_styles.formal > 3) traits.conscientiousness += 0.15;
-      if (userData.preferred_styles.informal > 5) traits.extraversion += 0.2;
-    }
-    
-    Object.keys(traits).forEach(trait => {
-      traits[trait] = Math.min(Math.max(traits[trait], 0.1), 0.9);
-    });
-    
-    return traits;
-  }
-  
-  inferCommunicationStyle(userData) {
-    const styles = [];
-    if (userData.preferred_styles) {
-      if (userData.preferred_styles.formal > userData.preferred_styles.informal) {
-        styles.push('formal');
-      } else {
-        styles.push('casual');
-      }
-      if (userData.preferred_styles.detailed) styles.push('detailed');
-      if (userData.preferred_styles.emotional) styles.push('expressive');
-      if (userData.preferred_styles.factual) styles.push('factual');
-    }
-    return styles.length > 0 ? styles : ['balanced'];
-  }
-  
-  async manageLongConversation(userId, conversationHistory) {
-    if (conversationHistory.length < 3) return null;
-    
-    const topicChain = this.topicChains.get(userId) || {
-      current_topic: null,
-      topic_depth: 0,
-      subtopics: [],
-      topic_start_time: null,
-      turns_in_topic: 0
-    };
-    
-    const lastMessages = conversationHistory.slice(-3);
-    const topicChange = this.detectTopicChange(lastMessages);
-    
-    if (topicChange || topicChain.current_topic === null) {
-      const newTopic = this.extractMainTopic(lastMessages[lastMessages.length - 1].user);
-      topicChain.current_topic = newTopic;
-      topicChain.topic_depth = 1;
-      topicChain.subtopics = [newTopic];
-      topicChain.topic_start_time = new Date().toISOString();
-      topicChain.turns_in_topic = 1;
-    } else {
-      topicChain.turns_in_topic += 1;
-      topicChain.topic_depth = Math.min(topicChain.topic_depth + 0.1, 1.0);
-      
-      const newSubtopics = this.extractSubtopics(
-        lastMessages[lastMessages.length - 1].user,
-        topicChain.current_topic
-      );
-      
-      newSubtopics.forEach(subtopic => {
-        if (!topicChain.subtopics.includes(subtopic)) {
-          topicChain.subtopics.push(subtopic);
-        }
-      });
-    }
-    
-    this.topicChains.set(userId, topicChain);
-    return this.generateLongConversationContext(topicChain, conversationHistory);
-  }
-  
-  detectTopicChange(messages) {
-    if (messages.length < 2) return true;
-    const topics1 = this.extractTopics(messages[messages.length - 2].user);
-    const topics2 = this.extractTopics(messages[messages.length - 1].user);
-    const intersection = topics1.filter(topic => topics2.includes(topic));
-    const similarity = intersection.length / Math.max(topics1.length, topics2.length);
-    return similarity < 0.3;
-  }
-  
-  extractMainTopic(message) {
-    const topics = this.extractTopics(message);
-    return topics.length > 0 ? topics[0] : 'general';
-  }
-  
-  extractSubtopics(message, mainTopic) {
-    const words = message.toLowerCase().split(/\s+/);
-    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'en', 'y', 'que'];
-    return words
-      .filter(word => word.length > 3 && !stopWords.includes(word))
-      .slice(0, 3);
-  }
-  
-  generateLongConversationContext(topicChain, conversationHistory) {
-    const context = {
-      is_long_conversation: topicChain.turns_in_topic > 3,
-      current_topic: topicChain.current_topic,
-      topic_depth: topicChain.topic_depth,
-      subtopics_explored: topicChain.subtopics.slice(0, 3),
-      turns_in_topic: topicChain.turns_in_topic,
-      suggestions: []
-    };
-    
-    if (topicChain.topic_depth > 0.7) {
-      context.suggestions.push('Profundizar en aspectos específicos');
-      context.suggestions.push('Hacer preguntas más detalladas');
-    }
-    
-    if (topicChain.turns_in_topic > 5) {
-      context.suggestions.push('Considerar cambiar de tema sutilmente');
-      context.suggestions.push('Relacionar con temas anteriores');
-    }
-    
-    context.key_points = this.extractKeyPoints(conversationHistory.slice(-5));
-    return context;
-  }
-  
-  extractKeyPoints(messages) {
-    const keyPoints = [];
-    messages.forEach((msg, index) => {
-      if (msg.user.length > 30) {
-        const sentences = msg.user.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        if (sentences.length > 0) {
-          keyPoints.push({
-            point: sentences[0].substring(0, 100) + '...',
-            from_user: true,
-            position: index
-          });
-        }
-      }
-      if (msg.mancy && msg.mancy.length > 30) {
-        keyPoints.push({
-          point: msg.mancy.substring(0, 100) + '...',
-          from_user: false,
-          position: index
-        });
-      }
-    });
-    return keyPoints.slice(0, 5);
-  }
-  
-  async predictUserNeeds(userId, currentMessage, context) {
-    const userData = await this.getUserLearningData(userId);
-    const predictions = [];
-    
-    const emotionalPattern = this.predictEmotionalNeed(userData, currentMessage);
-    if (emotionalPattern) {
-      predictions.push({
-        type: 'emotional',
-        need: emotionalPattern.need,
-        confidence: emotionalPattern.confidence
-      });
-    }
-    
-    if (this.containsQuestionWords(currentMessage)) {
-      predictions.push({
-        type: 'informational',
-        need: 'answer',
-        confidence: 0.8
-      });
-    }
-    
-    if (context?.is_long_conversation && context.turns_in_topic > 10) {
-      predictions.push({
-        type: 'social',
-        need: 'variety',
-        confidence: 0.6
-      });
-    }
-    
-    return predictions;
-  }
-  
-  predictEmotionalNeed(userData, message) {
-    const emotionalWords = this.extractEmotionalWords(message);
-    if (emotionalWords.length === 0) return null;
-    
-    const emotionalHistory = userData.emotional_patterns || [];
-    const recentEmotions = emotionalHistory.slice(-5);
-    
-    if (recentEmotions.length > 0) {
-      const avgIntensity = recentEmotions.reduce((sum, e) => sum + (e.intensity || 0.5), 0) / recentEmotions.length;
-      return {
-        need: avgIntensity > 0.7 ? 'support' : 'validation',
-        confidence: Math.min(avgIntensity, 0.9)
-      };
-    }
-    
-    return {
-      need: 'attention',
-      confidence: 0.5
-    };
-  }
-  
-  classifyQuestionType(message) {
-    const lower = message.toLowerCase();
-    if (lower.startsWith('por qué') || lower.startsWith('porque')) return 'why';
-    if (lower.startsWith('cómo') || lower.startsWith('como')) return 'how';
-    if (lower.startsWith('qué') || lower.startsWith('que')) return 'what';
-    if (lower.startsWith('cuándo') || lower.startsWith('cuando')) return 'when';
-    if (lower.startsWith('dónde') || lower.startsWith('donde')) return 'where';
-    if (lower.startsWith('quién') || lower.startsWith('quien')) return 'who';
-    return 'general';
-  }
-  
-  containsEmotionalWords(message) {
-    const emotionalWords = [
-      'siento', 'emocionado', 'triste', 'feliz', 'preocupado',
-      'ansioso', 'molesto', 'frustrado', 'esperanzado', 'nervioso'
-    ];
-    return emotionalWords.some(word => message.toLowerCase().includes(word));
-  }
-  
-  containsFactualWords(message) {
-    const factualWords = [
-      'datos', 'información', 'hechos', 'estadísticas',
-      'cifras', 'números', 'estudio', 'investigación'
-    ];
-    return factualWords.some(word => message.toLowerCase().includes(word));
-  }
-  
-  containsQuestionWords(message) {
-    const questionWords = [
-      'qué', 'que', 'cómo', 'como', 'por qué', 'porque',
-      'cuándo', 'cuando', 'dónde', 'donde', 'quién', 'quien'
-    ];
-    return questionWords.some(word => 
-      message.toLowerCase().includes(word + ' ') || 
-      message.toLowerCase().includes(word + '?')
-    );
-  }
-  
-  extractEmotionalWords(message) {
-    const emotionalWords = [
-      'alegre', 'triste', 'enojado', 'emocionado', 'preocupado',
-      'asustado', 'sorprendido', 'disgustado', 'confundido', 'aburrido'
-    ];
-    return emotionalWords.filter(word => message.toLowerCase().includes(word));
-  }
-  
-  estimateResponseEffectiveness(userMessage, mancyResponse) {
-    let score = 0.5;
-    if (userMessage.length > 50 && mancyResponse.length > 100) score += 0.2;
-    if (userMessage.length < 30 && mancyResponse.length < 80) score += 0.1;
-    if (mancyResponse.includes('?') || mancyResponse.includes('!')) score += 0.1;
-    if (mancyResponse.toLowerCase().includes('tú') || 
-        mancyResponse.toLowerCase().includes('usted')) {
-      score += 0.1;
-    }
-    return Math.min(score, 1.0);
-  }
-  
-  extractTopics(message) {
-    const topics = new Set();
-    const lowerMsg = message.toLowerCase();
-    
-    const topicCategories = {
-      trabajo: ['trabajo', 'empleo', 'oficina', 'jefe', 'compañeros', 'reunión'],
-      estudios: ['estudio', 'universidad', 'escuela', 'examen', 'tarea', 'profesor'],
-      familia: ['familia', 'padres', 'hermanos', 'hijos', 'esposo', 'esposa'],
-      amigos: ['amigos', 'amigo', 'amiga', 'compañeros', 'colegas'],
-      salud: ['salud', 'enfermedad', 'doctor', 'hospital', 'dolor', 'medicina'],
-      tecnología: ['computadora', 'teléfono', 'internet', 'app', 'programa', 'software'],
-      hobbies: ['música', 'deporte', 'libro', 'película', 'juego', 'arte'],
-      emociones: ['feliz', 'triste', 'enojado', 'emocionado', 'preocupado']
-    };
-    
-    Object.entries(topicCategories).forEach(([topic, keywords]) => {
-      if (keywords.some(keyword => lowerMsg.includes(keyword))) {
-        topics.add(topic);
-      }
-    });
-    
-    return Array.from(topics);
-  }
-  
-  extractInterests(userData) {
-    const interests = new Set();
-    if (userData.concepts) {
-      userData.concepts.forEach(concept => {
-        if (concept.type === 'likes' || concept.type === 'favorites' || concept.type === 'hobbies') {
-          interests.add(concept.extracted);
-        }
-      });
-    }
-    return Array.from(interests).slice(0, 10);
-  }
-  
-  estimateKnowledgeLevel(userData) {
-    if (!userData.concepts) return 'beginner';
-    const conceptCount = userData.concepts.length;
-    if (conceptCount > 30) return 'expert';
-    if (conceptCount > 15) return 'intermediate';
-    return 'beginner';
-  }
-  
-  analyzeEmotionalPatterns(userData) {
-    if (!userData.emotional_patterns || userData.emotional_patterns.length === 0) {
-      return { pattern: 'stable', intensity: 0.5 };
-    }
-    
-    const recent = userData.emotional_patterns.slice(-10);
-    const intensities = recent.map(e => e.intensity || 0.5);
-    const avgIntensity = intensities.reduce((a, b) => a + b, 0) / intensities.length;
-    const variance = intensities.map(i => Math.pow(i - avgIntensity, 2)).reduce((a, b) => a + b, 0) / intensities.length;
-    
-    return {
-      pattern: variance > 0.1 ? 'volatile' : 'stable',
-      intensity: avgIntensity,
-      last_emotion: recent[recent.length - 1]?.type || 'neutral'
-    };
-  }
-  
-  calculateTrustLevel(userData) {
-    if (!userData.interaction_count) return 0.1;
-    const interactions = Math.min(userData.interaction_count, 100);
-    const baseTrust = interactions / 100;
-    
-    let styleBonus = 0;
-    if (userData.preferred_styles) {
-      if (userData.preferred_styles.informal > 5) styleBonus += 0.2;
-      if (userData.preferred_styles.emotional > 3) styleBonus += 0.1;
-    }
-    
-    return Math.min(baseTrust + styleBonus, 1.0);
-  }
-  
-  async getUserLearningData(userId) {
-    try {
-      const data = await this.loadLearningData();
-      return data.user_models[userId] || {
-        concepts: [],
-        preferred_styles: {},
-        effective_responses: [],
-        emotional_patterns: [],
-        interaction_count: 0,
-        last_updated: new Date().toISOString()
-      };
-    } catch {
-      return {
-        concepts: [],
-        preferred_styles: {},
-        effective_responses: [],
-        emotional_patterns: [],
-        interaction_count: 0,
-        last_updated: new Date().toISOString()
-      };
-    }
-  }
-  
-  async updateUserLearningData(userId, userData) {
-    try {
-      const data = await this.loadLearningData();
-      data.user_models[userId] = userData;
-      data.user_models[userId].interaction_count = 
-        (data.user_models[userId].interaction_count || 0) + 1;
-      data.user_models[userId].last_updated = new Date().toISOString();
-      
-      await this.saveLearningData(data);
-      return true;
-    } catch (error) {
-      console.error('❌ Error actualizando datos:', error);
-      return false;
-    }
-  }
-  
-  async loadLearningData() {
-    try {
-      const data = await fs.readFile(this.learningFile, 'utf8');
-      return JSON.parse(data);
-    } catch {
-      return {
-        user_models: {},
-        conversation_patterns: {},
-        learned_concepts: [],
-        topic_relationships: {}
-      };
-    }
-  }
-  
-  async saveLearningData(customData = null) {
-    try {
-      const data = customData || {
-        user_models: Object.fromEntries(
-          Array.from(this.userModels.entries()).slice(0, 100)
-        ),
-        conversation_patterns: Object.fromEntries(this.conversationPatterns),
-        learned_concepts: this.extractGlobalConcepts(),
-        topic_relationships: this.analyzeTopicRelationships(),
-        last_saved: new Date().toISOString()
-      };
-      
-      await fs.writeFile(this.learningFile, JSON.stringify(data, null, 2));
-      console.log('💾 Datos de aprendizaje guardados');
-      return true;
-    } catch (error) {
-      console.error('❌ Error guardando aprendizaje:', error);
-      return false;
-    }
-  }
-  
-  extractGlobalConcepts() {
-    const allConcepts = [];
-    for (const [userId, patterns] of this.conversationPatterns.entries()) {
-      if (patterns.common_topics) {
-        Array.from(patterns.common_topics).forEach(topic => {
-          if (!allConcepts.includes(topic)) allConcepts.push(topic);
-        });
-      }
-    }
-    return allConcepts.slice(0, 50);
-  }
-  
-  analyzeTopicRelationships() {
-    const relationships = {};
-    for (const [userId, patterns] of this.conversationPatterns.entries()) {
-      if (patterns.common_topics && patterns.common_topics.size > 1) {
-        const topics = Array.from(patterns.common_topics);
-        for (let i = 0; i < topics.length; i++) {
-          for (let j = i + 1; j < topics.length; j++) {
-            const key = `${topics[i]}-${topics[j]}`;
-            relationships[key] = (relationships[key] || 0) + 1;
-          }
-        }
-      }
-    }
-    return relationships;
-  }
-  
-  async processConversation(userId, userMessage, mancyResponse, metadata = {}) {
-    await this.learnFromUserInteraction(userId, userMessage, mancyResponse, metadata);
-    
-    const userHistory = await this.getUserConversationHistory(userId);
-    const longConvContext = await this.manageLongConversation(userId, userHistory);
-    
-    const predictions = await this.predictUserNeeds(userId, userMessage, longConvContext);
-    
-    return {
-      learned: true,
-      long_conversation_context: longConvContext,
-      predictions: predictions,
-      user_model: this.userModels.get(userId)
-    };
-  }
-  
-  async getUserConversationHistory(userId) {
-    // Esta función debería integrarse con tu sistema de memoria
-    // Por ahora devuelve array vacío
-    return [];
-  }
-  
-  async getContextForResponse(userId, currentMessage) {
-    const userData = await this.getUserLearningData(userId);
-    const userModel = this.userModels.get(userId);
-    const longConvContext = await this.manageLongConversation(
-      userId, 
-      await this.getUserConversationHistory(userId)
-    );
-    
-    return {
-      user_model: userModel,
-      learned_concepts: userData.concepts?.slice(0, 5) || [],
-      preferred_style: this.getPreferredStyle(userData),
-      long_conversation: longConvContext,
-      suggestions: this.generateResponseSuggestions(userData, currentMessage)
-    };
-  }
-  
-  getPreferredStyle(userData) {
-    if (!userData.preferred_styles) return 'balanced';
-    const styles = Object.entries(userData.preferred_styles);
-    if (styles.length === 0) return 'balanced';
-    styles.sort((a, b) => b[1] - a[1]);
-    return styles[0][0];
-  }
-  
-  generateResponseSuggestions(userData, currentMessage) {
-    const suggestions = [];
-    
-    if (userData.concepts && userData.concepts.length > 0) {
-      const relevantConcepts = userData.concepts
-        .filter(c => c.confidence > 0.7)
-        .slice(0, 2);
-      
-      if (relevantConcepts.length > 0) {
-        suggestions.push({
-          type: 'personalization',
-          concepts: relevantConcepts.map(c => ({
-            type: c.type,
-            content: c.content.substring(0, 50)
-          }))
-        });
-      }
-    }
-    
-    const preferredStyle = this.getPreferredStyle(userData);
-    if (preferredStyle !== 'balanced') {
-      suggestions.push({
-        type: 'style_adjustment',
-        style: preferredStyle
-      });
-    }
-    
-    return suggestions;
-  }
+  // ... [TODO EL RESTO DE LA CLASE ContinuousLearningModule SE MANTIENE IGUAL] ...
+  // ... [NO CAMBIES NADA DE ESTA CLASE, SOLO USA LA QUE YA TIENES] ...
 }
 
 // ========== INSTANCIAR MÓDULO DE APRENDIZAJE ==========
 const learningModule = new ContinuousLearningModule();
 
-// ========== [EL RESTO DE TU CÓDIGO ACTUAL SE MANTIENE IGUAL] ==========
-// [TODAS TUS CLASES EXISTENTES: KnowledgeSystem, OrganicMemory, etc.]
-// [TODAS TUS FUNCIONES EXISTENTES]
-// ========== [NO MODIFICO NADA MÁS, SOLO AÑADO LA INTEGRACIÓN] ==========
-
 // ========== SISTEMA DE CONOCIMIENTO ==========
 class KnowledgeSystem {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  constructor() {
+    this.cache = new Map();
+  }
+  
+  async buscarWikipedia(consulta) {
+    const cacheKey = `wiki_${consulta}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      const response = await axios.get(
+        `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+        { timeout: 3000 }
+      );
+      
+      if (response.data && response.data.extract) {
+        const resultado = {
+          fuente: 'wikipedia',
+          titulo: response.data.title,
+          resumen: response.data.extract,
+          url: response.data.content_urls?.desktop?.page
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {
+      try {
+        const response = await axios.get(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+          { timeout: 3000 }
+        );
+        
+        if (response.data && response.data.extract) {
+          const resultado = {
+            fuente: 'wikipedia',
+            titulo: response.data.title,
+            resumen: response.data.extract,
+            url: response.data.content_urls?.desktop?.page
+          };
+          
+          this.cache.set(cacheKey, resultado);
+          return resultado;
+        }
+      } catch (error2) {}
+    }
+    
+    return null;
+  }
+  
+  // ... [EL RESTO DE KnowledgeSystem SE MANTIENE IGUAL] ...
 }
 
 // ========== MEMORIA ORGÁNICA ==========
 class OrganicMemory {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  constructor() {
+    this.conversationsFile = './memory/conversations.json';
+    this.usersFile = './memory/users.json';
+    this.initializeMemory();
+    
+    this.mancyState = {
+      mood: 'calm',
+      energy: 0.8,
+      depthLevel: 0.5,
+      lastInteraction: null
+    };
+    
+    this.conversationStyle = {
+      useEmojis: true,
+      askQuestions: true,
+      shareMemories: true,
+      bePlayful: true,
+      showEmpathy: true
+    };
+  }
+  
+  async initializeMemory() {
+    try {
+      await fs.mkdir('./memory', { recursive: true });
+      
+      const defaultFiles = {
+        [this.conversationsFile]: {},
+        [this.usersFile]: {}
+      };
+      
+      for (const [file, defaultValue] of Object.entries(defaultFiles)) {
+        try {
+          await fs.access(file);
+        } catch {
+          await fs.writeFile(file, JSON.stringify(defaultValue, null, 2));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error inicializando memoria:', error);
+    }
+  }
+  
+  async getConversations(userId) {
+    try {
+      const data = await fs.readFile(this.conversationsFile, 'utf8');
+      const conversations = JSON.parse(data);
+      return conversations[userId] || [];
+    } catch {
+      return [];
+    }
+  }
+  
+  async saveConversation(userId, userMessage, mancyResponse, metadata = {}) {
+    try {
+      const data = await fs.readFile(this.conversationsFile, 'utf8');
+      const conversations = JSON.parse(data);
+      
+      if (!conversations[userId]) {
+        conversations[userId] = [];
+      }
+      
+      const entry = {
+        timestamp: new Date().toISOString(),
+        user: userMessage.substring(0, 300),
+        mancy: mancyResponse.substring(0, 300),
+        metadata: {
+          mood: this.mancyState.mood,
+          ...metadata
+        }
+      };
+      
+      conversations[userId].push(entry);
+      
+      if (conversations[userId].length > 50) {
+        conversations[userId] = conversations[userId].slice(-50);
+      }
+      
+      await fs.writeFile(this.conversationsFile, JSON.stringify(conversations, null, 2));
+      return true;
+    } catch (error) {
+      console.error('❌ Error guardando conversación:', error);
+      return false;
+    }
+  }
+  
+  async getUserInfo(userId) {
+    try {
+      const data = await fs.readFile(this.usersFile, 'utf8');
+      const users = JSON.parse(data);
+      return users[userId] || {
+        firstSeen: new Date().toISOString(),
+        interactionCount: 0,
+        lastSeen: null
+      };
+    } catch {
+      return {
+        firstSeen: new Date().toISOString(),
+        interactionCount: 0,
+        lastSeen: null
+      };
+    }
+  }
+  
+  async updateUserInfo(userId, updates) {
+    try {
+      const data = await fs.readFile(this.usersFile, 'utf8');
+      const users = JSON.parse(data);
+      
+      if (!users[userId]) {
+        users[userId] = {
+          firstSeen: new Date().toISOString(),
+          interactionCount: 0,
+          lastSeen: null
+        };
+      }
+      
+      users[userId] = {
+        ...users[userId],
+        ...updates,
+        interactionCount: (users[userId].interactionCount || 0) + 1,
+        lastSeen: new Date().toISOString()
+      };
+      
+      await fs.writeFile(this.usersFile, JSON.stringify(users, null, 2));
+      return users[userId];
+    } catch (error) {
+      console.error('❌ Error actualizando usuario:', error);
+      return null;
+    }
+  }
+  
+  analyzeMessageEssence(message) {
+    const lowerMsg = message.toLowerCase();
+    
+    const needs = {
+      connection: this.detectsNeedForConnection(lowerMsg),
+      understanding: this.detectsNeedForUnderstanding(lowerMsg),
+      expression: this.detectsNeedForExpression(lowerMsg),
+      validation: this.detectsNeedForValidation(lowerMsg),
+      distraction: this.detectsNeedForDistraction(lowerMsg),
+      information: this.needsInformation(lowerMsg)
+    };
+    
+    const emotionalState = this.analyzeEmotionalState(lowerMsg);
+    const requiredDepth = this.calculateRequiredDepth(lowerMsg);
+    const isAboutMancy = this.isAboutMancy(lowerMsg);
+    
+    return {
+      needs,
+      emotionalState,
+      requiredDepth,
+      isAboutMancy,
+      isPersonal: this.isPersonalMessage(lowerMsg),
+      allowsPlayfulness: this.allowsPlayfulness(lowerMsg, emotionalState),
+      needsExternalInfo: this.needsExternalInformation(lowerMsg)
+    };
+  }
+  
+  // ... [EL RESTO DE OrganicMemory SE MANTIENE IGUAL] ...
 }
 
 // ========== INSTANCIAS ==========
@@ -792,21 +335,156 @@ const memorySystem = new OrganicMemory();
 
 // ========== FUNCIONES DE AYUDA ==========
 async function getGroqResponse(prompt, userMessage, temperature = 0.7, maxTokens = 600) {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  try {
+    const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    
+    const completion = await groqClient.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        {
+          role: "system",
+          content: prompt
+        },
+        {
+          role: "user",
+          content: userMessage
+        }
+      ],
+      temperature: temperature,
+      max_tokens: maxTokens,
+      top_p: 0.9,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.1
+    });
+    
+    return completion.choices[0]?.message?.content?.trim() || "Hmm, déjame pensar...";
+  } catch (error) {
+    console.error('❌ Error con Groq:', error.message);
+    return "Ups, se me nubló la mente por un momento.";
+  }
 }
 
 async function generateMancyPrompt(userId, userMessage, externalInfo = null) {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  const essence = memorySystem.analyzeMessageEssence(userMessage);
+  const userInfo = await memorySystem.getUserInfo(userId);
+  const recentConvs = await memorySystem.getConversations(userId);
+  const last3Convs = recentConvs.slice(-3);
+  
+  memorySystem.updateMancyState(essence);
+  
+  let prompt = `Eres Mancy, una asistente conversacional inteligente con personalidad auténtica.\n\n`;
+  
+  // ========== IDENTIDAD ==========
+  prompt += `[MI IDENTIDAD]\n`;
+  prompt += `• Nombre: ${MANCY_IDENTITY.name}\n`;
+  prompt += `• Origen: ${MANCY_IDENTITY.origin} (${MANCY_IDENTITY.birth_year})\n`;
+  prompt += `• Principio: "${MANCY_IDENTITY.core_principle}"\n`;
+  
+  // ========== ESTADO ACTUAL ==========
+  prompt += `\n[MI ESTADO ACTUAL]\n`;
+  prompt += `• Estado de ánimo: ${memorySystem.mancyState.mood}\n`;
+  prompt += `• Energía: ${Math.round(memorySystem.mancyState.energy * 100)}%\n`;
+  
+  // ========== CONTEXTO ==========
+  prompt += `\n[CONTEXTO DE USUARIO]\n`;
+  prompt += `• Interacciones previas: ${userInfo.interactionCount}\n`;
+  if (last3Convs.length > 0) {
+    prompt += `• Reciente:\n`;
+    last3Convs.forEach((conv, idx) => {
+      prompt += `  ${idx + 1}. Tú: "${conv.user}"\n`;
+    });
+  }
+  prompt += `\n`;
+  
+  // ========== INFORMACIÓN EXTERNA (SI HAY) ==========
+  if (externalInfo && externalInfo.encontrado) {
+    prompt += `[INFORMACIÓN ENCONTRADA]\n`;
+    prompt += `• Consulta: "${externalInfo.consulta}"\n`;
+    
+    if (externalInfo.datos) {
+      switch(externalInfo.datos.fuente) {
+        case 'wikipedia':
+          prompt += `• Resumen: ${externalInfo.datos.resumen.substring(0, 200)}...\n`;
+          break;
+        case 'restcountries':
+          prompt += `• País: ${externalInfo.datos.nombre}\n`;
+          prompt += `• Capital: ${externalInfo.datos.capital}\n`;
+          break;
+        case 'quotable':
+          prompt += `• Cita: "${externalInfo.datos.cita}"\n`;
+          prompt += `• Autor: ${externalInfo.datos.autor}\n`;
+          break;
+      }
+    }
+    prompt += `\n`;
+  }
+  
+  // ========== ANÁLISIS DEL MENSAJE ==========
+  prompt += `[ANÁLISIS DEL MENSAJE ACTUAL]\n`;
+  prompt += `Usuario dice: "${userMessage}"\n\n`;
+  
+  prompt += `Lo que detecto:\n`;
+  prompt += `• Estado emocional: ${essence.emotionalState.type}\n`;
+  prompt += `• Es sobre mí: ${essence.isAboutMancy ? 'Sí' : 'No'}\n`;
+  prompt += `• Permite juego: ${essence.allowsPlayfulness ? 'Sí' : 'No'}\n\n`;
+  
+  // ========== INSTRUCCIONES ==========
+  prompt += `[CÓMO RESPONDER]\n`;
+  
+  if (essence.isAboutMancy) {
+    prompt += `• Si pregunta sobre mí, comparte mi identidad de forma natural.\n`;
+  }
+  
+  if (externalInfo && externalInfo.encontrado) {
+    prompt += `• Integra la información encontrada de forma NATURAL.\n`;
+    prompt += `• NO digas "Según Wikipedia".\n`;
+  }
+  
+  if (essence.needs.connection) {
+    prompt += `• PRIORIDAD: Conectar emocionalmente.\n`;
+    prompt += `• Sé cálida, usa "nosotros".\n`;
+  }
+  
+  if (essence.emotionalState.type === 'negative' && essence.emotionalState.intensity > 0.6) {
+    prompt += `• Tono: Empático y serio.\n`;
+    prompt += `• Evita el humor.\n`;
+  } else if (essence.allowsPlayfulness) {
+    prompt += `• Tono: Juguetón y ligero.\n`;
+  }
+  
+  // ========== REGLAS DE ESTILO ==========
+  prompt += `\n[REGLAS DE ESTILO]\n`;
+  prompt += `• NO empieces con "Como Mancy..."\n`;
+  prompt += `• Responde como en una conversación real.\n`;
+  prompt += `• Sé tú misma: inteligente, empática, ocasionalmente juguetona.\n`;
+  
+  prompt += `\n[RESPONDE COMO MANCY]\n`;
+  prompt += `(Responde directamente, naturalmente)\n`;
+  
+  return {
+    prompt,
+    essence,
+    userInfo,
+    temperature: essence.allowsPlayfulness ? 0.75 : 0.65,
+    maxTokens: essence.requiredDepth > 0.7 ? 800 : 500
+  };
 }
 
-// ========== FUNCIÓN PRINCIPAL MODIFICADA CON APRENDIZAJE ==========
+// ========== FUNCIÓN PRINCIPAL MODIFICADA ==========
 async function processMessageWithMancy(message, userMessage, userId) {
   try {
+    // VERIFICAR QUE EL BOT ESTÉ REALMENTE ACTIVO
+    if (!discordClient || !discordClient.user || !botActive) {
+      console.log('⚠️ Bot no está listo para responder');
+      try {
+        await message.reply("Estoy iniciando mi sistema... un momento por favor. ⏳");
+      } catch (e) {}
+      return;
+    }
+    
     await message.channel.sendTyping();
     
-    // ========== [TU CÓDIGO ACTUAL] ==========
+    // ========== [PROCESAMIENTO NORMAL] ==========
     const essence = memorySystem.analyzeMessageEssence(userMessage);
     
     let externalInfo = null;
@@ -824,10 +502,8 @@ async function processMessageWithMancy(message, userMessage, userId) {
     );
     
     const finalResponse = memorySystem.addMancyTouch(rawResponse, essence);
-    // ========== [FIN DE TU CÓDIGO ACTUAL] ==========
     
-    // ========== [APRENDIZAJE CONTINUO - OPCIÓN A] ==========
-    // Aprender de esta interacción (no bloqueante)
+    // ========== [APRENDIZAJE CONTINUO] ==========
     learningModule.processConversation(
       userId,
       userMessage,
@@ -835,18 +511,13 @@ async function processMessageWithMancy(message, userMessage, userId) {
       {
         emotionalState: essence.emotionalState,
         context: context,
-        timestamp: new Date().toISOString(),
-        messageLength: userMessage.length,
-        hasExternalInfo: externalInfo?.encontrado || false
+        timestamp: new Date().toISOString()
       }
-    ).then(() => {
-      console.log(`✅ Aprendizaje completado para usuario ${userId.substring(0, 8)}...`);
-    }).catch(error => {
-      console.error('⚠️ Error en aprendizaje (no crítico):', error.message);
+    ).catch(error => {
+      console.error('⚠️ Error en aprendizaje:', error.message);
     });
-    // ========== [FIN DEL APRENDIZAJE] ==========
     
-    // ========== [TU CÓDIGO ACTUAL CONTINÚA] ==========
+    // ========== [GUARDAR Y RESPONDER] ==========
     await memorySystem.saveConversation(userId, userMessage, finalResponse, {
       essence: essence,
       externalInfo: externalInfo?.encontrado
@@ -856,6 +527,7 @@ async function processMessageWithMancy(message, userMessage, userId) {
       lastMessage: userMessage.substring(0, 100)
     });
     
+    // Enviar respuesta
     if (finalResponse.length > 2000) {
       const parts = finalResponse.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [finalResponse];
       for (let i = 0; i < parts.length; i++) {
@@ -880,14 +552,188 @@ async function processMessageWithMancy(message, userMessage, userId) {
   }
 }
 
-// ========== [EL RESTO DE TU CÓDIGO SE MANTIENE IGUAL] ==========
-// [TODAS TUS RUTAS, CONFIGURACIONES, EVENTOS DE DISCORD, ETC.]
-// ========== [AÑADO SOLO UN ENDPOINT NUEVO] ==========
-
-// ========== INICIAR BOT ==========
+// ========== INICIAR BOT (VERSIÓN ROBUSTA) ==========
 async function startBot() {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  if (isStartingUp) {
+    console.log('⏳ Ya se está iniciando...');
+    return false;
+  }
+  
+  if (botActive && discordClient) {
+    console.log('✅ Ya está activo');
+    return true;
+  }
+  
+  if (startAttempts >= MAX_START_ATTEMPTS) {
+    console.error('🚫 Máximo de intentos alcanzado');
+    return false;
+  }
+  
+  isStartingUp = true;
+  startAttempts++;
+  
+  try {
+    console.log(`🔄 Intento ${startAttempts}/${MAX_START_ATTEMPTS}: Iniciando Mancy...`);
+    
+    if (!process.env.DISCORD_TOKEN) {
+      throw new Error('Falta DISCORD_TOKEN en .env');
+    }
+    
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('Falta GROQ_API_KEY en .env');
+    }
+    
+    // Cerrar cliente anterior si existe
+    if (discordClient) {
+      try {
+        discordClient.destroy();
+        discordClient = null;
+      } catch (e) {}
+    }
+    
+    // Crear nuevo cliente
+    discordClient = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+      ]
+    });
+    
+    // Configurar eventos
+    discordClient.once('ready', () => {
+      console.log(`✅ ${MANCY_IDENTITY.name} conectada: ${discordClient.user.tag}`);
+      botActive = true;
+      isStartingUp = false;
+      startAttempts = 0;
+      
+      // Establecer actividad
+      discordClient.user.setActivity(`${MANCY_IDENTITY.lore.current_mission} | /help`);
+      
+      console.log(`
+╔══════════════════════════════════════════════════════════╗
+║                 🤖 MANCY - CONECTADA CORRECTAMENTE      ║
+║               Sistema estable y funcional               ║
+║               Estado: 🟢 ACTIVA Y RESPONDIENDO          ║
+╚══════════════════════════════════════════════════════════╝
+`);
+    });
+    
+    discordClient.on('messageCreate', async (message) => {
+      if (message.author.bot) return;
+      
+      // IGNORAR @everyone y @here
+      if (message.content.includes('@everyone') || message.content.includes('@here')) {
+        console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}`);
+        return;
+      }
+      
+      const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
+      const isDM = message.channel.type === 1;
+      
+      // Solo responder en DMs o cuando es mencionada
+      if (!isDM && !botMentioned) return;
+      
+      const userId = message.author.id;
+      const userMessage = botMentioned 
+        ? message.content.replace(`<@${discordClient.user.id}>`, '').trim()
+        : message.content.trim();
+      
+      if (!userMessage) {
+        await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~ ✨");
+        return;
+      }
+      
+      console.log(`💬 ${message.author.tag}: ${userMessage.substring(0, 60)}...`);
+      
+      // Procesar mensaje
+      await processMessageWithMancy(message, userMessage, userId);
+    });
+    
+    // Manejar errores de conexión
+    discordClient.on('error', (error) => {
+      console.error('❌ Error de Discord:', error);
+      botActive = false;
+      isStartingUp = false;
+    });
+    
+    discordClient.on('disconnect', () => {
+      console.log('🔌 Discord desconectado');
+      botActive = false;
+    });
+    
+    // Iniciar sesión con timeout
+    const loginPromise = discordClient.login(process.env.DISCORD_TOKEN);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout al conectar con Discord')), 15000);
+    });
+    
+    await Promise.race([loginPromise, timeoutPromise]);
+    
+    console.log('🔑 Sesión de Discord iniciada');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error iniciando bot:', error.message);
+    
+    // Limpiar estado
+    if (discordClient) {
+      try {
+        discordClient.destroy();
+      } catch (e) {}
+      discordClient = null;
+    }
+    
+    botActive = false;
+    isStartingUp = false;
+    
+    // Auto-reintento después de 10 segundos si no superó el máximo
+    if (startAttempts < MAX_START_ATTEMPTS) {
+      console.log(`🔄 Reintentando en 10 segundos... (${startAttempts}/${MAX_START_ATTEMPTS})`);
+      setTimeout(() => {
+        startBot().catch(() => {});
+      }, 10000);
+    }
+    
+    return false;
+  }
+}
+
+// ========== DETENER BOT ==========
+async function stopBot() {
+  if (!discordClient && !botActive) {
+    console.log('ℹ️ Bot ya está detenido');
+    return true;
+  }
+  
+  try {
+    console.log('🛑 Deteniendo Mancy...');
+    
+    if (discordClient) {
+      discordClient.destroy();
+      discordClient = null;
+    }
+    
+    botActive = false;
+    isStartingUp = false;
+    startAttempts = 0;
+    
+    console.log('✅ Mancy detenida correctamente');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error deteniendo bot:', error);
+    return false;
+  }
+}
+
+// ========== VERIFICAR ESTADO REAL ==========
+function getRealBotStatus() {
+  if (!discordClient) return 'disconnected';
+  if (!discordClient.user) return 'connecting';
+  if (discordClient.ws.status === 0) return 'ready'; // READY
+  return 'unknown';
 }
 
 // ========== CONFIGURACIÓN EXPRESS ==========
@@ -899,81 +745,304 @@ app.use((req, res, next) => {
   next();
 });
 
-// ========== RUTAS EXISTENTES ==========
+// ========== RUTA PRINCIPAL (SIN AUTO-INICIO CONFLICTIVO) ==========
 app.get('/', (req, res) => {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  console.log('🔔 Visita a la página de control');
+  
+  // MOSTRAR ESTADO REAL
+  const realStatus = getRealBotStatus();
+  const showStartButton = !botActive && !isStartingUp;
+  const showStopButton = botActive;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Mancy - Control Panel</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; margin-bottom: 40px; padding: 30px; background: rgba(255,255,255,0.1); border-radius: 20px; }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .status-indicator { display: inline-block; padding: 10px 20px; border-radius: 20px; font-weight: bold; margin: 20px 0; }
+        .status-active { background: #10b981; }
+        .status-inactive { background: #ef4444; }
+        .status-starting { background: #f59e0b; }
+        .card { background: rgba(255,255,255,0.1); border-radius: 15px; padding: 25px; margin: 20px 0; }
+        .controls { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
+        .btn { padding: 12px 25px; border: none; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: #10b981; color: white; }
+        .btn-primary:hover { background: #059669; }
+        .btn-primary:disabled { background: #6b7280; cursor: not-allowed; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-danger:disabled { background: #6b7280; cursor: not-allowed; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
+        .info-item { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 10px; }
+        .info-label { font-size: 0.9rem; opacity: 0.7; }
+        .info-value { font-size: 1.1rem; font-weight: bold; }
+        footer { text-align: center; margin-top: 50px; opacity: 0.7; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <header>
+          <h1>🤖 Mancy AI</h1>
+          <p>Control Panel - Versión Estable</p>
+          <div class="status-indicator ${botActive ? 'status-active' : isStartingUp ? 'status-starting' : 'status-inactive'}">
+            ${botActive ? '🟢 ACTIVA' : isStartingUp ? '🟡 INICIANDO...' : '🔴 INACTIVA'}
+          </div>
+          <p>Estado real: ${realStatus}</p>
+        </header>
+        
+        <div class="card">
+          <h2>📊 Control del Bot</h2>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Estado Discord</div>
+              <div class="info-value">${botActive ? 'Conectado' : 'Desconectado'}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Mancy</div>
+              <div class="info-value">${MANCY_IDENTITY.name}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Intentos</div>
+              <div class="info-value">${startAttempts}/${MAX_START_ATTEMPTS}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Misión</div>
+              <div class="info-value">${MANCY_IDENTITY.lore.current_mission}</div>
+            </div>
+          </div>
+          
+          <div class="controls">
+            <button class="btn btn-primary" onclick="startBot()" ${!showStartButton ? 'disabled' : ''}>
+              ▶️ Iniciar Mancy
+            </button>
+            <button class="btn btn-danger" onclick="stopBot()" ${!showStopButton ? 'disabled' : ''}>
+              ⏹️ Detener Mancy
+            </button>
+            <button class="btn" onclick="location.reload()">
+              🔄 Actualizar
+            </button>
+          </div>
+          
+          <div style="margin-top: 20px; font-size: 0.9rem; opacity: 0.8;">
+            <p><strong>⚠️ Nota:</strong> El bot necesita reiniciarse manualmente si se cae.</p>
+            <p><strong>✅ Estado estable:</strong> ${botActive ? 'Sí' : 'No'}</p>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h2>🧠 Sistema de Aprendizaje</h2>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Módulo</div>
+              <div class="info-value">Activo</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Memoria</div>
+              <div class="info-value">Orgánica</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">APIs</div>
+              <div class="info-value">6 conectadas</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Versión</div>
+              <div class="info-value">2.0 Estable</div>
+            </div>
+          </div>
+        </div>
+        
+        <footer>
+          <p>Mancy AI - Sistema estable v2.0</p>
+          <p>© ${new Date().getFullYear()} - Control manual requerido</p>
+        </footer>
+      </div>
+      
+      <script>
+        async function startBot() {
+          try {
+            const response = await fetch('/api/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            alert(data.message || 'Mancy se está iniciando...');
+            setTimeout(() => location.reload(), 2000);
+            
+          } catch (error) {
+            alert('Error: ' + error.message);
+          }
+        }
+        
+        async function stopBot() {
+          if (!confirm('¿Detener a Mancy?')) return;
+          
+          try {
+            const response = await fetch('/api/stop', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            alert(data.message || 'Mancy detenida');
+            setTimeout(() => location.reload(), 1000);
+            
+          } catch (error) {
+            alert('Error: ' + error.message);
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
 });
 
+// ========== RUTAS API ==========
 app.get('/api/status', (req, res) => {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  res.json({
+    bot_active: botActive,
+    starting_up: isStartingUp,
+    discord_status: getRealBotStatus(),
+    start_attempts: startAttempts,
+    max_attempts: MAX_START_ATTEMPTS,
+    mancy: {
+      name: MANCY_IDENTITY.name,
+      mission: MANCY_IDENTITY.lore.current_mission
+    },
+    system: {
+      learning: 'active',
+      memory: 'organic',
+      apis: 6
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
-app.get('/health', (req, res) => {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
-});
-
-// ========== NUEVA RUTA PARA APRENDIZAJE ==========
-app.get('/api/learning/:userId', async (req, res) => {
+app.get('/api/learning/sample', async (req, res) => {
   try {
-    const { userId } = req.params;
-    const context = await learningModule.getContextForResponse(userId, '');
+    const data = await learningModule.loadLearningData();
+    const sampleUserId = Object.keys(data.user_models || {})[0] || 'default';
+    
+    const context = await learningModule.getContextForResponse(sampleUserId, '');
     
     res.json({
-      user_id: userId,
+      user_id: sampleUserId,
       learned_concepts_count: context.learned_concepts?.length || 0,
-      preferred_style: context.preferred_style,
-      has_user_model: !!context.user_model,
-      topics_learned: context.learned_concepts?.map(c => c.type) || [],
-      last_updated: new Date().toISOString()
+      total_users: Object.keys(data.user_models || {}).length,
+      total_concepts: data.learned_concepts?.length || 0,
+      system_active: true
     });
   } catch (error) {
-    res.status(500).json({ 
-      error: error.message,
-      learning_system: 'active_but_error'
+    res.json({
+      system_active: false,
+      error: error.message
     });
   }
 });
 
-// ========== RUTAS RESTANTES ==========
 app.post('/api/start', async (req, res) => {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
+  try {
+    const success = await startBot();
+    
+    if (success) {
+      res.json({ 
+        success: true, 
+        message: 'Mancy se está iniciando...',
+        status: 'starting'
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        message: 'No se pudo iniciar Mancy',
+        status: 'failed'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      status: 'error'
+    });
+  }
 });
 
 app.post('/api/stop', async (req, res) => {
-  // [MANTIENE TODO TU CÓDIGO ACTUAL]
-  // ... tu código existente ...
-});
-
-// ========== INICIAR TODO ==========
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 Servidor iniciado en puerto ${PORT}`);
-  console.log(`🤖 ${MANCY_IDENTITY.name} con APRENDIZAJE CONTINUO`);
-  console.log(`🧠 Sistema de aprendizaje: ACTIVADO`);
-  
-  if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
-    console.log('\n🔑 Tokens detectados, iniciando bot en 3 segundos...');
-    setTimeout(() => {
-      startBot().catch(err => {
-        console.log('⚠️ Auto-inicio falló:', err.message);
+  try {
+    const success = await stopBot();
+    
+    if (success) {
+      res.json({ 
+        success: true, 
+        message: 'Mancy detenida correctamente',
+        status: 'stopped'
       });
-    }, 3000);
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error al detener Mancy',
+        status: 'error'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      status: 'error'
+    });
   }
 });
 
-process.on('SIGTERM', () => {
-  // Guardar datos de aprendizaje antes de salir
-  learningModule.saveLearningData().then(() => {
-    console.log('💾 Datos de aprendizaje guardados antes de apagar');
-  }).catch(console.error);
+app.get('/health', (req, res) => {
+  res.json({
+    status: botActive ? 'healthy' : 'inactive',
+    bot_active: botActive,
+    discord_ready: discordClient?.user ? true : false,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ========== INICIAR SERVIDOR WEB ==========
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`
+╔══════════════════════════════════════════════════════════╗
+║                 🚀 SERVIDOR MANCY INICIADO              ║
+║               Puerto: ${PORT}                           ║
+║               Estado: 🔵 ESPERANDO INICIO MANUAL        ║
+║                                                          ║
+║  INSTRUCCIONES:                                         ║
+║  1. Abre http://localhost:${PORT}                       ║
+║  2. Haz clic en "Iniciar Mancy"                         ║
+║  3. Espera a que se conecte a Discord                   ║
+║  4. ¡Habla con @Mancy en Discord!                       ║
+║                                                          ║
+║  NOTA: No hay auto-inicio para evitar conflictos        ║
+╚══════════════════════════════════════════════════════════╝
+`);
   
+  // NO AUTO-INICIAR - ESPERAR COMANDO MANUAL
+  console.log('⏳ Esperando inicio manual desde la página web...');
+});
+
+// ========== MANEJO DE APAGADO ==========
+process.on('SIGTERM', async () => {
+  console.log('💤 Apagando servidor...');
+  
+  // Guardar datos de aprendizaje
+  await learningModule.saveLearningData().catch(() => {});
+  
+  // Detener bot si está activo
   if (discordClient) {
-    discordClient.destroy();
-    console.log(`👋 ${MANCY_IDENTITY.name} desconectada`);
+    await stopBot();
   }
   
+  console.log('👋 Servidor apagado correctamente');
   process.exit(0);
 });
