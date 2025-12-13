@@ -1,10 +1,26 @@
-// learning_module.js
+// ContinuousLearningModule.js
 import fs from 'fs/promises';
 import path from 'path';
 
 class ContinuousLearningModule {
     constructor() {
-        this.learningFile = './memory/learning_data.json';
+        // CORRECCIÓN 1: Usar path.join con __dirname para rutas robustas.
+        // Nota: __dirname no está disponible en módulos ES6. Usamos import.meta.url para simular.
+        // Asumiendo que este módulo se ejecuta dentro de un contexto de Node.js que simula __dirname,
+        // o que será integrado donde __dirname esté disponible. Si usas ES6 'type: module' en package.json,
+        // esto requiere una adaptación para obtener la ruta del directorio. Por simplicidad,
+        // adaptamos la inicialización para ser más compatible.
+
+        // Si usas ES Modules (import/export), la forma correcta de obtener el path del directorio es:
+        // const __filename = fileURLToPath(import.meta.url);
+        // const __dirname = dirname(__filename);
+        
+        // Mantendremos la versión corregida de rutas relativas con fs.promises,
+        // pero la ruta DEBE ser un path absoluto si se usa en un entorno complejo.
+        // Para este ejemplo, ajustaremos la ruta para que sea la correcta en el sistema de archivos:
+        this.baseDir = path.resolve('./');
+        this.learningFile = path.join(this.baseDir, 'memory', 'learning_data.json');
+
         this.conversationPatterns = new Map();
         this.userModels = new Map();
         this.topicChains = new Map(); // Para seguir temas en conversaciones largas
@@ -14,7 +30,9 @@ class ContinuousLearningModule {
     
     async initializeLearningSystem() {
         try {
-            await fs.mkdir('./memory', { recursive: true });
+            // CORRECCIÓN 2: Asegurar que el directorio 'memory' existe usando path.join para robustez.
+            const memoryPath = path.join(this.baseDir, 'memory');
+            await fs.mkdir(memoryPath, { recursive: true });
             
             try {
                 await fs.access(this.learningFile);
@@ -109,12 +127,12 @@ class ContinuousLearningModule {
     
     extractConcepts(message) {
         const concepts = [];
-        const lowerMsg = message.toLowerCase();
+        // Eliminamos lowerMsg porque los regex tienen la flag 'i'
         
         // Patrones para extraer conceptos importantes
         const patterns = [
-            // Hechos personales
-            { pattern: /(?:mi|me llamo|soy) (?:llamo )?([A-Z][a-z]+(?: [A-Z][a-z]+)?)/i, type: 'name' },
+            // CORRECCIÓN 3: Regex ajustado para capturar nombres con múltiples palabras y tildes/ñ/mayúsculas.
+            { pattern: /(?:mi|me llamo|soy) (?:llamo )?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?: [A-ZÁÉÍÓÚÑa-záéíóúñ]+)*)/i, type: 'name' },
             { pattern: /(?:tengo|edad) (\d+) años/i, type: 'age' },
             { pattern: /(?:vivo en|soy de) ([^,.!?]+)/i, type: 'location' },
             { pattern: /(?:trabajo como|soy) ([^,.!?]+)/i, type: 'occupation' },
@@ -230,8 +248,8 @@ class ContinuousLearningModule {
     async buildUserModel(userId, currentMessage, metadata) {
         const userData = await this.getUserLearningData(userId);
         
-        // Construir perfil psicológico básico
-        userModel = {
+        // CORRECCIÓN 4: Declarar 'userModel' con 'const'
+        const userModel = {
             personality_traits: this.inferPersonalityTraits(userData),
             communication_style: this.inferCommunicationStyle(userData),
             interests: this.extractInterests(userData),
@@ -240,6 +258,7 @@ class ContinuousLearningModule {
             trust_level: this.calculateTrustLevel(userData)
         };
         
+        // Guardar modelo en el Map para acceso rápido
         this.userModels.set(userId, userModel);
         
         // Guardar modelo actualizado
@@ -247,6 +266,31 @@ class ContinuousLearningModule {
         await this.updateUserLearningData(userId, userData);
         
         return userModel;
+    }
+
+    // CORRECCIÓN 5: Implementación de funciones dummy para evitar errores (eran llamadas pero no definidas)
+    extractInterests(userData) { 
+        // Lógica para analizar intereses a partir de userData.concepts (type: 'likes', 'favorites', etc.)
+        const interests = userData.concepts?.filter(c => ['likes', 'favorites'].includes(c.type)).map(c => c.extracted) || [];
+        return interests.slice(0, 5); 
+    }
+    
+    estimateKnowledgeLevel(userData) { 
+        // Lógica para estimar nivel a partir de la longitud de las preguntas (question_patterns) o temas
+        return userData.user_model?.knowledge_level || 0.5; 
+    }
+
+    analyzeEmotionalPatterns(userData) {
+        // Devuelve el historial emocional reciente.
+        const patterns = this.conversationPatterns.get(userData.userId)?.emotional_patterns || [];
+        return patterns.slice(-5);
+    }
+
+    calculateTrustLevel(userData) {
+        // Calcula confianza basada en interacciones y efectividad de respuestas.
+        const effectiveness = userData.effective_responses?.reduce((sum, r) => sum + r.effectiveness, 0) || 0;
+        const count = userData.effective_responses?.length || 1;
+        return (effectiveness / count) * userData.interaction_count / 100 + 0.5; 
     }
     
     inferPersonalityTraits(userData) {
@@ -277,10 +321,16 @@ class ContinuousLearningModule {
         const styles = [];
         
         if (userData.preferred_styles) {
-            if (userData.preferred_styles.formal > userData.preferred_styles.informal) {
+            // CORRECCIÓN 6: Revisión de la lógica de comparación para evitar errores si 'informal' o 'formal' son undefined
+            const formalCount = userData.preferred_styles.formal || 0;
+            const informalCount = userData.preferred_styles.informal || 0;
+
+            if (formalCount > informalCount) {
                 styles.push('formal');
-            } else {
+            } else if (informalCount > formalCount) {
                 styles.push('casual');
+            } else {
+                styles.push('balanced');
             }
             
             if (userData.preferred_styles.detailed) styles.push('detailed');
@@ -464,10 +514,12 @@ class ContinuousLearningModule {
         if (emotionalWords.length === 0) return null;
         
         // Analizar patrones emocionales previos
-        const emotionalHistory = userData.emotional_patterns || [];
+        const userPatterns = this.conversationPatterns.get(userData.userId);
+        const emotionalHistory = userPatterns?.emotional_patterns || [];
         const recentEmotions = emotionalHistory.slice(-5);
         
         if (recentEmotions.length > 0) {
+            // Nota: No se está asignando 'intensity' en learnUserPatterns, por lo que asumimos 0.5
             const avgIntensity = recentEmotions.reduce((sum, e) => sum + (e.intensity || 0.5), 0) / recentEmotions.length;
             
             return {
@@ -588,8 +640,25 @@ class ContinuousLearningModule {
     
     async getUserLearningData(userId) {
         try {
-            const data = await this.loadLearningData();
-            return data.user_models[userId] || {
+            // CORRECCIÓN 7: Se elimina la carga de loadLearningData() aquí para evitar 
+            // la lectura del archivo en CADA interacción. Solo se lee al inicio y se usa el Map.
+            // Si el userModel está en la RAM (this.userModels), lo usamos. Si no, lo creamos.
+
+            // Buscamos el modelo en el Map (RAM)
+            let userData = this.userModels.get(userId);
+            
+            if (!userData) {
+                // Si no está en RAM, cargamos la data global del disco (si es la primera vez)
+                const data = await this.loadLearningData(); 
+                userData = data.user_models[userId];
+
+                if (userData) {
+                    this.userModels.set(userId, userData.user_model); // Restauramos el modelo en RAM
+                }
+            }
+            
+            // Si aún no existe, retornamos la estructura base
+            return userData || {
                 concepts: [],
                 preferred_styles: {},
                 effective_responses: [],
@@ -597,7 +666,8 @@ class ContinuousLearningModule {
                 interaction_count: 0,
                 last_updated: new Date().toISOString()
             };
-        } catch {
+        } catch(error) {
+            console.error("Error obteniendo datos de usuario, usando fallback:", error);
             return {
                 concepts: [],
                 preferred_styles: {},
@@ -611,13 +681,14 @@ class ContinuousLearningModule {
     
     async updateUserLearningData(userId, userData) {
         try {
-            const data = await this.loadLearningData();
-            data.user_models[userId] = userData;
-            data.user_models[userId].interaction_count = 
-                (data.user_models[userId].interaction_count || 0) + 1;
-            data.user_models[userId].last_updated = new Date().toISOString();
+            // No cargamos todo el archivo aquí, solo actualizamos el Map.
+            // El guardado en disco se hace en saveLearningData() de forma periódica.
+            this.userModels.set(userId, userData); // Actualizar Map de RAM
             
-            await this.saveLearningData(data);
+            // Lógica de conteo de interacciones
+            userData.interaction_count = (userData.interaction_count || 0) + 1;
+            userData.last_updated = new Date().toISOString();
+            
             return true;
         } catch (error) {
             console.error('❌ Error actualizando datos:', error);
@@ -628,8 +699,18 @@ class ContinuousLearningModule {
     async loadLearningData() {
         try {
             const data = await fs.readFile(this.learningFile, 'utf8');
-            return JSON.parse(data);
+            const parsedData = JSON.parse(data);
+
+            // Restaurar Maps desde el JSON al cargar
+            this.conversationPatterns = new Map(Object.entries(parsedData.conversation_patterns || {}));
+            this.userModels = new Map(Object.entries(parsedData.user_models || {}));
+            
+            return parsedData;
         } catch {
+            // Si falla la lectura, inicializar Maps vacíos y devolver estructura vacía
+            this.conversationPatterns = new Map();
+            this.userModels = new Map();
+
             return {
                 user_models: {},
                 conversation_patterns: {},
@@ -641,6 +722,7 @@ class ContinuousLearningModule {
     
     async saveLearningData(customData = null) {
         try {
+            // Garantizar que solo se serialicen los objetos, no los Maps
             const data = customData || {
                 user_models: Object.fromEntries(
                     Array.from(this.userModels.entries()).slice(0, 100) // Limitar tamaño
@@ -718,8 +800,9 @@ class ContinuousLearningModule {
     
     async getUserConversationHistory(userId) {
         try {
-            // Esto debería integrarse con tu sistema de memoria existente
-            // Por ahora, devuelve un array vacío
+            // 🚨 ATENCIÓN: Esta función DEBE ser implementada e integrada 
+            // con tu sistema de memoria (ej. una base de datos o UserMemory.js).
+            // Devuelve un array de la forma: [{ user: 'msg', mancy: 'resp' }, ...]
             return [];
         } catch {
             return [];
