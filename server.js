@@ -12,11 +12,113 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Configurar middleware para servir archivos estáticos
+app.use(express.static('public'));
+app.use(express.json());
+
 let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 let startAttempts = 0;
 const MAX_START_ATTEMPTS = 3;
+
+// ========== RUTAS PARA CONTROL DEL BOT ==========
+app.get('/api/bot/status', (req, res) => {
+    res.json({
+        active: botActive,
+        startingUp: isStartingUp,
+        startAttempts: startAttempts,
+        maxAttempts: MAX_START_ATTEMPTS,
+        memory_stats: {
+            totalMessages: 0,
+            totalUsers: 0,
+            queriesProcessed: 0
+        },
+        capabilities: ["wikipedia", "knowledge", "learning", "memory"],
+        version: "3.0 - Super Inteligente"
+    });
+});
+
+app.post('/api/bot/start', (req, res) => {
+    if (botActive) {
+        return res.json({ success: false, message: 'El bot ya está activo' });
+    }
+    
+    if (isStartingUp) {
+        return res.json({ success: false, message: 'El bot ya se está iniciando' });
+    }
+    
+    try {
+        initializeDiscordClient();
+        res.json({ 
+            success: true, 
+            message: 'Iniciando bot...',
+            status: 'starting'
+        });
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            message: 'Error al iniciar: ' + error.message
+        });
+    }
+});
+
+app.post('/api/bot/stop', (req, res) => {
+    if (!botActive && !isStartingUp) {
+        return res.json({ success: false, message: 'El bot ya está detenido' });
+    }
+    
+    try {
+        botActive = false;
+        isStartingUp = false;
+        
+        if (discordClient) {
+            discordClient.destroy();
+            discordClient = null;
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'Bot detenido correctamente',
+            status: 'stopped'
+        });
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            message: 'Error al detener: ' + error.message
+        });
+    }
+});
+
+// Nueva ruta para estadísticas de memoria
+app.get('/api/memory/stats', async (req, res) => {
+    try {
+        const stats = {
+            total_messages: 0,
+            memory_file_size: "0 MB",
+            users_count: 0
+        };
+        
+        try {
+            const data = await fs.readFile('./memory/conversations.json', 'utf8');
+            const conversations = JSON.parse(data);
+            
+            // Contar mensajes totales
+            stats.total_messages = Object.values(conversations).reduce((total, convs) => total + convs.length, 0);
+            stats.users_count = Object.keys(conversations).length;
+            
+            // Obtener tamaño del archivo
+            const fileInfo = await fs.stat('./memory/conversations.json');
+            stats.memory_file_size = `${(fileInfo.size / 1024).toFixed(2)} KB`;
+        } catch (error) {
+            console.log('Archivo de memoria no encontrado, usando valores por defecto');
+        }
+        
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: 'Error obteniendo estadísticas' });
+    }
+});
 
 // ========== IDENTIDAD DE MANCY ==========
 const MANCY_IDENTITY = {
@@ -714,8 +816,6 @@ Responde **solamente** en formato JSON con las llaves: 'conclusion', 'mejoras', 
         }
     }
     
-    // ... (El resto de OrganicMemory se mantiene igual hasta analyzeMessageEssence) ...
-
     async getConversations(userId) {
         try {
             const data = await fs.readFile(this.conversationsFile, 'utf8');
@@ -1254,6 +1354,7 @@ function initializeDiscordClient() {
         console.log(`🤖 Mancy ha despertado como ${discordClient.user.tag}!`);
         botActive = true;
         isStartingUp = false;
+        startAttempts = 0;
         // Lanzar una revisión de memoria al iniciar
         memorySystem.conductMemoryReview();
     });
@@ -1312,7 +1413,8 @@ function initializeDiscordClient() {
     discordClient.on('error', (error) => {
         console.error('❌ Error en el cliente de Discord:', error);
         botActive = false;
-        if (!isStartingUp && startAttempts < MAX_START_ATTEMPTS) {
+        isStartingUp = false;
+        if (startAttempts < MAX_START_ATTEMPTS) {
             console.log(`Intentando reconectar en 5 segundos... Intento ${startAttempts}/${MAX_START_ATTEMPTS}`);
             setTimeout(initializeDiscordClient, 5000);
         } else if (startAttempts >= MAX_START_ATTEMPTS) {
@@ -1324,6 +1426,7 @@ function initializeDiscordClient() {
         discordClient.login(process.env.DISCORD_TOKEN);
     } catch (error) {
         console.error('❌ Error al intentar iniciar sesión en Discord:', error);
+        botActive = false;
         isStartingUp = false;
     }
 }
@@ -1392,11 +1495,30 @@ async function processMessageWithMancy(message, userMessage, userId) {
 
 // ========== INICIO DEL SERVIDOR WEB Y DISCORD ==========
 
+// Mantener ruta /api/status para compatibilidad con el HTML
+app.get('/api/status', (req, res) => {
+    res.json({
+        bot_active: botActive,
+        starting_up: isStartingUp,
+        memory_stats: {
+            totalMessages: 0,
+            totalUsers: 0,
+            queriesProcessed: 0
+        },
+        capabilities: ["wikipedia", "knowledge", "learning", "memory"],
+        version: "3.0 - Super Inteligente"
+    });
+});
+
+// Ruta principal sirve el HTML
 app.get('/', (req, res) => {
-    res.send('Mancy está corriendo!');
+    res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
     console.log(`🌐 Servidor Express escuchando en el puerto ${PORT}`);
-    initializeDiscordClient();
+    console.log(`📁 Sirviendo archivos estáticos desde la carpeta 'public'`);
+    
+    // Iniciar el bot automáticamente al arrancar el servidor (opcional)
+    // initializeDiscordClient();
 });
