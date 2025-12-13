@@ -70,19 +70,119 @@ class ContinuousLearningModule {
       
       try {
         await fs.access(this.learningFile);
-        await this.loadLearningData();
+        // PARCHE: Verificar que el método existe antes de llamarlo
+        if (typeof this.loadLearningData === 'function') {
+          await this.loadLearningData();
+        } else {
+          console.warn('⚠️ loadLearningData no es una función, cargando datos básicos');
+        }
       } catch {
-        await this.saveLearningData({
-          user_models: {},
-          conversation_patterns: {},
-          learned_concepts: [],
-          topic_relationships: {}
-        });
+        // PARCHE: Verificar que el método existe antes de llamarlo
+        if (typeof this.saveLearningData === 'function') {
+          await this.saveLearningData({
+            user_models: {},
+            conversation_patterns: {},
+            learned_concepts: [],
+            topic_relationships: {}
+          });
+        } else {
+          // Crear archivo vacío si no existe el método
+          console.warn('⚠️ saveLearningData no es una función, creando archivo básico');
+          await fs.writeFile(
+            this.learningFile,
+            JSON.stringify({
+              user_models: {},
+              conversation_patterns: {},
+              learned_concepts: [],
+              topic_relationships: {}
+            }, null, 2),
+            'utf8'
+          );
+        }
       }
       
       console.log('🧠 Módulo de aprendizaje continuo inicializado');
     } catch (error) {
       console.error('❌ Error inicializando aprendizaje:', error);
+    }
+  }
+  
+  async saveLearningData(data = null) {
+    try {
+      const saveData = data || {
+        user_models: Object.fromEntries(this.userModels),
+        conversation_patterns: Object.fromEntries(this.conversationPatterns),
+        learned_concepts: this.extractLearnedConcepts() || [],
+        topic_relationships: Object.fromEntries(this.topicChains)
+      };
+
+      await fs.writeFile(
+        this.learningFile,
+        JSON.stringify(saveData, null, 2),
+        'utf8'
+      );
+      
+      console.log('💾 Datos de aprendizaje guardados');
+      return true;
+    } catch (error) {
+      console.error('❌ Error guardando datos de aprendizaje:', error);
+      return false;
+    }
+  }
+  
+  async loadLearningData() {
+    try {
+      const data = await fs.readFile(this.learningFile, 'utf8');
+      const parsed = JSON.parse(data);
+      
+      // Cargar datos en las estructuras
+      if (parsed.user_models) {
+        this.userModels = new Map(Object.entries(parsed.user_models));
+      }
+      
+      if (parsed.conversation_patterns) {
+        this.conversationPatterns = new Map(Object.entries(parsed.conversation_patterns));
+      }
+      
+      if (parsed.topic_relationships) {
+        this.topicChains = new Map(Object.entries(parsed.topic_relationships));
+      }
+      
+      console.log('📂 Datos de aprendizaje cargados');
+      return parsed;
+    } catch (error) {
+      console.error('❌ Error cargando datos:', error);
+      return null;
+    }
+  }
+  
+  extractLearnedConcepts() {
+    // Método auxiliar para extraer conceptos aprendidos
+    try {
+      const concepts = [];
+      
+      // Extraer de userModels
+      for (const [userId, model] of this.userModels.entries()) {
+        if (model.interests) {
+          concepts.push(...model.interests);
+        }
+        if (model.topics) {
+          concepts.push(...model.topics);
+        }
+      }
+      
+      // Extraer de conversationPatterns
+      for (const [pattern, data] of this.conversationPatterns.entries()) {
+        if (data.relatedConcepts) {
+          concepts.push(...data.relatedConcepts);
+        }
+      }
+      
+      // Devolver conceptos únicos
+      return [...new Set(concepts)];
+    } catch (error) {
+      console.error('❌ Error extrayendo conceptos:', error);
+      return [];
     }
   }
   
@@ -105,8 +205,300 @@ class ContinuousLearningModule {
     }
   }
   
-  // ... [TODO EL RESTO DE LA CLASE ContinuousLearningModule SE MANTIENE IGUAL] ...
-  // ... [NO CAMBIES NADA DE ESTA CLASE, SOLO USA LA QUE YA TIENES] ...
+  async learnUserPatterns(userId, message, metadata) {
+    try {
+      const userPatterns = this.conversationPatterns.get(userId) || {
+        messageCount: 0,
+        averageLength: 0,
+        commonWords: [],
+        emotionalPatterns: [],
+        lastUpdated: new Date().toISOString()
+      };
+      
+      userPatterns.messageCount++;
+      userPatterns.lastUpdated = new Date().toISOString();
+      
+      if (metadata && metadata.emotionalState) {
+        userPatterns.emotionalPatterns.push({
+          type: metadata.emotionalState.type,
+          intensity: metadata.emotionalState.intensity,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (userPatterns.emotionalPatterns.length > 20) {
+          userPatterns.emotionalPatterns = userPatterns.emotionalPatterns.slice(-20);
+        }
+      }
+      
+      this.conversationPatterns.set(userId, userPatterns);
+      return true;
+    } catch (error) {
+      console.error('❌ Error aprendiendo patrones:', error);
+      return false;
+    }
+  }
+  
+  extractConcepts(message) {
+    try {
+      const words = message.toLowerCase()
+        .replace(/[^\w\sáéíóúñ]/g, '')
+        .split(/\s+/)
+        .filter(word => word.length > 3);
+      
+      const commonWords = ['como', 'para', 'esto', 'aquí', 'donde', 'cuando', 'porque'];
+      const filtered = words.filter(word => !commonWords.includes(word));
+      
+      return [...new Set(filtered)].slice(0, 10);
+    } catch (error) {
+      console.error('❌ Error extrayendo conceptos:', error);
+      return [];
+    }
+  }
+  
+  async learnConcepts(userId, concepts, metadata) {
+    try {
+      if (!concepts || concepts.length === 0) return false;
+      
+      const userModel = this.userModels.get(userId) || {
+        userId,
+        interests: [],
+        topics: [],
+        learningRate: 0.1,
+        lastLearned: new Date().toISOString()
+      };
+      
+      for (const concept of concepts) {
+        if (!userModel.interests.includes(concept)) {
+          userModel.interests.push(concept);
+        }
+        
+        if (!userModel.topics.includes(concept)) {
+          userModel.topics.push(concept);
+        }
+      }
+      
+      userModel.interests = [...new Set(userModel.interests)].slice(0, 50);
+      userModel.topics = [...new Set(userModel.topics)].slice(0, 50);
+      userModel.lastLearned = new Date().toISOString();
+      
+      this.userModels.set(userId, userModel);
+      return true;
+    } catch (error) {
+      console.error('❌ Error aprendiendo conceptos:', error);
+      return false;
+    }
+  }
+  
+  async learnConversationStyle(userId, userMessage, mancyResponse) {
+    try {
+      // Analizar longitud y tipo de respuesta
+      const userLength = userMessage.length;
+      const mancyLength = mancyResponse.length;
+      
+      const userModel = this.userModels.get(userId) || {
+        userId,
+        conversationStyle: {
+          prefersShort: false,
+          prefersDetailed: false,
+          responseRatio: 1.0
+        }
+      };
+      
+      if (!userModel.conversationStyle) {
+        userModel.conversationStyle = {
+          prefersShort: false,
+          prefersDetailed: false,
+          responseRatio: 1.0
+        };
+      }
+      
+      // Actualizar ratio de respuesta
+      if (userLength > 0) {
+        const ratio = mancyLength / userLength;
+        userModel.conversationStyle.responseRatio = 
+          (userModel.conversationStyle.responseRatio * 0.9) + (ratio * 0.1);
+      }
+      
+      this.userModels.set(userId, userModel);
+      return true;
+    } catch (error) {
+      console.error('❌ Error aprendiendo estilo:', error);
+      return false;
+    }
+  }
+  
+  async buildUserModel(userId, message, metadata) {
+    try {
+      const userModel = this.userModels.get(userId) || {
+        userId,
+        firstInteraction: new Date().toISOString(),
+        interactionCount: 0,
+        interests: [],
+        topics: [],
+        emotionalHistory: [],
+        conversationStyle: {
+          prefersShort: false,
+          prefersDetailed: false,
+          responseRatio: 1.0
+        }
+      };
+      
+      userModel.interactionCount = (userModel.interactionCount || 0) + 1;
+      userModel.lastInteraction = new Date().toISOString();
+      
+      if (metadata && metadata.emotionalState) {
+        userModel.emotionalHistory = userModel.emotionalHistory || [];
+        userModel.emotionalHistory.push({
+          type: metadata.emotionalState.type,
+          intensity: metadata.emotionalState.intensity,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (userModel.emotionalHistory.length > 50) {
+          userModel.emotionalHistory = userModel.emotionalHistory.slice(-50);
+        }
+      }
+      
+      this.userModels.set(userId, userModel);
+      return userModel;
+    } catch (error) {
+      console.error('❌ Error construyendo modelo:', error);
+      return null;
+    }
+  }
+  
+  async processConversation(userId, userMessage, mancyResponse, metadata = {}) {
+    try {
+      // Aprender de la interacción
+      await this.learnFromUserInteraction(userId, userMessage, mancyResponse, metadata);
+      
+      // Actualizar cadenas de temas
+      await this.updateTopicChains(userId, userMessage, metadata);
+      
+      return {
+        success: true,
+        userModel: this.userModels.get(userId),
+        patterns: this.conversationPatterns.get(userId)
+      };
+    } catch (error) {
+      console.error('❌ Error procesando conversación:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+  
+  async updateTopicChains(userId, message, metadata) {
+    try {
+      const concepts = this.extractConcepts(message);
+      if (concepts.length === 0) return false;
+      
+      const userChains = this.topicChains.get(userId) || {
+        topics: [],
+        transitions: new Map(),
+        lastTopic: null
+      };
+      
+      const currentTopic = concepts[0];
+      
+      if (userChains.lastTopic && userChains.lastTopic !== currentTopic) {
+        const transitionKey = `${userChains.lastTopic}->${currentTopic}`;
+        userChains.transitions.set(
+          transitionKey,
+          (userChains.transitions.get(transitionKey) || 0) + 1
+        );
+      }
+      
+      if (!userChains.topics.includes(currentTopic)) {
+        userChains.topics.push(currentTopic);
+        userChains.topics = [...new Set(userChains.topics)].slice(0, 100);
+      }
+      
+      userChains.lastTopic = currentTopic;
+      this.topicChains.set(userId, userChains);
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error actualizando cadenas:', error);
+      return false;
+    }
+  }
+  
+  async getContextForResponse(userId, currentMessage) {
+    try {
+      const userModel = this.userModels.get(userId);
+      const patterns = this.conversationPatterns.get(userId);
+      const topicChain = this.topicChains.get(userId);
+      
+      const context = {
+        userExists: !!userModel,
+        interests: userModel?.interests || [],
+        recentTopics: topicChain?.topics?.slice(-5) || [],
+        conversationStyle: userModel?.conversationStyle,
+        emotionalPattern: this.getEmotionalPattern(userId),
+        learned_concepts: this.extractLearnedConcepts()
+      };
+      
+      return context;
+    } catch (error) {
+      console.error('❌ Error obteniendo contexto:', error);
+      return {
+        userExists: false,
+        interests: [],
+        recentTopics: [],
+        conversationStyle: null,
+        emotionalPattern: null,
+        learned_concepts: []
+      };
+    }
+  }
+  
+  getEmotionalPattern(userId) {
+    try {
+      const patterns = this.conversationPatterns.get(userId);
+      if (!patterns || !patterns.emotionalPatterns || patterns.emotionalPatterns.length === 0) {
+        return null;
+      }
+      
+      const recentPatterns = patterns.emotionalPatterns.slice(-10);
+      const types = recentPatterns.map(p => p.type);
+      
+      const typeCounts = {};
+      types.forEach(type => {
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+      });
+      
+      const mostCommon = Object.keys(typeCounts).reduce((a, b) => 
+        typeCounts[a] > typeCounts[b] ? a : b
+      );
+      
+      const avgIntensity = recentPatterns.reduce((sum, p) => sum + p.intensity, 0) / recentPatterns.length;
+      
+      return {
+        dominantMood: mostCommon,
+        averageIntensity: avgIntensity,
+        moodStability: this.calculateMoodStability(recentPatterns)
+      };
+    } catch (error) {
+      console.error('❌ Error obteniendo patrón emocional:', error);
+      return null;
+    }
+  }
+  
+  calculateMoodStability(patterns) {
+    try {
+      if (patterns.length < 2) return 1.0;
+      
+      const intensities = patterns.map(p => p.intensity);
+      const avg = intensities.reduce((a, b) => a + b) / intensities.length;
+      const variance = intensities.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / intensities.length;
+      
+      return Math.max(0, 1 - Math.sqrt(variance));
+    } catch (error) {
+      return 0.5;
+    }
+  }
 }
 
 // ========== INSTANCIAR MÓDULO DE APRENDIZAJE ==========
@@ -164,6 +556,32 @@ class KnowledgeSystem {
   }
   
   // ... [EL RESTO DE KnowledgeSystem SE MANTIENE IGUAL] ...
+  async buscarInformacion(consulta) {
+    try {
+      // Primero intentar Wikipedia
+      const wikiResult = await this.buscarWikipedia(consulta);
+      if (wikiResult) {
+        return {
+          encontrado: true,
+          consulta: consulta,
+          datos: wikiResult
+        };
+      }
+      
+      return {
+        encontrado: false,
+        consulta: consulta,
+        mensaje: "No encontré información específica sobre eso."
+      };
+    } catch (error) {
+      console.error('❌ Error buscando información:', error);
+      return {
+        encontrado: false,
+        consulta: consulta,
+        error: error.message
+      };
+    }
+  }
 }
 
 // ========== MEMORIA ORGÁNICA ==========
@@ -326,7 +744,254 @@ class OrganicMemory {
     };
   }
   
-  // ... [EL RESTO DE OrganicMemory SE MANTIENE IGUAL] ...
+  detectsNeedForConnection(message) {
+    const connectionPhrases = [
+      'hola', 'hello', 'hi', 'hey', 'qué tal', 'cómo estás', 'sola', 'solo',
+      'aburrid', 'aburrida', 'hablar', 'conversar', 'compañía', 'alguien'
+    ];
+    return connectionPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  detectsNeedForUnderstanding(message) {
+    const understandingPhrases = [
+      'no entiendo', 'por qué', 'cómo', 'qué significa', 'explica', 'ayuda con',
+      'no sé', 'confundido', 'confundida', 'complicado', 'difícil'
+    ];
+    return understandingPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  detectsNeedForExpression(message) {
+    const expressionPhrases = [
+      'siento', 'me siento', 'emocion', 'triste', 'feliz', 'enojado', 'enojada',
+      'ansioso', 'ansiosa', 'preocupado', 'preocupada', 'quiero', 'necesito'
+    ];
+    return expressionPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  detectsNeedForValidation(message) {
+    const validationPhrases = [
+      '¿está bien?', '¿correcto?', '¿debería?', '¿qué piensas?', 'opinión',
+      'consejo', 'recomendación', 'qué hacer', 'decisión'
+    ];
+    return validationPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  detectsNeedForDistraction(message) {
+    const distractionPhrases = [
+      'aburrido', 'aburrida', 'entretenerme', 'algo divertido', 'chiste',
+      'historia', 'cuéntame', 'pasatiempo', 'matar el tiempo'
+    ];
+    return distractionPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  needsInformation(message) {
+    const infoPhrases = [
+      'qué es', 'quién es', 'cuándo', 'dónde', 'cómo funciona', 'información',
+      'datos', 'estadísticas', 'hechos', 'saber más', 'investigar'
+    ];
+    return infoPhrases.some(phrase => message.includes(phrase));
+  }
+  
+  analyzeEmotionalState(message) {
+    const positiveWords = ['feliz', 'contento', 'contenta', 'genial', 'excelente', 'maravilloso', 'emocionado', 'emocionada', 'amo', 'me encanta'];
+    const negativeWords = ['triste', 'enojado', 'enojada', 'molesto', 'molesta', 'frustrado', 'frustrada', 'cansado', 'cansada', 'deprimido', 'deprimida', 'odio'];
+    const anxiousWords = ['ansioso', 'ansiosa', 'preocupado', 'preocupada', 'nervioso', 'nerviosa', 'estresado', 'estresada', 'miedo', 'asustado', 'asustada'];
+    
+    const lowerMsg = message.toLowerCase();
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let anxiousCount = 0;
+    
+    positiveWords.forEach(word => {
+      if (lowerMsg.includes(word)) positiveCount++;
+    });
+    
+    negativeWords.forEach(word => {
+      if (lowerMsg.includes(word)) negativeCount++;
+    });
+    
+    anxiousWords.forEach(word => {
+      if (lowerMsg.includes(word)) anxiousCount++;
+    });
+    
+    const total = positiveCount + negativeCount + anxiousCount;
+    
+    if (total === 0) {
+      return {
+        type: 'neutral',
+        intensity: 0.1,
+        confidence: 0.5
+      };
+    }
+    
+    const maxCount = Math.max(positiveCount, negativeCount, anxiousCount);
+    
+    if (maxCount === positiveCount && positiveCount > 0) {
+      return {
+        type: 'positive',
+        intensity: Math.min(0.9, positiveCount / 5),
+        confidence: positiveCount / total
+      };
+    } else if (maxCount === negativeCount && negativeCount > 0) {
+      return {
+        type: 'negative',
+        intensity: Math.min(0.9, negativeCount / 5),
+        confidence: negativeCount / total
+      };
+    } else if (maxCount === anxiousCount && anxiousCount > 0) {
+      return {
+        type: 'anxious',
+        intensity: Math.min(0.9, anxiousCount / 5),
+        confidence: anxiousCount / total
+      };
+    }
+    
+    return {
+      type: 'neutral',
+      intensity: 0.1,
+      confidence: 0.5
+    };
+  }
+  
+  calculateRequiredDepth(message) {
+    const deepPhrases = [
+      'filosofía', 'vida', 'muerte', 'existencia', 'significado', 'universo',
+      'alma', 'amor', 'odio', 'tiempo', 'realidad', 'consciencia', 'por qué existimos'
+    ];
+    
+    const lowerMsg = message.toLowerCase();
+    const hasDeepPhrase = deepPhrases.some(phrase => lowerMsg.includes(phrase));
+    
+    if (hasDeepPhrase) return 0.9;
+    
+    const questionWords = ['por qué', 'cómo', 'qué significa', 'cuál es el sentido'];
+    const hasQuestion = questionWords.some(phrase => lowerMsg.includes(phrase));
+    
+    if (hasQuestion) return 0.7;
+    
+    const lengthFactor = Math.min(1, message.length / 200);
+    const punctuationFactor = (message.match(/[?¿]/g) || []).length > 0 ? 0.3 : 0;
+    
+    return Math.min(0.9, 0.3 + lengthFactor * 0.4 + punctuationFactor);
+  }
+  
+  isAboutMancy(message) {
+    const mancyPhrases = [
+      'mancy', 'eres', 'tú eres', 'quién eres', 'qué eres', 'tu nombre',
+      'de dónde eres', 'cuántos años', 'te gusta', 'odias', 'prefieres'
+    ];
+    
+    const lowerMsg = message.toLowerCase();
+    return mancyPhrases.some(phrase => lowerMsg.includes(phrase));
+  }
+  
+  isPersonalMessage(message) {
+    const personalWords = ['yo', 'me', 'mi', 'mío', 'mía', 'mis', 'mí'];
+    const lowerMsg = message.toLowerCase();
+    
+    return personalWords.some(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'i');
+      return regex.test(lowerMsg);
+    });
+  }
+  
+  allowsPlayfulness(message, emotionalState) {
+    if (emotionalState.type === 'negative' && emotionalState.intensity > 0.6) {
+      return false;
+    }
+    
+    if (emotionalState.type === 'anxious' && emotionalState.intensity > 0.7) {
+      return false;
+    }
+    
+    const seriousTopics = [
+      'muerte', 'suicidio', 'depresión', 'ansiedad', 'cáncer', 'enfermedad',
+      'violencia', 'abuso', 'trauma', 'dolor', 'sufrimiento'
+    ];
+    
+    const lowerMsg = message.toLowerCase();
+    const hasSeriousTopic = seriousTopics.some(topic => lowerMsg.includes(topic));
+    
+    return !hasSeriousTopic;
+  }
+  
+  needsExternalInformation(message) {
+    const infoIndicators = [
+      'qué es', 'quién es', 'dónde está', 'cuándo fue', 'cómo se',
+      'historia de', 'información sobre', 'datos de', 'estadísticas',
+      'significado de', 'definición de'
+    ];
+    
+    const lowerMsg = message.toLowerCase();
+    return infoIndicators.some(indicator => lowerMsg.includes(indicator));
+  }
+  
+  updateMancyState(essence) {
+    // Actualizar estado de ánimo
+    if (essence.emotionalState.type === 'positive') {
+      this.mancyState.mood = 'happy';
+      this.mancyState.energy = Math.min(1, this.mancyState.energy + 0.1);
+    } else if (essence.emotionalState.type === 'negative') {
+      this.mancyState.mood = 'empathetic';
+      this.mancyState.energy = Math.max(0.3, this.mancyState.energy - 0.05);
+    } else if (essence.emotionalState.type === 'anxious') {
+      this.mancyState.mood = 'calm';
+      this.mancyState.energy = Math.max(0.4, this.mancyState.energy - 0.03);
+    }
+    
+    // Actualizar nivel de profundidad
+    this.mancyState.depthLevel = essence.requiredDepth;
+    this.mancyState.lastInteraction = new Date().toISOString();
+    
+    // Ajustar estilo conversacional
+    if (essence.emotionalState.intensity > 0.7) {
+      this.conversationStyle.bePlayful = false;
+      this.conversationStyle.showEmpathy = true;
+    } else if (essence.allowsPlayfulness) {
+      this.conversationStyle.bePlayful = true;
+    }
+    
+    if (essence.requiredDepth > 0.7) {
+      this.conversationStyle.useEmojis = false;
+      this.conversationStyle.askQuestions = true;
+    }
+  }
+  
+  addMancyTouch(response, essence) {
+    let finalResponse = response;
+    
+    // Añadir emojis si corresponde
+    if (this.conversationStyle.useEmojis && essence.allowsPlayfulness) {
+      const emojis = ['✨', '💭', '🌟', '🤔', '💫', '🌸', '☕', '🎵'];
+      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+      
+      if (Math.random() < 0.3) {
+        finalResponse += ` ${randomEmoji}`;
+      }
+    }
+    
+    // Añadir pregunta si corresponde
+    if (this.conversationStyle.askQuestions && Math.random() < 0.4) {
+      const questions = [
+        '\n\n¿Y tú qué opinas?',
+        '\n\n¿Qué te parece?',
+        '\n\n¿Has pensado en eso antes?',
+        '\n\n¿Te resuena algo de esto?'
+      ];
+      
+      if (essence.needs.connection || essence.emotionalState.type === 'neutral') {
+        const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+        finalResponse += randomQuestion;
+      }
+    }
+    
+    // Limitar longitud
+    if (finalResponse.length > 1900) {
+      finalResponse = finalResponse.substring(0, 1897) + '...';
+    }
+    
+    return finalResponse;
+  }
 }
 
 // ========== INSTANCIAS ==========
