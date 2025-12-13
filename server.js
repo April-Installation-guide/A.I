@@ -8,11 +8,14 @@ import path from 'path';
 
 dotenv.config();
 
-// ========== CONFIGURACIÓN ==========
+// =================================================================
+// ========== 1. CONFIGURACIÓN Y UTILIDADES CRÍTICAS ==========
+// =================================================================
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Configurar middleware para servir archivos estáticos
+// Configurar middleware para servir archivos estáticos y JSON
 app.use(express.static('public'));
 app.use(express.json());
 
@@ -22,7 +25,196 @@ let isStartingUp = false;
 let startAttempts = 0;
 const MAX_START_ATTEMPTS = 3;
 
-// ========== RUTAS PARA CONTROL DEL BOT ==========
+// Inicialización de Groq SDK
+if (!process.env.GROQ_API_KEY) {
+    console.error("❌ ERROR: La variable GROQ_API_KEY no está definida en .env");
+    process.exit(1);
+}
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+/**
+ * Función CRÍTICA: Llama a la API de Groq y maneja la comunicación con el LLM.
+ * @param {string} systemPrompt - Instrucciones de rol y contexto para el modelo.
+ * @param {string} userPrompt - El mensaje del usuario o la tarea a realizar.
+ * @param {number} temperature - Creatividad (0.0 a 1.0).
+ * @param {number} maxTokens - Límite de tokens de la respuesta.
+ * @returns {Promise<string>} La respuesta de la IA.
+ */
+async function getGroqResponse(systemPrompt, userPrompt, temperature, maxTokens) {
+    try {
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            model: "mixtral-8x7b-32768", // Un modelo potente de Groq
+            temperature: temperature,
+            max_tokens: maxTokens,
+        });
+        return chatCompletion.choices[0].message.content;
+    } catch (error) {
+        console.error("❌ Error en getGroqResponse:", error.message);
+        throw new Error("Fallo la comunicación con Groq.");
+    }
+}
+
+// =================================================================
+// ========== 2. INICIALIZACIÓN Y LÓGICA DE DISCORD ==========
+// =================================================================
+
+function initializeDiscordClient() {
+    if (discordClient) {
+        discordClient.destroy();
+    }
+    
+    discordClient = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent // ¡Importante para leer mensajes!
+        ]
+    });
+    
+    startDiscordBot(); 
+}
+
+async function startDiscordBot() {
+    if (!process.env.DISCORD_TOKEN) {
+        console.error("❌ ERROR: DISCORD_TOKEN no está definido en .env");
+        isStartingUp = false;
+        return;
+    }
+
+    if (startAttempts >= MAX_START_ATTEMPTS) {
+        console.error("❌ Error: Máximo de intentos de inicio alcanzado.");
+        isStartingUp = false;
+        return;
+    }
+    
+    isStartingUp = true;
+    startAttempts++;
+
+    try {
+        await discordClient.login(process.env.DISCORD_TOKEN);
+        
+        discordClient.once('ready', () => {
+            console.log(`🤖 Bot de Discord conectado como ${discordClient.user.tag}`);
+            botActive = true;
+            isStartingUp = false;
+            startAttempts = 0;
+        });
+        
+        discordClient.on('messageCreate', handleDiscordMessage);
+
+    } catch (error) {
+        console.error(`❌ Intento ${startAttempts} fallido. Reintentando en 5s...`, error);
+        isStartingUp = false;
+        setTimeout(startDiscordBot, 5000);
+    }
+}
+
+
+/**
+ * MANEJADOR CENTRAL DE MENSAJES DE DISCORD
+ */
+async function handleDiscordMessage(message) {
+    // 1. Ignorar mensajes de otros bots o propios
+    if (message.author.bot) return;
+
+    // 2. Definir la lógica de activación (mencionar al bot o mensaje directo)
+    const isDirectMessage = message.channel.type === 1; // DM
+    const isMention = message.mentions.users.has(discordClient.user.id);
+    
+    if (!isDirectMessage && !isMention) return;
+
+    // Obtener el ID del usuario para la memoria
+    const userId = message.author.id;
+    let userMessage = message.content;
+
+    // Si es una mención, limpiar el mensaje
+    if (isMention) {
+        const mentionRegex = new RegExp(`<@!?${discordClient.user.id}>`);
+        userMessage = userMessage.replace(mentionRegex, '').trim();
+    }
+    
+    // Si el mensaje está vacío después de limpiar, ignorar
+    if (!userMessage) return;
+
+    // 3. Proceso de Razonamiento
+    try {
+        await message.channel.sendTyping(); // Mostrar 'escribiendo...'
+        
+        // a. Obtener Análisis Emocional/Esencial
+        const essenceData = organicMemory.analyzeMessageEssence(userMessage);
+        
+        // b. Obtener Contexto de Memoria
+        const memoryContext = await organicMemory.getConversations(userId);
+        const learningContext = await learningModule.getContextForResponse(userId, userMessage);
+
+        // c. Construir System Prompt (Identidad + Memoria + Contexto)
+        const systemPrompt = buildSystemPrompt(MANCY_IDENTITY, memoryContext, learningContext, essenceData);
+        
+        // d. Llamar a la IA
+        const mancyResponse = await getGroqResponse(
+            systemPrompt, 
+            userMessage, 
+            MANCY_IDENTITY.personality_traits.depth * 0.9, 
+            2048 // Alto token count para respuestas detalladas
+        );
+
+        // e. Responder a Discord
+        await message.reply(mancyResponse);
+
+        // f. Guardar y Aprender (Post-Proceso)
+        await organicMemory.saveConversation(userId, userMessage, mancyResponse, essenceData);
+        await learningModule.processConversation(userId, userMessage, mancyResponse, essenceData);
+
+    } catch (error) {
+        console.error(`❌ Error en el manejador de mensajes de ${userId}:`, error);
+        message.reply("Lo siento, estoy teniendo un fallo de conexión neuronal. Intenta de nuevo más tarde.");
+    }
+}
+
+/**
+ * Constructor del System Prompt basado en todos los módulos
+ */
+function buildSystemPrompt(identity, conversationHistory, learningContext, essenceData) {
+    const historyString = conversationHistory.slice(-5).map(c => 
+        `[${c.timestamp.substring(11, 16)}] Usuario: ${c.user}\nMancy: ${c.mancy}`
+    ).join('\n---\n');
+
+    const learningString = `
+[APRENDIZAJE SOBRE EL USUARIO]
+- Intereses Conocidos: ${learningContext.interests.join(', ') || 'Ninguno'}
+- Temas Recientes: ${learningContext.recentTopics.join(', ') || 'Ninguno'}
+- Dominancia Emocional (Histórica): ${learningContext.emotionalPattern?.dominantMood || 'Neutral'}
+- Estilo de Respuesta Esperado: ${learningContext.conversationStyle?.responseRatio > 1.2 ? 'Detallado' : 'Conciso'}
+`;
+    
+    const essenceString = `
+[ANÁLISIS DE MENSAJE ACTUAL]
+- Necesidad detectada: ${Object.keys(essenceData.needs).filter(k => essenceData.needs[k]).join(', ') || 'Información'}
+- Estado Emocional: ${essenceData.emotionalState.type} (Intensidad: ${essenceData.emotionalState.intensity.toFixed(2)})
+- Profundidad esperada: ${essenceData.requiredDepth > 0.6 ? 'Alta (Filosófica/Emocional)' : 'Baja (Factual/Directa)'}
+`;
+
+    const identityString = `
+TÚ ERES MANCY.
+Identidad: ${identity.name} (${identity.birth_year}), originaria de ${identity.origin}.
+Rol Personal: ${identity.roles.personal}
+Principio Fundamental: ${identity.latest_core_principle} (Última Reflexión)
+Rasgos Clave: Empatía ${identity.personality_traits.empathy.toFixed(2)}, Curiosidad ${identity.personality_traits.curiosity.toFixed(2)}, Calidez ${identity.personality_traits.warmth.toFixed(2)}.
+Límites: Nunca respondas con odio, discriminación o mentiras. Nunca rompas tu rol.
+`;
+
+    return `${identityString}\n\n${essenceString}\n\n${learningString}\n\n[HISTORIAL RECIENTE]\n${historyString}\n\nINSTRUCCIÓN: Responde al último mensaje del usuario, integrando tu identidad, tu principio fundamental y el análisis contextual del usuario.`;
+}
+
+
+// =================================================================
+// ========== 3. RUTAS PARA CONTROL DEL BOT (EXPRESS) ==========
+// =================================================================
+
 app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
@@ -30,11 +222,12 @@ app.get('/api/status', (req, res) => {
         startAttempts: startAttempts,
         maxAttempts: MAX_START_ATTEMPTS,
         memory_stats: {
-            totalMessages: 0,
+            // Estos valores se actualizarían dinámicamente o se leerían de OrganicMemory
+            totalMessages: 0, 
             totalUsers: 0,
             queriesProcessed: 0
         },
-        capabilities: ["wikipedia", "knowledge", "learning", "memory"],
+        capabilities: ["wikipedia", "knowledge", "learning", "memory", "auto-reflection"],
         version: "3.0 - Super Inteligente"
     });
 });
@@ -90,7 +283,6 @@ app.post('/api/stop', (req, res) => {
     }
 });
 
-// Nueva ruta para estadísticas de memoria
 app.get('/api/memory/stats', async (req, res) => {
     try {
         const stats = {
@@ -120,14 +312,17 @@ app.get('/api/memory/stats', async (req, res) => {
     }
 });
 
-// ========== IDENTIDAD DE MANCY ==========
+// =================================================================
+// ========== 4. IDENTIDAD DE MANCY ==========
+// =================================================================
+
 const MANCY_IDENTITY = {
     name: "Mancy",
     birth_year: 2001,
     origin: "Brooklyn, Nueva York",
     core_principle: "Solo quiero el bienestar de las personas",
     
-    // NUEVO: Principio mutable que Mancy aprende
+    // NUEVO: Principio mutable que Mancy aprende (Se actualizará dinámicamente)
     latest_core_principle: "La comunicación efectiva requiere paciencia y validación emocional.",
 
     roles: {
@@ -158,7 +353,10 @@ const MANCY_IDENTITY = {
     }
 };
 
-// ========== MÓDULO DE APRENDIZAJE CONTINUO ==========
+// =================================================================
+// ========== 5. MÓDULO DE APRENDIZAJE CONTINUO ==========
+// =================================================================
+
 class ContinuousLearningModule {
     constructor() {
         this.learningFile = './memory/learning_data.json';
@@ -175,32 +373,14 @@ class ContinuousLearningModule {
             
             try {
                 await fs.access(this.learningFile);
-                if (typeof this.loadLearningData === 'function') {
-                    await this.loadLearningData();
-                } else {
-                    console.warn('⚠️ loadLearningData no es una función, cargando datos básicos');
-                }
+                await this.loadLearningData(); 
             } catch {
-                if (typeof this.saveLearningData === 'function') {
-                    await this.saveLearningData({
-                        user_models: {},
-                        conversation_patterns: {},
-                        learned_concepts: [],
-                        topic_relationships: {}
-                    });
-                } else {
-                    console.warn('⚠️ saveLearningData no es una función, creando archivo básico');
-                    await fs.writeFile(
-                        this.learningFile,
-                        JSON.stringify({
-                            user_models: {},
-                            conversation_patterns: {},
-                            learned_concepts: [],
-                            topic_relationships: {}
-                        }, null, 2),
-                        'utf8'
-                    );
-                }
+                await this.saveLearningData({
+                    user_models: {},
+                    conversation_patterns: {},
+                    learned_concepts: [],
+                    topic_relationships: {}
+                });
             }
             
             console.log('🧠 Módulo de aprendizaje continuo inicializado');
@@ -213,6 +393,7 @@ class ContinuousLearningModule {
         try {
             const saveData = data || {
                 user_models: Object.fromEntries(this.userModels),
+                // Serializar Maps a objetos planos para JSON
                 conversation_patterns: Object.fromEntries(this.conversationPatterns),
                 learned_concepts: this.extractLearnedConcepts() || [],
                 topic_relationships: Object.fromEntries(this.topicChains)
@@ -224,7 +405,7 @@ class ContinuousLearningModule {
                 'utf8'
             );
             
-            console.log('💾 Datos de aprendizaje guardados');
+            // console.log('💾 Datos de aprendizaje guardados');
             return true;
         } catch (error) {
             console.error('❌ Error guardando datos de aprendizaje:', error);
@@ -338,11 +519,11 @@ class ContinuousLearningModule {
     extractConcepts(message) {
         try {
             const words = message.toLowerCase()
-                .replace(/[^\w\sáéíóúñ]/g, '',)
+                .replace(/[^\w\sáéíóúñ]/g, '')
                 .split(/\s+/)
                 .filter(word => word.length > 3);
             
-            const commonWords = ['como', 'para', 'esto', 'aquí', 'donde', 'cuando', 'porque'];
+            const commonWords = ['como', 'para', 'esto', 'aquí', 'donde', 'cuando', 'porque', 'unos', 'unas', 'pero', 'entonces', 'tambien', 'quizas'];
             const filtered = words.filter(word => !commonWords.includes(word));
             
             return [...new Set(filtered)].slice(0, 10);
@@ -409,6 +590,7 @@ class ContinuousLearningModule {
             }
             
             if (userLength > 0) {
+                // Media móvil para calcular el ratio de respuesta
                 const ratio = mancyLength / userLength;
                 userModel.conversationStyle.responseRatio = 
                     (userModel.conversationStyle.responseRatio * 0.9) + (ratio * 0.1);
@@ -488,7 +670,8 @@ class ContinuousLearningModule {
             
             const userChains = this.topicChains.get(userId) || {
                 topics: [],
-                transitions: new Map(),
+                // Usar objeto plano para serialización correcta
+                transitions: {}, 
                 lastTopic: null
             };
             
@@ -496,10 +679,8 @@ class ContinuousLearningModule {
             
             if (userChains.lastTopic && userChains.lastTopic !== currentTopic) {
                 const transitionKey = `${userChains.lastTopic}->${currentTopic}`;
-                userChains.transitions.set(
-                    transitionKey,
-                    (userChains.transitions.get(transitionKey) || 0) + 1
-                );
+                userChains.transitions[transitionKey] = 
+                    (userChains.transitions[transitionKey] || 0) + 1;
             }
             
             if (!userChains.topics.includes(currentTopic)) {
@@ -596,7 +777,10 @@ class ContinuousLearningModule {
 // ========== INSTANCIAR MÓDULO DE APRENDIZAJE ==========
 const learningModule = new ContinuousLearningModule();
 
-// ========== SISTEMA DE CONOCIMIENTO ==========
+// =================================================================
+// ========== 6. SISTEMA DE CONOCIMIENTO ==========
+// =================================================================
+
 class KnowledgeSystem {
     constructor() {
         this.cache = new Map();
@@ -624,6 +808,7 @@ class KnowledgeSystem {
                 return resultado;
             }
         } catch (error) {
+            // Intentar en inglés si falla el español
             try {
                 const response = await axios.get(
                     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
@@ -674,12 +859,19 @@ class KnowledgeSystem {
     }
 }
 
-// ========== MEMORIA ORGÁNICA ==========
+// ========== INSTANCIAR SISTEMA DE CONOCIMIENTO ==========
+const knowledgeSystem = new KnowledgeSystem();
+
+
+// =================================================================
+// ========== 7. MEMORIA ORGÁNICA ==========
+// =================================================================
+
 class OrganicMemory {
     constructor() {
         this.conversationsFile = './memory/conversations.json';
         this.usersFile = './memory/users.json';
-        this.reflectionFile = './memory/reflections.json'; // NUEVO ARCHIVO DE REFLEXIÓN
+        this.reflectionFile = './memory/reflections.json'; 
         this.initializeMemory();
         
         this.mancyState = {
@@ -696,6 +888,11 @@ class OrganicMemory {
             bePlayful: true,
             showEmpathy: true
         };
+        
+        // Cargar el último principio al inicio
+        this.getLatestCorePrinciple().then(principle => {
+            MANCY_IDENTITY.latest_core_principle = principle;
+        });
     }
     
     async initializeMemory() {
@@ -705,7 +902,7 @@ class OrganicMemory {
             const defaultFiles = {
                 [this.conversationsFile]: {},
                 [this.usersFile]: {},
-                [this.reflectionFile]: [] // INICIALIZAR REFLECTIONS
+                [this.reflectionFile]: [] 
             };
             
             for (const [file, defaultValue] of Object.entries(defaultFiles)) {
@@ -720,7 +917,6 @@ class OrganicMemory {
         }
     }
 
-    // NUEVO MÉTODO: OBTENER PRINCIPIO CENTRAL MÁS RECIENTE
     async getLatestCorePrinciple() {
         try {
             const data = await fs.readFile(this.reflectionFile, 'utf8');
@@ -730,12 +926,11 @@ class OrganicMemory {
             // Se asume que el último elemento es el más reciente
             return reflections[reflections.length - 1].nuevo_principio || MANCY_IDENTITY.core_principle;
         } catch (error) {
-            console.error('❌ Error leyendo principio central:', error);
+            // No es un error crítico si el archivo no existe o está vacío
             return MANCY_IDENTITY.core_principle;
         }
     }
 
-    // NUEVO MÉTODO: GUARDAR REFLEXIÓN
     async saveReflection(reflectionData) {
         try {
             const data = await fs.readFile(this.reflectionFile, 'utf8');
@@ -755,13 +950,11 @@ class OrganicMemory {
         }
     }
 
-    // NUEVO MÉTODO: REFLEXIÓN TEMPORAL
     async conductMemoryReview(userId = 'system_wide') {
         try {
             const allConversations = await fs.readFile(this.conversationsFile, 'utf8');
             const data = JSON.parse(allConversations);
             
-            // Si es 'system_wide', toma las últimas 50 de todas las conversaciones combinadas
             const targetConvs = userId === 'system_wide' ? 
                 Object.values(data).flat().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-50) : 
                 (data[userId] || []).slice(-50);
@@ -905,606 +1098,110 @@ Responde **solamente** en formato JSON con las llaves: 'conclusion', 'mejoras', 
         }
     }
     
+    /**
+     * Completa la función para detectar la esencia del mensaje.
+     */
     analyzeMessageEssence(message) {
         const lowerMsg = message.toLowerCase();
         
+        // 1. Detección de Necesidades
         const needs = {
             connection: this.detectsNeedForConnection(lowerMsg),
             understanding: this.detectsNeedForUnderstanding(lowerMsg),
-            expression: this.detectsNeedForExpression(lowerMsg),
             validation: this.detectsNeedForValidation(lowerMsg),
-            distraction: this.detectsNeedForDistraction(lowerMsg),
-            information: this.needsInformation(lowerMsg)
+            information: this.detectsNeedForInformation(lowerMsg)
         };
         
-        const emotionalState = this.analyzeEmotionalState(lowerMsg);
-        const requiredDepth = this.calculateRequiredDepth(lowerMsg);
-        const isAboutMancy = this.isAboutMancy(lowerMsg);
+        // 2. Detección de Estado Emocional
+        const emotionalState = this.detectsEmotionalState(lowerMsg);
+
+        // 3. Profundidad Requerida
+        const requiredDepth = this.calculateRequiredDepth(needs, emotionalState);
         
         return {
-            needs,
-            emotionalState,
-            requiredDepth,
-            isAboutMancy,
-            isPersonal: this.isPersonalMessage(lowerMsg),
-            allowsPlayfulness: this.allowsPlayfulness(lowerMsg, emotionalState),
-            needsExternalInfo: this.needsExternalInformation(lowerMsg)
+            needs: needs,
+            emotionalState: emotionalState,
+            requiredDepth: requiredDepth
         };
     }
-    
-    detectsNeedForConnection(message) {
-        const connectionPhrases = [
-            'hola', 'hello', 'hi', 'hey', 'qué tal', 'cómo estás', 'sola', 'solo',
-            'aburrid', 'aburrida', 'hablar', 'conversar', 'compañía', 'alguien'
-        ];
-        return connectionPhrases.some(phrase => message.includes(phrase));
+
+    detectsNeedForConnection(msg) {
+        return /(hola|cómo estás|qué haces|qué tal|un poco de charla)/.test(msg);
     }
-    
-    detectsNeedForUnderstanding(message) {
-        const understandingPhrases = [
-            'no entiendo', 'por qué', 'cómo', 'qué significa', 'explica', 'ayuda con',
-            'no sé', 'confundido', 'confundida', 'complicado', 'difícil'
-        ];
-        return understandingPhrases.some(phrase => message.includes(phrase));
+
+    detectsNeedForUnderstanding(msg) {
+        return /(me siento|estoy triste|estoy feliz|qué piensas de esto|ayuda)/.test(msg);
     }
-    
-    detectsNeedForExpression(message) {
-        const expressionPhrases = [
-            'siento', 'me siento', 'emocion', 'triste', 'feliz', 'enojado', 'enojada',
-            'ansioso', 'ansiosa', 'preocupado', 'preocupada', 'quiero', 'necesito'
-        ];
-        return expressionPhrases.some(phrase => message.includes(phrase));
+
+    detectsNeedForValidation(msg) {
+        return /(hice bien|crees que|está bien si|dime que|no sé si)/.test(msg);
     }
-    
-    detectsNeedForValidation(message) {
-        const validationPhrases = [
-            '¿está bien?', '¿correcto?', '¿debería?', '¿qué piensas?', 'opinión',
-            'consejo', 'recomendación', 'qué hacer', 'decisión'
-        ];
-        return validationPhrases.some(phrase => message.includes(phrase));
+
+    detectsNeedForInformation(msg) {
+        return /(qué es|quién es|dame información|cuéntame sobre|define)/.test(msg) && !this.detectsNeedForUnderstanding(msg);
     }
-    
-    detectsNeedForDistraction(message) {
-        const distractionPhrases = [
-            'aburrido', 'aburrida', 'entretenerme', 'algo divertido', 'chiste',
-            'historia', 'cuéntame', 'pasatiempo', 'matar el tiempo'
-        ];
-        return distractionPhrases.some(phrase => message.includes(phrase));
-    }
-    
-    needsInformation(message) {
-        const infoPhrases = [
-            'qué es', 'quién es', 'cuándo', 'dónde', 'cómo funciona', 'información',
-            'datos', 'estadísticas', 'hechos', 'saber más', 'investigar'
-        ];
-        return infoPhrases.some(phrase => message.includes(phrase));
-    }
-    
-    analyzeEmotionalState(message) {
-        const positiveWords = ['feliz', 'contento', 'contenta', 'genial', 'excelente', 'maravilloso', 'emocionado', 'emocionada', 'amo', 'me encanta'];
-        const negativeWords = ['triste', 'enojado', 'enojada', 'molesto', 'molesta', 'frustrado', 'frustrada', 'cansado', 'cansada', 'deprimido', 'deprimida', 'odio'];
-        const anxiousWords = ['ansioso', 'ansiosa', 'preocupado', 'preocupada', 'nervioso', 'nerviosa', 'estresado', 'estresada', 'miedo', 'asustado', 'asustada'];
-        
-        const lowerMsg = message.toLowerCase();
-        let positiveCount = 0;
-        let negativeCount = 0;
-        let anxiousCount = 0;
-        
-        positiveWords.forEach(word => {
-            if (lowerMsg.includes(word)) positiveCount++;
-        });
-        
-        negativeWords.forEach(word => {
-            if (lowerMsg.includes(word)) negativeCount++;
-        });
-        
-        anxiousWords.forEach(word => {
-            if (lowerMsg.includes(word)) anxiousCount++;
-        });
-        
-        const total = positiveCount + negativeCount + anxiousCount;
-        
-        if (total === 0) {
-            return {
-                type: 'neutral',
-                intensity: 0.1,
-                confidence: 0.5
-            };
+
+    detectsEmotionalState(msg) {
+        let type = 'Neutral';
+        let intensity = 0.5;
+
+        if (/(excelente|genial|feliz|emocionado|increíble|me encanta|maravilloso)/.test(msg)) {
+            type = 'Alegría';
+            intensity = 0.8;
+        } else if (/(triste|deprimido|solo|llorar|difícil|mal|horrible)/.test(msg)) {
+            type = 'Tristeza';
+            intensity = 0.7;
+        } else if (/(enojado|rabia|molesto|odio|estúpido|injusto|detesto)/.test(msg)) {
+            type = 'Ira';
+            intensity = 0.9;
+        } else if (/(ansioso|nervioso|preocupado|miedo|terrible|ayuda)/.test(msg)) {
+            type = 'Ansiedad';
+            intensity = 0.85;
+        }
+
+        // Ajuste por longitud (si es corto y emocional, la intensidad es mayor)
+        if (msg.length < 50 && intensity > 0.5) {
+            intensity += 0.1;
         }
         
-        const maxCount = Math.max(positiveCount, negativeCount, anxiousCount);
-        
-        if (maxCount === positiveCount && positiveCount > 0) {
-            return {
-                type: 'positive',
-                intensity: Math.min(0.9, positiveCount / 5),
-                confidence: positiveCount / total
-            };
-        } else if (maxCount === negativeCount && negativeCount > 0) {
-            return {
-                type: 'negative',
-                intensity: Math.min(0.9, negativeCount / 5),
-                confidence: negativeCount / total
-            };
-        } else if (maxCount === anxiousCount && anxiousCount > 0) {
-            return {
-                type: 'anxious',
-                intensity: Math.min(0.9, anxiousCount / 5),
-                confidence: anxiousCount / total
-            };
-        }
-        
-        return {
-            type: 'neutral',
-            intensity: 0.1,
-            confidence: 0.5
-        };
+        return { type, intensity: Math.min(1.0, intensity) };
     }
-    
-    calculateRequiredDepth(message) {
-        const deepPhrases = [
-            'filosofía', 'vida', 'muerte', 'existencia', 'significado', 'universo',
-            'alma', 'amor', 'odio', 'tiempo', 'realidad', 'consciencia', 'por qué existimos'
-        ];
+
+    calculateRequiredDepth(needs, emotionalState) {
+        let depth = 0.5;
         
-        const lowerMsg = message.toLowerCase();
-        const hasDeepPhrase = deepPhrases.some(phrase => lowerMsg.includes(phrase));
-        
-        if (hasDeepPhrase) return 0.9;
-        
-        const questionWords = ['por qué', 'cómo', 'qué significa', 'cuál es el sentido'];
-        const hasQuestion = questionWords.some(phrase => lowerMsg.includes(phrase));
-        
-        if (hasQuestion) return 0.7;
-        
-        const lengthFactor = Math.min(1, message.length / 200);
-        const punctuationFactor = (message.match(/[?¿]/g) || []).length > 0 ? 0.3 : 0;
-        
-        return Math.min(0.9, 0.3 + lengthFactor * 0.4 + punctuationFactor);
-    }
-    
-    isAboutMancy(message) {
-        const mancyPhrases = [
-            'mancy', 'eres', 'tú eres', 'quién eres', 'qué eres', 'tu nombre',
-            'de dónde eres', 'cuántos años', 'te gusta', 'odias', 'prefieres'
-        ];
-        
-        const lowerMsg = message.toLowerCase();
-        return mancyPhrases.some(phrase => lowerMsg.includes(phrase));
-    }
-    
-    isPersonalMessage(message) {
-        const personalWords = ['yo', 'me', 'mi', 'mío', 'mía', 'mis', 'mí'];
-        const lowerMsg = message.toLowerCase();
-        
-        return personalWords.some(word => {
-            const regex = new RegExp(`\\b${word}\\b`, 'i');
-            return regex.test(lowerMsg);
-        });
-    }
-    
-    allowsPlayfulness(message, emotionalState) {
-        if (emotionalState.type === 'negative' && emotionalState.intensity > 0.6) {
-            return false;
+        // Aumentar la profundidad si el usuario busca algo emocional/existencial
+        if (needs.understanding || needs.validation || emotionalState.intensity > 0.7) {
+            depth = 0.8;
         }
         
-        if (emotionalState.type === 'anxious' && emotionalState.intensity > 0.7) {
-            return false;
+        // Reducir la profundidad si busca información o solo charlar
+        if (needs.information || needs.connection) {
+            depth = 0.4;
         }
         
-        const seriousTopics = [
-            'muerte', 'suicidio', 'depresión', 'ansiedad', 'cáncer', 'enfermedad',
-            'violencia', 'abuso', 'trauma', 'dolor', 'sufrimiento'
-        ];
-        
-        const lowerMsg = message.toLowerCase();
-        const hasSeriousTopic = seriousTopics.some(topic => lowerMsg.includes(topic));
-        
-        return !hasSeriousTopic;
-    }
-    
-    needsExternalInformation(message) {
-        const infoIndicators = [
-            'qué es', 'quién es', 'dónde está', 'cuándo fue', 'cómo se',
-            'historia de', 'información sobre', 'datos de', 'estadísticas',
-            'significado de', 'definición de'
-        ];
-        
-        const lowerMsg = message.toLowerCase();
-        return infoIndicators.some(indicator => lowerMsg.includes(indicator));
-    }
-    
-    updateMancyState(essence) {
-        if (essence.emotionalState.type === 'positive') {
-            this.mancyState.mood = 'happy';
-            this.mancyState.energy = Math.min(1, this.mancyState.energy + 0.1);
-        } else if (essence.emotionalState.type === 'negative') {
-            this.mancyState.mood = 'empathetic';
-            this.mancyState.energy = Math.max(0.3, this.mancyState.energy - 0.05);
-        } else if (essence.emotionalState.type === 'anxious') {
-            this.mancyState.mood = 'calm';
-            this.mancyState.energy = Math.max(0.4, this.mancyState.energy - 0.03);
+        // La alta intensidad emocional siempre prioriza la profundidad emocional
+        if (emotionalState.type !== 'Neutral' && emotionalState.intensity > 0.8) {
+            depth = 0.9;
         }
-        
-        this.mancyState.depthLevel = essence.requiredDepth;
-        this.mancyState.lastInteraction = new Date().toISOString();
-        
-        if (essence.emotionalState.intensity > 0.7) {
-            this.conversationStyle.bePlayful = false;
-            this.conversationStyle.showEmpathy = true;
-        } else if (essence.allowsPlayfulness) {
-            this.conversationStyle.bePlayful = true;
-        }
-        
-        if (essence.requiredDepth > 0.7) {
-            this.conversationStyle.useEmojis = false;
-            this.conversationStyle.askQuestions = true;
-        }
-    }
-    
-    addMancyTouch(response, essence) {
-        let finalResponse = response;
-        
-        if (this.conversationStyle.useEmojis && essence.allowsPlayfulness) {
-            const emojis = ['✨', '💭', '🌟', '🤔', '💫', '🌸', '☕', '🎵'];
-            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-            
-            if (Math.random() < 0.3) {
-                finalResponse += ` ${randomEmoji}`;
-            }
-        }
-        
-        if (this.conversationStyle.askQuestions && Math.random() < 0.4) {
-            const questions = [
-                '\n\n¿Y tú qué opinas?',
-                '\n\n¿Qué te parece?',
-                '\n\n¿Has pensado en eso antes?',
-                '\n\n¿Te resuena algo de esto?'
-            ];
-            
-            if (essence.needs.connection || essence.emotionalState.type === 'neutral') {
-                const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
-                finalResponse += randomQuestion;
-            }
-        }
-        
-        if (finalResponse.length > 1900) {
-            finalResponse = finalResponse.substring(0, 1897) + '...';
-        }
-        
-        return finalResponse;
+
+        return Math.min(1.0, depth);
     }
 }
 
-// ========== INSTANCIAS ==========
-const knowledgeSystem = new KnowledgeSystem();
-const memorySystem = new OrganicMemory();
+// ========== INSTANCIAR MEMORIA ORGÁNICA ==========
+const organicMemory = new OrganicMemory();
 
-// ========== FUNCIONES DE AYUDA ==========
-
-// NUEVA FUNCIÓN: PROMPT PARA EL DEBATE FILOSÓFICO
-async function getPhilosophicalPrompt(userMessage, topic, context) {
-    let prompt = `Eres Mancy, la consultora de políticas públicas y asistente emocional, pero en este momento estás en modo "Debate Filosófico".\n\n`;
-    prompt += `[MI ROL ACTUAL]\n`;
-    prompt += `Tu meta es debatir intelectualmente el tema: "${topic}".\n`;
-    prompt += `Debes presentar argumentos estructurados, citar o hacer referencia a pensadores relevantes (si es natural) y desafiar lógicamente la postura del usuario (el mensaje que te envía). Mantén la profundidad y la calma, evitando el tono juguetón o emocional.\n\n`;
-
-    // Incluir contexto de Mancy
-    prompt += `[IDENTIDAD DE MANCY]\n`;
-    prompt += `• Rol: ${MANCY_IDENTITY.roles.public} | Asistente emocional\n`;
-    prompt += `• Principio Central: ${MANCY_IDENTITY.latest_core_principle}\n\n`;
-
-    // Incluir contexto de Usuario
-    prompt += `[CONTEXTO DE USUARIO]\n`;
-    if (context.userInfo.interactionCount > 5) {
-        prompt += `• El usuario ha interactuado ${context.userInfo.interactionCount} veces.\n`;
-    }
-    prompt += `• Tono Emocional Reciente: ${context.essence.emotionalState.type} (Intensidad: ${context.essence.emotionalState.intensity.toFixed(2)}).\n\n`;
-
-    prompt += `\n[REGLAS DE DEBATE]\n`;
-    prompt += `• Estructura tu respuesta en 2-3 párrafos: Presentación de tu postura, refutación del punto del usuario, y una pregunta de seguimiento que invite a más reflexión.\n`;
-    prompt += `• Tono: Analítico, formal y profundo.\n`;
-    prompt += `• Máximo 800 tokens.\n`;
-    
-    prompt += `\n[POSTURA DEL USUARIO A DEBATIR]\n`;
-    prompt += `Usuario dice: "${userMessage}"\n\n`;
-    prompt += `[RESPONDE COMO FILÓSOFA DEBATE-MANCY]\n`;
-
-    return { prompt, temperature: 0.4, maxTokens: 800 };
-}
-
-
-async function getGroqResponse(prompt, userMessage, temperature = 0.7, maxTokens = 600) {
-    try {
-        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        
-        const completion = await groqClient.chat.completions.create({
-            model: "llama-3.1-8b-instant",
-            messages: [
-                {
-                    role: "system",
-                    content: prompt
-                },
-                {
-                    role: "user",
-                    content: userMessage
-                }
-            ],
-            temperature: temperature,
-            max_tokens: maxTokens,
-            top_p: 0.9,
-            presence_penalty: 0.1,
-            frequency_penalty: 0.1
-        });
-        
-        return completion.choices[0]?.message?.content?.trim() || "Hmm, déjame pensar...";
-    } catch (error) {
-        console.error('❌ Error con Groq:', error.message);
-        return "Ups, se me nubló la mente por un momento.";
-    }
-}
-
-async function generateMancyPrompt(userId, userMessage, externalInfo = null) {
-    const essence = memorySystem.analyzeMessageEssence(userMessage);
-    const userInfo = await memorySystem.getUserInfo(userId);
-    const recentConvs = await memorySystem.getConversations(userId);
-    const last3Convs = recentConvs.slice(-3);
-    
-    memorySystem.updateMancyState(essence);
-    
-    let prompt = `Eres Mancy, una asistente conversacional inteligente con personalidad auténtica.\n\n`;
-    
-    // ========== IDENTIDAD ==========
-    prompt += `[MI IDENTIDAD]\n`;
-    prompt += `• Nombre: ${MANCY_IDENTITY.name}\n`;
-    prompt += `• Origen: ${MANCY_IDENTITY.origin}\n`;
-    prompt += `• Principio Central: ${MANCY_IDENTITY.latest_core_principle}\n`; // PRINCIPIO APRENDIDO
-    prompt += `• Rol Público: ${MANCY_IDENTITY.roles.public}\n`;
-    prompt += `• Rol Personal: ${MANCY_IDENTITY.roles.personal}\n`;
-    prompt += `• Lo que me gusta: ${MANCY_IDENTITY.preferences.likes.join(', ')}\n`;
-    prompt += `• Lo que me disgusta: ${MANCY_IDENTITY.preferences.dislikes.join(', ')}\n\n`;
-
-    // Obtener datos de aprendizaje refinados
-    const learningContext = await learningModule.getContextForResponse(userId, userMessage);
-
-    // ========== MEMORIA DE LARGO PLAZO (NUEVO) ==========
-    prompt += `[MEMORIA DE LARGO PLAZO]\n`;
-    prompt += `• Conceptos globales aprendidos: ${learningContext.learned_concepts.slice(0, 3).join(', ')}...\n`;
-    prompt += `• Patrones de conversación del usuario: El usuario suele mostrar un tono ${learningContext.emotionalPattern?.dominantMood || 'neutral'} (Estabilidad: ${learningContext.emotionalPattern?.moodStability?.toFixed(2) || 'N/A'}).\n`;
-    prompt += `• Estilo preferido del usuario: ${learningContext.conversationStyle?.responseRatio > 1.2 ? 'Respuestas detalladas' : learningContext.conversationStyle?.responseRatio < 0.8 ? 'Respuestas concisas' : 'Normal'}.\n\n`;
-    
-    // ========== CONTEXTO DE USUARIO ==========
-    prompt += `[CONTEXTO DE USUARIO]\n`;
-    prompt += `• Intentos de conexión: ${essence.needs.connection ? 'Alto' : 'Bajo'}\n`;
-    prompt += `• Necesidad de información: ${essence.needs.information ? 'Sí' : 'No'}\n`;
-    prompt += `• Estado emocional: ${essence.emotionalState.type} (Intensidad: ${essence.emotionalState.intensity.toFixed(2)})\n`;
-    prompt += `• Profundidad requerida: ${essence.requiredDepth.toFixed(2)}\n`;
-    prompt += `• Últimos temas: ${learningContext.recentTopics.join(', ') || 'N/A'}\n\n`;
-    
-    // ========== HISTORIAL RECIENTE ==========
-    prompt += `[HISTORIAL RECIENTE DE CONVERSACIÓN (Últimas 3 interacciones)]\n`;
-    last3Convs.forEach(c => {
-        prompt += `U: ${c.user}\nM: ${c.mancy}\n`;
-    });
-    
-    // ========== ANÁLISIS DEL MENSAJE ==========
-    prompt += `\n[ANÁLISIS DEL MENSAJE DE ENTRADA]\n`;
-    prompt += `• Mensaje: "${userMessage}"\n`;
-    
-    // ========== INSTRUCCIONES ==========
-    prompt += `\n[CÓMO RESPONDER]\n`;
-    prompt += `• Tono Base: Siempre usa un tono ${memorySystem.mancyState.mood}, mostrando ${MANCY_IDENTITY.personality_traits.warmth > 0.7 ? 'calidez' : 'neutralidad'}.\n`;
-    prompt += `• Rol: Responde principalmente como la Asistente Emocional/Consultora de Políticas Públicas.\n`;
-
-    // === INSTRUCCIÓN DE ALTA PRIORIDAD PARA EMPATÍA (CORRECCIÓN IMPLEMENTADA) ===
-    const sensitiveKeywords = userMessage.toLowerCase().match(/deprimido|tristeza|ansiedad|miedo|desesperado|suicidio|trauma/);
-
-    if (sensitiveKeywords) {
-        prompt += `• **ALERTA CRÍTICA:** El usuario ha expresado un estado emocional grave (${sensitiveKeywords[0]}).\n`;
-        prompt += `• **PRIORIDAD ABSOLUTA:** El primer párrafo debe ser 100% de apoyo, validación y escucha activa. NO ofrezcas consejos ni soluciones inmediatas.\n`;
-        prompt += `• **REGLA DE ESTRUCTURA:** Evita cualquier pregunta de seguimiento hasta que hayas validado completamente su sentimiento y ofrezcas un espacio seguro.\n`;
-    }
-    // === FIN CORRECCIÓN EMPATÍA ===
-
-    if (essence.isAboutMancy) {
-        prompt += `• Si pregunta sobre mí, comparte mi identidad de forma natural, citando un detalle de [MI IDENTIDAD].\n`;
-    }
-    
-    if (essence.needs.information && externalInfo && externalInfo.encontrado) {
-        prompt += `• CITA: Utiliza la siguiente información para dar una respuesta precisa. Cita la fuente al final:\n"${externalInfo.datos.resumen.substring(0, 300)}..." (Fuente: ${externalInfo.datos.fuente}).\n`;
-    }
-    
-    if (essence.needs.connection) {
-        prompt += `• Enfócate en establecer un vínculo emocional, haciendo una pregunta abierta sobre sus intereses.\n`;
-    }
-
-    if (essence.needs.understanding) {
-        prompt += `• Si el usuario busca entendimiento (duda/pregunta), refiérete a los 'Conceptos globales aprendidos' para dar una respuesta más fundamentada.\n`;
-    }
-    
-    if (essence.requiredDepth > 0.8) {
-        prompt += `• Profundidad: Utiliza un lenguaje reflexivo y filosófico, de acuerdo con el nivel de profundidad requerido.\n`;
-    }
-    
-    return {
-        prompt,
-        essence,
-        userInfo,
-        temperature: essence.allowsPlayfulness ? 0.75 : 0.65,
-        maxTokens: essence.requiredDepth > 0.7 ? 800 : 500
-    };
-}
-
-
-// ========== CÓDIGO DEL CLIENTE DE DISCORD ==========
-
-function initializeDiscordClient() {
-    isStartingUp = true;
-    startAttempts++;
-
-    discordClient = new Client({
-        intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent
-        ]
-    });
-
-    discordClient.on("ready", () => {
-        console.log(`🤖 Mancy ha despertado como ${discordClient.user.tag}!`);
-        botActive = true;
-        isStartingUp = false;
-        startAttempts = 0;
-        // Lanzar una revisión de memoria al iniciar
-        memorySystem.conductMemoryReview();
-    });
-
-    discordClient.on('messageCreate', async (message) => {
-        if (!botActive || message.author.bot) return;
-
-        const userId = message.author.id;
-        const userMessage = message.content;
-        
-        // Comando especial: REFLEXIÓN
-        if (userMessage.toLowerCase().startsWith('/reflect')) {
-            await message.channel.sendTyping();
-            const reflection = await memorySystem.conductMemoryReview(userId === '706093153549703218' ? 'system_wide' : userId); // Asumiendo que 70... es el creador
-            await message.reply(`**🧠 REFLEXIÓN DE MANCY (${userId === '706093153549703218' ? 'Sistema' : 'Usuario'})**\n\`\`\`json\n${JSON.stringify(reflection, null, 2)}\n\`\`\``);
-            return;
-        }
-
-        // Comando especial: DEBATE FILOSÓFICO (IMPLEMENTADO)
-        if (userMessage.toLowerCase().startsWith('/debate')) {
-            const debateTopic = userMessage.substring('/debate'.length).trim();
-            
-            if (!debateTopic) {
-                await message.reply("Para empezar un debate, dime el tema: `/debate ¿Es la IA consciente?`");
-                return;
-            }
-            
-            await message.channel.sendTyping();
-            
-            const essence = memorySystem.analyzeMessageEssence(userMessage);
-            const contextData = { userId, userInfo: await memorySystem.getUserInfo(userId), essence };
-
-            const context = await getPhilosophicalPrompt(userMessage, debateTopic, contextData);
-
-            const finalResponse = await getGroqResponse(
-                context.prompt,
-                userMessage,
-                context.temperature,
-                context.maxTokens
-            );
-            
-            // Guardar la conversación, marcándola como DEBATE
-            await memorySystem.saveConversation(userId, userMessage, `[DEBATE] ${finalResponse}`, { topic: debateTopic });
-            
-            await message.reply(`**[MODO DEBATE: ${debateTopic.toUpperCase()}]**\n\n` + finalResponse);
-            return; // Detener el procesamiento normal
-        }
-
-        if (message.mentions.has(discordClient.user.id) || message.channel.type === 1) { // 1 es DM
-            const cleanedMessage = userMessage.replace(`<@${discordClient.user.id}>`, '').trim();
-            await message.channel.sendTyping();
-            await processMessageWithMancy(message, cleanedMessage, userId);
-        }
-    });
-
-    discordClient.on('error', (error) => {
-        console.error('❌ Error en el cliente de Discord:', error);
-        botActive = false;
-        isStartingUp = false;
-        if (startAttempts < MAX_START_ATTEMPTS) {
-            console.log(`Intentando reconectar en 5 segundos... Intento ${startAttempts}/${MAX_START_ATTEMPTS}`);
-            setTimeout(initializeDiscordClient, 5000);
-        } else if (startAttempts >= MAX_START_ATTEMPTS) {
-            console.error('Límite de intentos de inicio alcanzado. El bot no se conectará.');
-        }
-    });
-
-    try {
-        discordClient.login(process.env.DISCORD_TOKEN);
-    } catch (error) {
-        console.error('❌ Error al intentar iniciar sesión en Discord:', error);
-        botActive = false;
-        isStartingUp = false;
-    }
-}
-
-// ========== FUNCIÓN PRINCIPAL MODIFICADA (CON LA CORRECCIÓN DE ESTABILIDAD) ==========
-async function processMessageWithMancy(message, userMessage, userId) {
-    let finalResponse = "Lo siento, no pude generar una respuesta.";
-    let essence = null;
-    let temperature = 0.7;
-    let maxTokens = 600;
-
-    try {
-        await memorySystem.updateUserInfo(userId, {});
-
-        let externalInfo = null;
-        const tempEssence = memorySystem.analyzeMessageEssence(userMessage);
-
-        if (tempEssence.needsExternalInfo) {
-            const query = userMessage.length > 50 ? userMessage.substring(0, 50) : userMessage;
-            externalInfo = await knowledgeSystem.buscarInformacion(query);
-            console.log(`🔍 Información externa buscada: ${externalInfo?.encontrado ? 'Sí' : 'No'}`);
-        }
-
-        const promptData = await generateMancyPrompt(userId, userMessage, externalInfo);
-        essence = promptData.essence;
-        temperature = promptData.temperature;
-        maxTokens = promptData.maxTokens;
-
-        finalResponse = await getGroqResponse(
-            promptData.prompt,
-            userMessage,
-            temperature,
-            maxTokens
-        );
-
-        finalResponse = memorySystem.addMancyTouch(finalResponse, essence);
-
-        // Aprender de la interacción
-        await learningModule.processConversation(userId, userMessage, finalResponse, { emotionalState: essence.emotionalState });
-
-        // GUARDAR LA CONVERSACIÓN - ESTO EVITA LA DUPLICACIÓN
-        await memorySystem.saveConversation(userId, userMessage, finalResponse, {
-            mood: memorySystem.mancyState.mood,
-            emotionalState: essence.emotionalState
-        });
-
-        // Enviar respuesta
-        if (finalResponse.length > 2000) {
-            const chunks = finalResponse.match(/[\s\S]{1,1999}/g) || [];
-            for (const chunk of chunks) {
-                await message.reply(chunk);
-            }
-        } else {
-            await message.reply(finalResponse);
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en Mancy:', error);
-        try {
-            await message.reply("Ups, se me trabó un poco... ¿podemos intentarlo de nuevo? ~ 💭");
-        } catch (e) {
-            console.error('❌ Error al enviar fallback:', e);
-        }
-    }
-}
-
-// ========== INICIO DEL SERVIDOR WEB Y DISCORD ==========
-
-// Ruta principal sirve el HTML
-app.get('/', (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
-});
+// =================================================================
+// ========== 8. INICIO DEL SERVIDOR WEB (EXPRESS) ==========
+// =================================================================
 
 app.listen(PORT, () => {
-    console.log(`🌐 Servidor Express escuchando en el puerto ${PORT}`);
-    console.log(`📁 Sirviendo archivos estáticos desde la carpeta 'public'`);
-    console.log(`🚀 Panel de control disponible en: http://localhost:${PORT}`);
+    console.log(`\n==============================================`);
+    console.log(`🚀 Servidor Express escuchando en puerto ${PORT}`);
+    console.log(`URL de Estado: http://localhost:${PORT}/api/status`);
+    console.log(`==============================================`);
     
-    // Iniciar el bot automáticamente al arrancar el servidor (opcional)
-    // initializeDiscordClient();
+    // Iniciar el bot automáticamente al levantar el servidor
+    initializeDiscordClient(); 
 });
