@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
-import cors from 'cors';
 
 dotenv.config();
 
@@ -13,76 +12,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Configurar CORS para permitir el frontend
-app.use(cors());
-app.use(express.json());
-
 let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 let startAttempts = 0;
 const MAX_START_ATTEMPTS = 3;
-
-// ========== RUTAS PARA CONTROL DEL BOT ==========
-app.get('/api/bot/status', (req, res) => {
-    res.json({
-        active: botActive,
-        startingUp: isStartingUp,
-        startAttempts: startAttempts,
-        maxAttempts: MAX_START_ATTEMPTS
-    });
-});
-
-app.post('/api/bot/start', (req, res) => {
-    if (botActive) {
-        return res.json({ success: false, message: 'El bot ya está activo' });
-    }
-    
-    if (isStartingUp) {
-        return res.json({ success: false, message: 'El bot ya se está iniciando' });
-    }
-    
-    try {
-        initializeDiscordClient();
-        res.json({ 
-            success: true, 
-            message: 'Iniciando bot...',
-            status: 'starting'
-        });
-    } catch (error) {
-        res.json({ 
-            success: false, 
-            message: 'Error al iniciar: ' + error.message
-        });
-    }
-});
-
-app.post('/api/bot/stop', (req, res) => {
-    if (!botActive && !isStartingUp) {
-        return res.json({ success: false, message: 'El bot ya está detenido' });
-    }
-    
-    try {
-        botActive = false;
-        isStartingUp = false;
-        
-        if (discordClient) {
-            discordClient.destroy();
-            discordClient = null;
-        }
-        
-        res.json({ 
-            success: true, 
-            message: 'Bot detenido correctamente',
-            status: 'stopped'
-        });
-    } catch (error) {
-        res.json({ 
-            success: false, 
-            message: 'Error al detener: ' + error.message
-        });
-    }
-});
 
 // ========== IDENTIDAD DE MANCY ==========
 const MANCY_IDENTITY = {
@@ -1320,7 +1254,6 @@ function initializeDiscordClient() {
         console.log(`🤖 Mancy ha despertado como ${discordClient.user.tag}!`);
         botActive = true;
         isStartingUp = false;
-        startAttempts = 0;
         // Lanzar una revisión de memoria al iniciar
         memorySystem.conductMemoryReview();
     });
@@ -1379,8 +1312,7 @@ function initializeDiscordClient() {
     discordClient.on('error', (error) => {
         console.error('❌ Error en el cliente de Discord:', error);
         botActive = false;
-        isStartingUp = false;
-        if (startAttempts < MAX_START_ATTEMPTS) {
+        if (!isStartingUp && startAttempts < MAX_START_ATTEMPTS) {
             console.log(`Intentando reconectar en 5 segundos... Intento ${startAttempts}/${MAX_START_ATTEMPTS}`);
             setTimeout(initializeDiscordClient, 5000);
         } else if (startAttempts >= MAX_START_ATTEMPTS) {
@@ -1392,7 +1324,6 @@ function initializeDiscordClient() {
         discordClient.login(process.env.DISCORD_TOKEN);
     } catch (error) {
         console.error('❌ Error al intentar iniciar sesión en Discord:', error);
-        botActive = false;
         isStartingUp = false;
     }
 }
@@ -1467,8 +1398,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🌐 Servidor Express escuchando en el puerto ${PORT}`);
-    // Iniciar el bot automáticamente al arrancar el servidor
-    // initializeDiscordClient();
+    initializeDiscordClient();
 });
-
-export { botActive, isStartingUp };
