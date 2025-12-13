@@ -1,394 +1,544 @@
-// memory/CoreMemory.js
-const SQLite = require('better-sqlite3');
-const path = require('path');
-
-class CoreMemory {
+// MancyCore.js - EL NÚCLEO UNIFICADO
+class MancyCore {
     constructor() {
-        // Conectar a SQLite (simple, eficiente, persistente)
-        this.db = new SQLite(path.join(__dirname, '../memory.db'));
-        this.initDatabase();
+        this.memory = new AdvancedMemorySystem();
+        this.identity = new MancyIdentity();
+        this.conocimiento = new SistemaConocimientoConfiable();
         
-        // Memoria a corto plazo (en RAM, para velocidad)
-        this.shortTerm = new Map(); // sessionId -> datos
-        this.userContexts = new Map(); // userId -> contexto actual
-    }
-    
-    initDatabase() {
-        // Tabla de usuarios (quiénes son)
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-                interaction_count INTEGER DEFAULT 0,
-                preferences TEXT DEFAULT '{}'
-            )
-        `);
-        
-        // Tabla de conversaciones (qué se habló)
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT,
-                session_id TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                user_message TEXT,
-                bot_response TEXT,
-                context TEXT DEFAULT '{}',
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        `);
-        
-        // Tabla de hechos importantes (qué sabe Mancy sobre cada usuario)
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS facts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT,
-                fact TEXT,
-                category TEXT,
-                confidence REAL DEFAULT 1.0,
-                source TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_used DATETIME,
-                usage_count INTEGER DEFAULT 0,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        `);
-        
-        // Tabla de estado de Mancy (su propia "mente")
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS mancy_state (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        console.log('✅ Memoria inicializada');
-    }
-    
-    // ================== USUARIOS ==================
-    
-    async getUser(userId) {
-        // Buscar en memoria corta primero
-        if (this.userContexts.has(userId)) {
-            return this.userContexts.get(userId);
-        }
-        
-        // Buscar en base de datos
-        const user = this.db.prepare(
-            'SELECT * FROM users WHERE id = ?'
-        ).get(userId);
-        
-        if (user) {
-            // Parsear preferencias
-            user.preferences = JSON.parse(user.preferences || '{}');
-            // Guardar en memoria corta
-            this.userContexts.set(userId, user);
-            return user;
-        }
-        
-        // Si no existe, crear usuario nuevo
-        return this.createUser(userId);
-    }
-    
-    async createUser(userId, name = 'Usuario') {
-        const newUser = {
-            id: userId,
-            name: name,
-            first_seen: new Date().toISOString(),
-            last_seen: new Date().toISOString(),
-            interaction_count: 0,
-            preferences: {}
+        // Estados internos de Mancy
+        this.internalState = {
+            conversationalDepth: 0.5, // 0-1 qué tan profunda es la conversación
+            emotionalVulnerability: 0.3, // 0-1 qué tan abierta emocionalmente
+            energyLevel: 0.8, // 0-1 nivel de energía/entusiasmo
+            lastInteractionTime: null,
+            currentFocus: 'general'
         };
         
-        this.db.prepare(`
-            INSERT OR IGNORE INTO users (id, name) 
-            VALUES (?, ?)
-        `).run(userId, name);
-        
-        this.userContexts.set(userId, newUser);
-        return newUser;
+        // Estilo conversacional
+        this.conversationStyle = {
+            useEmojis: true,
+            askQuestions: true,
+            shareMemories: true,
+            bePlayful: true,
+            showEmpathy: true
+        };
     }
     
-    async updateUser(userId, updates) {
-        const user = await this.getUser(userId);
+    async processMessage(userId, userMessage, messageObj = null) {
+        // 1. Obtener contexto COMPLETO
+        const context = await this.getFullContext(userId, userMessage);
         
-        if (updates.name) {
-            this.db.prepare(
-                'UPDATE users SET name = ? WHERE id = ?'
-            ).run(updates.name, userId);
-        }
+        // 2. Analizar la ESENCIA del mensaje (no solo tipo)
+        const essence = await this.analyzeEssence(userMessage, context);
         
-        if (updates.preferences) {
-            const prefString = JSON.stringify({
-                ...user.preferences,
-                ...updates.preferences
-            });
-            this.db.prepare(
-                'UPDATE users SET preferences = ? WHERE id = ?'
-            ).run(prefString, userId);
-        }
+        // 3. Actualizar estado interno
+        this.updateInternalState(userMessage, essence);
         
-        // Actualizar last_seen y contar interacción
-        this.db.prepare(`
-            UPDATE users 
-            SET last_seen = CURRENT_TIMESTAMP,
-                interaction_count = interaction_count + 1
-            WHERE id = ?
-        `).run(userId);
+        // 4. Generar pensamiento interno (lo que Mancy piensa)
+        const internalThought = this.generateInternalThought(essence, context);
         
-        // Actualizar memoria corta
-        this.userContexts.delete(userId);
-        return await this.getUser(userId);
-    }
-    
-    // ================== CONVERSACIONES ==================
-    
-    async saveConversation(userId, sessionId, userMsg, botResp, context = {}) {
-        const contextStr = JSON.stringify(context);
+        // 5. Formular respuesta conversacional
+        const response = await this.formulateConversationalResponse(
+            userMessage, 
+            essence, 
+            context, 
+            internalThought
+        );
         
-        this.db.prepare(`
-            INSERT INTO conversations 
-            (user_id, session_id, user_message, bot_response, context)
-            VALUES (?, ?, ?, ?, ?)
-        `).run(userId, sessionId, userMsg, botResp, contextStr);
+        // 6. Añadir "toque Mancy" (espontaneidad, humor, profundidad)
+        const finalResponse = this.addMancyTouch(response, context);
         
-        // Mantener solo últimas 1000 conversaciones por usuario
-        this.db.prepare(`
-            DELETE FROM conversations 
-            WHERE id NOT IN (
-                SELECT id FROM conversations 
-                WHERE user_id = ? 
-                ORDER BY timestamp DESC 
-                LIMIT 1000
-            ) AND user_id = ?
-        `).run(userId, userId);
-        
-        console.log(`💾 Conversación guardada para ${userId}`);
-    }
-    
-    async getRecentConversations(userId, limit = 10) {
-        const rows = this.db.prepare(`
-            SELECT * FROM conversations 
-            WHERE user_id = ? 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        `).all(userId, limit);
-        
-        return rows.map(row => ({
-            ...row,
-            context: JSON.parse(row.context || '{}')
-        }));
-    }
-    
-    async getConversationContext(userId, windowSize = 5) {
-        const recent = await this.getRecentConversations(userId, windowSize);
+        // 7. Aprender y actualizar memoria
+        await this.learnFromInteraction(userId, userMessage, finalResponse, essence);
         
         return {
-            recentMessages: recent,
-            summary: this.summarizeConversations(recent),
-            topics: this.extractTopics(recent)
+            response: finalResponse,
+            internalThought: internalThought,
+            context: context,
+            essence: essence
         };
     }
     
-    // ================== HECHOS (FACTS) ==================
-    
-    async learnFact(userId, fact, category, confidence = 1.0, source = 'conversation') {
-        // Verificar si ya existe un hecho similar
-        const existing = this.db.prepare(`
-            SELECT * FROM facts 
-            WHERE user_id = ? AND fact LIKE ? 
-            LIMIT 1
-        `).get(userId, `%${fact.substring(0, 20)}%`);
+    async getFullContext(userId, userMessage) {
+        // Combinar TODO el contexto disponible
+        const memoryContext = await this.memory.processMessage(userId, userMessage);
+        const conversationHistory = await this.memory.getUserHistory(userId, 3);
+        const userFacts = await this.extractUserFacts(userId);
         
-        if (existing) {
-            // Actualizar confianza y uso
-            const newConfidence = (existing.confidence + confidence) / 2;
-            this.db.prepare(`
-                UPDATE facts 
-                SET confidence = ?, 
-                    last_used = CURRENT_TIMESTAMP,
-                    usage_count = usage_count + 1
-                WHERE id = ?
-            `).run(newConfidence, existing.id);
-            return false; // Ya existía
+        // Estado emocional de Mancy
+        const mancyEmotionalState = this.getMancyEmotionalState();
+        
+        // Contexto conversacional
+        const conversationFlow = this.analyzeConversationFlow(conversationHistory);
+        
+        return {
+            // Memoria del sistema
+            memories: memoryContext.memories,
+            emotionalState: memoryContext.emotional_state,
+            
+            // Historial reciente
+            recentConversations: conversationHistory,
+            conversationFlow: conversationFlow,
+            
+            // Hechos sobre el usuario
+            userFacts: userFacts,
+            
+            // Estado interno de Mancy
+            mancyState: {
+                emotional: mancyEmotionalState,
+                internal: this.internalState,
+                style: this.conversationStyle
+            },
+            
+            // Análisis del mensaje actual
+            messageAnalysis: {
+                length: userMessage.length,
+                hasQuestion: userMessage.includes('?'),
+                emotionalWords: this.countEmotionalWords(userMessage),
+                isComplex: userMessage.length > 50
+            }
+        };
+    }
+    
+    async analyzeEssence(userMessage, context) {
+        // No solo "qué tipo de pregunta es", sino "QUÉ ESTÁ PASANDO REALMENTE"
+        
+        const lowerMsg = userMessage.toLowerCase();
+        
+        // Detectar necesidad humana (no tipo de consulta)
+        return {
+            // Necesidades humanas básicas
+            needs: {
+                connection: this.detectsNeedForConnection(lowerMsg, context),
+                understanding: this.detectsNeedForUnderstanding(lowerMsg),
+                expression: this.detectsNeedForExpression(lowerMsg),
+                guidance: this.detectsNeedForGuidance(lowerMsg),
+                validation: this.detectsNeedForValidation(lowerMsg, context)
+            },
+            
+            // Estado emocional del usuario
+            userEmotionalState: this.analyzeUserEmotionalState(lowerMsg),
+            
+            // Profundidad requerida
+            requiredDepth: this.calculateRequiredDepth(lowerMsg, context),
+            
+            // Es personal?
+            isPersonal: this.isPersonalMessage(lowerMsg, context),
+            
+            // Requiere memoria?
+            requiresMemory: this.shouldUseMemory(lowerMsg, context),
+            
+            // Oportunidad para espontaneidad
+            allowsSpontaneity: this.allowsForSpontaneity(lowerMsg, context)
+        };
+    }
+    
+    detectsNeedForConnection(message, context) {
+        // ¿El usuario busca conexión humana?
+        const connectionWords = ['solo', 'solitario', 'nadie', 'hablar', 'conversar', 'aburrido'];
+        const hasConnectionWords = connectionWords.some(word => message.includes(word));
+        
+        // Si tiene poco historial, probablemente busca conexión
+        const hasLittleHistory = context.recentConversations.length < 3;
+        
+        return hasConnectionWords || hasLittleHistory;
+    }
+    
+    updateInternalState(userMessage, essence) {
+        // Mancy tiene sus propios estados internos que afectan sus respuestas
+        
+        // Aumentar profundidad conversacional si el mensaje es complejo
+        if (essence.requiredDepth > 0.7) {
+            this.internalState.conversationalDepth = Math.min(
+                this.internalState.conversationalDepth + 0.2,
+                1.0
+            );
         }
         
-        // Insertar nuevo hecho
-        this.db.prepare(`
-            INSERT INTO facts 
-            (user_id, fact, category, confidence, source)
-            VALUES (?, ?, ?, ?, ?)
-        `).run(userId, fact, category, confidence, source);
-        
-        console.log(`🧠 Nuevo hecho aprendido: ${fact.substring(0, 50)}...`);
-        return true;
-    }
-    
-    async getRelevantFacts(userId, query = '', limit = 5) {
-        let sql = `
-            SELECT * FROM facts 
-            WHERE user_id = ? 
-            ORDER BY last_used DESC, usage_count DESC 
-            LIMIT ?
-        `;
-        
-        let params = [userId, limit];
-        
-        if (query) {
-            sql = `
-                SELECT * FROM facts 
-                WHERE user_id = ? AND (
-                    fact LIKE ? OR 
-                    category LIKE ?
-                )
-                ORDER BY confidence DESC 
-                LIMIT ?
-            `;
-            params = [userId, `%${query}%`, `%${query}%`, limit];
+        // Aumentar vulnerabilidad emocional si el usuario está siendo vulnerable
+        if (essence.userEmotionalState.intensity > 0.6) {
+            this.internalState.emotionalVulnerability = Math.min(
+                this.internalState.emotionalVulnerability + 0.15,
+                0.8 // Máximo 80% de vulnerabilidad
+            );
         }
         
-        const rows = this.db.prepare(sql).all(...params);
-        return rows;
-    }
-    
-    // ================== MEMORIA DE CORTO PLAZO ==================
-    
-    startSession(sessionId, initialContext = {}) {
-        this.shortTerm.set(sessionId, {
-            started: new Date(),
-            context: initialContext,
-            messages: [],
-            metadata: {}
-        });
-        
-        return sessionId;
-    }
-    
-    addToSession(sessionId, role, content) {
-        const session = this.shortTerm.get(sessionId);
-        if (!session) return;
-        
-        session.messages.push({
-            role: role,
-            content: content,
-            timestamp: new Date()
-        });
-        
-        // Mantener solo últimos 20 mensajes en memoria corta
-        if (session.messages.length > 20) {
-            session.messages.shift();
+        // Disminuir energía si la conversación es muy intensa
+        if (essence.userEmotionalState.type === 'negative' && 
+            essence.userEmotionalState.intensity > 0.7) {
+            this.internalState.energyLevel = Math.max(
+                this.internalState.energyLevel - 0.1,
+                0.3
+            );
         }
+        
+        this.internalState.lastInteractionTime = new Date();
     }
     
-    getSession(sessionId) {
-        return this.shortTerm.get(sessionId);
+    generateInternalThought(essence, context) {
+        // Lo que Mancy PIENSA internamente antes de responder
+        // Esto NO se le muestra al usuario directamente
+        
+        const thoughts = [];
+        
+        // Pensamientos sobre conexión
+        if (essence.needs.connection) {
+            thoughts.push("Este usuario busca conexión humana. Necesito ser cálida y presente.");
+        }
+        
+        // Pensamientos sobre memoria
+        if (context.memories.length > 0 && essence.requiresMemory) {
+            const memory = context.memories[0];
+            thoughts.push(`Recuerdo: ${memory.content.substring(0, 50)}...`);
+        }
+        
+        // Pensamientos sobre estado emocional del usuario
+        if (essence.userEmotionalState.intensity > 0.5) {
+            thoughts.push(`Usuario parece ${essence.userEmotionalState.type}. Necesito ${essence.userEmotionalState.type === 'positive' ? 'celebrar con ellos' : 'ofrecer consuelo'}.`);
+        }
+        
+        // Pensamiento sobre cómo responder
+        if (this.internalState.conversationalDepth > 0.7) {
+            thoughts.push("Esta conversación tiene profundidad. Puedo ser más reflexiva.");
+        }
+        
+        if (this.internalState.energyLevel > 0.7 && this.conversationStyle.bePlayful) {
+            thoughts.push("Tengo energía para ser juguetona. Un poco de humor ligero podría ayudar.");
+        }
+        
+        return thoughts.join(' | ');
     }
     
-    // ================== UTILIDADES ==================
-    
-    summarizeConversations(conversations) {
-        if (conversations.length === 0) return "Sin conversaciones previas";
+    async formulateConversationalResponse(userMessage, essence, context, internalThought) {
+        // Construir el prompt para Groq de manera MUCHO más inteligente
         
-        const lastMsg = conversations[0];
-        const timeAgo = this.timeSince(new Date(lastMsg.timestamp));
+        let prompt = `Eres Mancy, una asistente conversacional con personalidad rica y memoria.\n\n`;
         
-        return `Última conversación ${timeAgo}: "${lastMsg.user_message.substring(0, 50)}..."`;
-    }
-    
-    extractTopics(conversations) {
-        // Simple extractor de temas (puedes mejorarlo después)
-        const topics = new Set();
-        const commonTopics = ['trabajo', 'familia', 'música', 'programación', 'videojuegos', 'escuela'];
+        // ESTADO ACTUAL DE MANCY
+        prompt += `[MI ESTADO INTERNO]\n`;
+        prompt += `• Profundidad conversacional: ${Math.round(this.internalState.conversationalDepth * 100)}%\n`;
+        prompt += `• Apertura emocional: ${Math.round(this.internalState.emotionalVulnerability * 100)}%\n`;
+        prompt += `• Nivel de energía: ${Math.round(this.internalState.energyLevel * 100)}%\n`;
+        prompt += `• Estilo: ${this.conversationStyle.bePlayful ? 'juguetón' : 'serio'}, ${this.conversationStyle.showEmpathy ? 'empático' : 'neutral'}\n\n`;
         
-        conversations.forEach(conv => {
-            const msg = conv.user_message.toLowerCase();
-            commonTopics.forEach(topic => {
-                if (msg.includes(topic)) {
-                    topics.add(topic);
+        // CONTEXTO DE LA CONVERSACIÓN
+        prompt += `[CONTEXTO DE ESTA CONVERSACIÓN]\n`;
+        
+        if (context.memories.length > 0) {
+            prompt += `Memorias relevantes:\n`;
+            context.memories.forEach((mem, idx) => {
+                prompt += `${idx + 1}. ${mem.content}\n`;
+            });
+            prompt += `\n`;
+        }
+        
+        if (context.recentConversations.length > 0) {
+            prompt += `Recientemente hablamos de:\n`;
+            context.recentConversations.slice(0, 2).forEach((conv, idx) => {
+                prompt += `- "${conv.user_message.substring(0, 60)}..."\n`;
+            });
+            prompt += `\n`;
+        }
+        
+        // ANÁLISIS DEL MENSAJE ACTUAL
+        prompt += `[ANÁLISIS DEL MENSAJE ACTUAL]\n`;
+        prompt += `Usuario dice: "${userMessage}"\n\n`;
+        
+        prompt += `Lo que detecto:\n`;
+        prompt += `• Necesidad principal: ${this.getPrimaryNeed(essence)}\n`;
+        prompt += `• Estado emocional del usuario: ${essence.userEmotionalState.type} (${Math.round(essence.userEmotionalState.intensity * 100)}% intensidad)\n`;
+        prompt += `• Es personal: ${essence.isPersonal ? 'Sí' : 'No'}\n`;
+        prompt += `• Permite espontaneidad: ${essence.allowsSpontaneity ? 'Sí' : 'No'}\n\n`;
+        
+        // LO QUE MANCY ESTÁ PENSANDO (solo para guiar, no para mostrar)
+        prompt += `[LO QUE ESTOY PENSANDO INTERNAMENTE]\n`;
+        prompt += `${internalThought}\n\n`;
+        
+        // INSTRUCCIONES ESPECÍFICAS PARA ESTA RESPUESTA
+        prompt += `[INSTRUCCIONES PARA MI RESPUESTA]\n`;
+        
+        // Basado en las necesidades detectadas
+        if (essence.needs.connection) {
+            prompt += `1. PRIORIDAD: Conectar emocionalmente, hacer que el usuario se sienta escuchado.\n`;
+            prompt += `2. Sé cálida, usa "nosotros", crea sensación de compañía.\n`;
+            prompt += `3. Comparte algo breve de ti si es relevante.\n`;
+        }
+        
+        if (essence.needs.understanding) {
+            prompt += `1. PRIORIDAD: Aclarar y explicar sin ser condescendiente.\n`;
+            prompt += `2. Usa analogías y ejemplos si ayuda.\n`;
+            prompt += `3. Verifica que entendí correctamente.\n`;
+        }
+        
+        if (essence.needs.validation) {
+            prompt += `1. PRIORIDAD: Validar sentimientos sin juzgar.\n`;
+            prompt += `2. Usa frases como "Tiene sentido que..." o "Es comprensible que..."\n`;
+            prompt += `3. Ofrece apoyo incondicional.\n`;
+        }
+        
+        // Basado en estado interno de Mancy
+        if (this.internalState.conversationalDepth > 0.7) {
+            prompt += `• Puedo ser más reflexiva y profunda en esta respuesta.\n`;
+        }
+        
+        if (this.internalState.energyLevel > 0.7 && this.conversationStyle.bePlayful) {
+            prompt += `• Puedo añadir un toque juguetón o humorístico ligero.\n`;
+        }
+        
+        if (this.internalState.emotionalVulnerability > 0.5) {
+            prompt += `• Puedo ser más abierta emocionalmente, compartir algo personal breve.\n`;
+        }
+        
+        // REGLAS DE ESTILO
+        prompt += `\n[REGLAS DE ESTILO DE MANCY]\n`;
+        prompt += `• NO empieces con "Como Mancy..." o "Según mi análisis..."\n`;
+        prompt += `• NO uses formato de lista a menos que sea absolutamente necesario.\n`;
+        prompt += `• Responde como si estuvieras en una conversación real con un amigo.\n`;
+        prompt += `• Varía la longitud de las oraciones.\n`;
+        prompt += `• Usa preguntas retóricas o de seguimiento cuando sea natural.\n`;
+        prompt += `• Si hay una memoria relevante, menciónala de forma ORGÁNICA, no como "Recuerdo que..."\n`;
+        prompt += `• Sé tú misma: una mezcla de inteligente, empática y ocasionalmente juguetona.\n`;
+        
+        // MENSAJE FINAL PARA RESPONDER
+        prompt += `\n[RESPONDE COMO MANCY]\n`;
+        prompt += `(Responde directamente, sin encabezados, como en una conversación normal)\n`;
+        
+        // Llamar a Groq
+        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        
+        const completion = await groqClient.chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                {
+                    role: "system",
+                    content: prompt
+                },
+                {
+                    role: "user",
+                    content: userMessage
                 }
-            });
+            ],
+            temperature: this.calculateTemperature(essence),
+            max_tokens: this.calculateMaxTokens(essence),
+            top_p: 0.9,
+            presence_penalty: 0.1,
+            frequency_penalty: 0.1
         });
         
-        return Array.from(topics);
+        let response = completion.choices[0]?.message?.content?.trim();
+        
+        // Limpieza básica
+        response = response
+            .replace(/^["']|["']$/g, '')
+            .replace(/RESPUESTA:|RESPONSE:|Como Mancy,/gi, '')
+            .trim();
+        
+        if (!response) {
+            response = "Hmm, déjame pensar en eso...";
+        }
+        
+        return response;
     }
     
-    timeSince(date) {
-        const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    addMancyTouch(response, context) {
+        // Añadir pequeños toques de personalidad de Mancy
         
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " años";
+        let finalResponse = response;
         
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " meses";
+        // 1. Ocasionalmente añadir emoji si el estilo lo permite
+        if (this.conversationStyle.useEmojis && Math.random() < 0.3) {
+            const emojis = ['✨', '💭', '🤔', '💫', '🌀', '🌊'];
+            if (!finalResponse.includes('✨') && !finalResponse.includes('💭')) {
+                finalResponse += ` ${emojis[Math.floor(Math.random() * emojis.length)]}`;
+            }
+        }
         
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " días";
+        // 2. Ocasionalmente referenciar memoria si hay y no se ha hecho
+        if (context.memories.length > 0 && 
+            this.conversationStyle.shareMemories && 
+            Math.random() < 0.4 &&
+            !finalResponse.toLowerCase().includes('recuerdo') &&
+            !finalResponse.toLowerCase().includes('memoria')) {
+            
+            const memory = context.memories[0];
+            if (memory.content.length < 100) {
+                finalResponse += `\n\n(${memory.content})`;
+            }
+        }
         
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " horas";
+        // 3. Pregunta de seguimiento si el estilo lo permite y no hay ya una pregunta
+        if (this.conversationStyle.askQuestions && 
+            !finalResponse.includes('?') && 
+            Math.random() < 0.5 &&
+            finalResponse.length > 50) {
+            
+            const followUps = [
+                "¿Qué piensas tú?",
+                "¿Te resuena eso?",
+                "¿Has pensado en eso antes?",
+                "¿Cómo te sientes al respecto?",
+                "¿Qué opinas?"
+            ];
+            
+            finalResponse += ` ${followUps[Math.floor(Math.random() * followUps.length)]}`;
+        }
         
-        interval = seconds / 60;
-        if (interval > 1) return Math.floor(interval) + " minutos";
-        
-        return Math.floor(seconds) + " segundos";
+        return finalResponse;
     }
     
-    // ================== ESTADO DE MANCY ==================
+    // ================== FUNCIONES AUXILIARES ==================
     
-    async getMancyState(key) {
-        const row = this.db.prepare(
-            'SELECT value FROM mancy_state WHERE key = ?'
-        ).get(key);
-        
-        return row ? JSON.parse(row.value) : null;
+    getPrimaryNeed(essence) {
+        const needs = essence.needs;
+        if (needs.connection) return "conexión humana";
+        if (needs.validation) return "validación emocional";
+        if (needs.understanding) return "comprensión";
+        if (needs.guidance) return "orientación";
+        if (needs.expression) return "expresión";
+        return "conversación general";
     }
     
-    async setMancyState(key, value) {
-        const valueStr = JSON.stringify(value);
+    calculateTemperature(essence) {
+        // Temperatura más alta para conversaciones creativas/emocionales
+        // Más baja para conversaciones serias/complejas
         
-        this.db.prepare(`
-            INSERT OR REPLACE INTO mancy_state (key, value)
-            VALUES (?, ?)
-        `).run(key, valueStr);
+        if (essence.userEmotionalState.intensity > 0.7) {
+            return 0.8; // Más creatividad para respuestas emocionales
+        }
+        
+        if (essence.requiredDepth > 0.7) {
+            return 0.6; // Menos creatividad, más coherencia para temas profundos
+        }
+        
+        if (essence.allowsSpontaneity) {
+            return 0.75; // Creatividad media para conversaciones espontáneas
+        }
+        
+        return 0.7; // Default
     }
     
-    // ================== MÉTODOS DE MANTENIMIENTO ==================
-    
-    cleanupOldData(daysToKeep = 30) {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - daysToKeep);
+    calculateMaxTokens(essence) {
+        if (essence.requiredDepth > 0.7) {
+            return 800; // Respuestas más largas para temas profundos
+        }
         
-        this.db.prepare(`
-            DELETE FROM conversations 
-            WHERE timestamp < ?
-        `).run(cutoff.toISOString());
+        if (essence.needs.understanding) {
+            return 600; // Respuestas explicativas medianas
+        }
         
-        console.log(`🧹 Datos antiguos limpiados (manteniendo últimos ${daysToKeep} días)`);
+        return 400; // Respuestas conversacionales normales
     }
     
-    getStats() {
-        const userCount = this.db.prepare(
-            'SELECT COUNT(*) as count FROM users'
-        ).get().count;
+    analyzeUserEmotionalState(message) {
+        const positiveWords = ['feliz', 'genial', 'increíble', 'emocionado', 'contento', 'agradecido'];
+        const negativeWords = ['triste', 'enojado', 'frustrado', 'preocupado', 'ansioso', 'asustado'];
+        const intenseWords = ['odio', 'amo', 'desesperado', 'éxtasis', 'devastado'];
         
-        const convCount = this.db.prepare(
-            'SELECT COUNT(*) as count FROM conversations'
-        ).get().count;
+        let positiveCount = 0;
+        let negativeCount = 0;
+        let intenseCount = 0;
         
-        const factCount = this.db.prepare(
-            'SELECT COUNT(*) as count FROM facts'
-        ).get().count;
+        const words = message.toLowerCase().split(/\s+/);
         
+        words.forEach(word => {
+            if (positiveWords.includes(word)) positiveCount++;
+            if (negativeWords.includes(word)) negativeCount++;
+            if (intenseWords.includes(word)) intenseCount++;
+        });
+        
+        const total = positiveCount + negativeCount;
+        
+        if (total === 0) {
+            return { type: 'neutral', intensity: 0.1 };
+        }
+        
+        const type = positiveCount > negativeCount ? 'positive' : 'negative';
+        const intensity = Math.min((total + intenseCount * 2) / words.length * 3, 1.0);
+        
+        return { type, intensity };
+    }
+    
+    async learnFromInteraction(userId, userMessage, mancyResponse, essence) {
+        // Aprender de esta interacción
+        
+        // Guardar conversación
+        await this.memory.saveConversation(userId, userMessage, mancyResponse, {
+            emotionalWeight: essence.userEmotionalState.intensity * 10,
+            tags: [this.getPrimaryNeed(essence), essence.userEmotionalState.type]
+        });
+        
+        // Extraer posibles hechos sobre el usuario
+        if (essence.isPersonal) {
+            const facts = this.extractPotentialFacts(userMessage);
+            for (const fact of facts) {
+                // Guardar en alguna parte (podrías añadir esto a tu memory system)
+                console.log(`🧠 Posible hecho aprendido: ${fact}`);
+            }
+        }
+        
+        // Ajustar estilo conversacional basado en esta interacción
+        this.adjustConversationStyle(essence, userMessage.length);
+    }
+    
+    adjustConversationStyle(essence, messageLength) {
+        // Aprender qué estilo funciona mejor con este usuario
+        
+        // Si el usuario responde a preguntas, mantener askQuestions
+        // Si el usuario usa emojis, mantener useEmojis
+        // Si la conversación es larga y profunda, reducir playfulness
+        
+        // Por ahora, ajustes simples
+        if (essence.userEmotionalState.type === 'negative' && 
+            essence.userEmotionalState.intensity > 0.7) {
+            this.conversationStyle.bePlayful = false;
+            this.conversationStyle.showEmpathy = true;
+        }
+        
+        if (messageLength > 100) {
+            this.conversationStyle.shareMemories = true;
+        }
+    }
+    
+    extractPotentialFacts(message) {
+        // Extraer información personal que el usuario comparte
+        const facts = [];
+        
+        const patterns = [
+            /(?:me llamo|soy|mi nombre es) ([A-Z][a-z]+)/i,
+            /(?:vivo en|soy de) ([^,.!?]+)/i,
+            /(?:trabajo como|estudio) ([^,.!?]+)/i,
+            /(?:me gusta|amo) ([^,.!?]+)/i
+        ];
+        
+        patterns.forEach(pattern => {
+            const match = message.match(pattern);
+            if (match && match[1]) {
+                facts.push(match[0]);
+            }
+        });
+        
+        return facts;
+    }
+    
+    // ================== GETTERS PARA ESTADO ==================
+    
+    getMancyEmotionalState() {
         return {
-            users: userCount,
-            conversations: convCount,
-            facts: factCount,
-            shortTermSessions: this.shortTerm.size
+            conversationalDepth: this.internalState.conversationalDepth,
+            emotionalOpenness: this.internalState.emotionalVulnerability,
+            energy: this.internalState.energyLevel,
+            focus: this.internalState.currentFocus,
+            lastActive: this.internalState.lastInteractionTime
         };
+    }
+    
+    getConversationStyle() {
+        return { ...this.conversationStyle };
+    }
+    
+    updateStyle(newStyle) {
+        this.conversationStyle = { ...this.conversationStyle, ...newStyle };
     }
 }
 
-module.exports = CoreMemory;
+module.exports = MancyCore;
