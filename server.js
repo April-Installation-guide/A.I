@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
+import ContinuousLearningModule from './learning.js';
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ const PORT = process.env.PORT || 10000;
 let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
+const learningModule = new ContinuousLearningModule();
 
 // ========== IDENTIDAD DE MANCY ==========
 const MANCY_IDENTITY = {
