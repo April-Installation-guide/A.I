@@ -1364,6 +1364,12 @@ async function processMessageWithMancy(message, userMessage, userId) {
         // Aprender de la interacción
         await learningModule.processConversation(userId, userMessage, finalResponse, { emotionalState: essence.emotionalState });
 
+        // GUARDAR LA CONVERSACIÓN - ESTO EVITA LA DUPLICACIÓN
+        await memorySystem.saveConversation(userId, userMessage, finalResponse, {
+            mood: memorySystem.mancyState.mood,
+            emotionalState: essence.emotionalState
+        });
+
         // Enviar respuesta
         if (finalResponse.length > 2000) {
             const chunks = finalResponse.match(/[\s\S]{1,1999}/g) || [];
@@ -1381,7 +1387,6 @@ async function processMessageWithMancy(message, userMessage, userId) {
         } catch (e) {
             console.error('❌ Error al enviar fallback:', e);
         }
-        return; // <--- CORRECCIÓN CLAVE: Detiene el flujo para evitar el doble mensaje
     }
 }
 
