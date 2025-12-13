@@ -8,7 +8,7 @@ import path from 'path';
 
 dotenv.config();
 
-// ========== CONFIGURACIÓN BÁSICA ==========
+// ========== CONFIGURACIÓN ==========
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -16,8 +16,8 @@ let discordClient = null;
 let botActive = false;
 let isStartingUp = false;
 
-// ========== SISTEMA DE MEMORIA AVANZADA ==========
-const mancyCoreMemories = {
+// ========== IDENTIDAD DE MANCY ==========
+const MANCY_IDENTITY = {
   name: "Mancy",
   birth_year: 2001,
   origin: "Brooklyn, Nueva York",
@@ -51,30 +51,266 @@ const mancyCoreMemories = {
   }
 };
 
-// ========== CLASE DE MEMORIA ORGÁNICA ==========
-class OrganicMemorySystem {
+// ========== SISTEMA DE CONOCIMIENTO ==========
+class KnowledgeSystem {
+  constructor() {
+    this.cache = new Map();
+  }
+  
+  async buscarWikipedia(consulta) {
+    const cacheKey = `wiki_${consulta}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      // Intentar español primero
+      const response = await axios.get(
+        `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+        { timeout: 3000 }
+      );
+      
+      if (response.data && response.data.extract) {
+        const resultado = {
+          fuente: 'wikipedia',
+          titulo: response.data.title,
+          resumen: response.data.extract,
+          url: response.data.content_urls?.desktop?.page
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {
+      // Intentar inglés si español falla
+      try {
+        const response = await axios.get(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(consulta)}`,
+          { timeout: 3000 }
+        );
+        
+        if (response.data && response.data.extract) {
+          const resultado = {
+            fuente: 'wikipedia',
+            titulo: response.data.title,
+            resumen: response.data.extract,
+            url: response.data.content_urls?.desktop?.page
+          };
+          
+          this.cache.set(cacheKey, resultado);
+          return resultado;
+        }
+      } catch (error2) {}
+    }
+    
+    return null;
+  }
+  
+  async obtenerInfoPais(consulta) {
+    const cacheKey = `pais_${consulta}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      const response = await axios.get(
+        `https://restcountries.com/v3.1/name/${encodeURIComponent(consulta)}`,
+        { timeout: 4000 }
+      );
+      
+      if (response.data && response.data.length > 0) {
+        const pais = response.data[0];
+        const resultado = {
+          fuente: 'restcountries',
+          nombre: pais.name.common,
+          capital: pais.capital?.[0] || 'No disponible',
+          poblacion: pais.population?.toLocaleString() || 'Desconocida',
+          region: pais.region,
+          bandera: pais.flags?.png
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {}
+    
+    return null;
+  }
+  
+  async obtenerCita(consulta = null) {
+    const cacheKey = `cita_${consulta || 'aleatoria'}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      let url = 'https://api.quotable.io/random';
+      if (consulta) {
+        url = `https://api.quotable.io/search/quotes?query=${encodeURIComponent(consulta)}&limit=1`;
+      }
+      
+      const response = await axios.get(url, { timeout: 3000 });
+      
+      let citaData;
+      if (consulta && response.data.results) {
+        citaData = response.data.results[0];
+      } else {
+        citaData = response.data;
+      }
+      
+      if (citaData) {
+        const resultado = {
+          fuente: 'quotable',
+          cita: citaData.content,
+          autor: citaData.author
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {}
+    
+    return null;
+  }
+  
+  async definirPalabra(palabra) {
+    const cacheKey = `def_${palabra}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      const response = await axios.get(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(palabra)}`,
+        { timeout: 4000 }
+      );
+      
+      if (response.data && response.data[0]) {
+        const entrada = response.data[0];
+        const resultado = {
+          fuente: 'dictionary',
+          palabra: entrada.word,
+          significado: entrada.meanings[0]?.definitions[0]?.definition || 'No disponible'
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {}
+    
+    return null;
+  }
+  
+  async obtenerClima(ciudad) {
+    const cacheKey = `clima_${ciudad}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+    
+    try {
+      const geoResponse = await axios.get(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ciudad)}&count=1&language=es`,
+        { timeout: 4000 }
+      );
+      
+      if (geoResponse.data.results && geoResponse.data.results.length > 0) {
+        const { latitude, longitude, name } = geoResponse.data.results[0];
+        
+        const climaResponse = await axios.get(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
+          { timeout: 4000 }
+        );
+        
+        const clima = climaResponse.data.current_weather;
+        const resultado = {
+          fuente: 'openmeteo',
+          ciudad: name,
+          temperatura: `${clima.temperature}°C`,
+          viento: `${clima.windspeed} km/h`,
+          condicion: this.interpretarClima(clima.weathercode)
+        };
+        
+        this.cache.set(cacheKey, resultado);
+        return resultado;
+      }
+    } catch (error) {}
+    
+    return null;
+  }
+  
+  interpretarClima(codigo) {
+    const condiciones = {
+      0: 'Despejado ☀️',
+      1: 'Mayormente despejado 🌤️',
+      2: 'Parcialmente nublado ⛅',
+      3: 'Nublado ☁️',
+      45: 'Niebla 🌫️',
+      48: 'Niebla con escarcha ❄️',
+      51: 'Llovizna ligera 🌦️',
+      53: 'Llovizna moderada 🌧️',
+      61: 'Lluvia ligera 🌦️',
+      63: 'Lluvia moderada 🌧️',
+      65: 'Lluvia fuerte ☔',
+      71: 'Nieve ligera ❄️',
+      73: 'Nieve moderada 🌨️',
+      95: 'Tormenta ⛈️'
+    };
+    
+    return condiciones[codigo] || 'Condición desconocida';
+  }
+  
+  async buscarInformacion(consulta) {
+    const tipo = this.detectarTipoConsulta(consulta);
+    
+    let resultado = null;
+    
+    switch(tipo) {
+      case 'pais':
+        resultado = await this.obtenerInfoPais(consulta);
+        break;
+      case 'cita':
+        resultado = await this.obtenerCita(consulta);
+        break;
+      case 'palabra':
+        resultado = await this.definirPalabra(consulta);
+        break;
+      case 'clima':
+        resultado = await this.obtenerClima(consulta);
+        break;
+      default:
+        resultado = await this.buscarWikipedia(consulta);
+    }
+    
+    return {
+      consulta: consulta,
+      tipo: tipo,
+      encontrado: !!resultado,
+      datos: resultado
+    };
+  }
+  
+  detectarTipoConsulta(texto) {
+    const lower = texto.toLowerCase();
+    
+    if (/\b(país|capital|bandera|población|continente)\b/.test(lower)) return 'pais';
+    if (/\b(cita|frase|dicho|refrán)\b/.test(lower)) return 'cita';
+    if (/\b(significa|definición|qué es|palabra)\b/.test(lower)) return 'palabra';
+    if (/\b(clima|tiempo|temperatura|lluvia|grados)\b/.test(lower)) return 'clima';
+    
+    return 'general';
+  }
+}
+
+// ========== MEMORIA ORGÁNICA ==========
+class OrganicMemory {
   constructor() {
     this.conversationsFile = './memory/conversations.json';
     this.usersFile = './memory/users.json';
     this.initializeMemory();
     
-    // Estados internos de Mancy
     this.mancyState = {
-      mood: 'calm', // calm, playful, reflective, empathetic
+      mood: 'calm',
       energy: 0.8,
       depthLevel: 0.5,
-      lastInteraction: null,
-      currentFocus: null
+      lastInteraction: null
     };
     
-    // Estilo conversacional
     this.conversationStyle = {
       useEmojis: true,
       askQuestions: true,
       shareMemories: true,
       bePlayful: true,
-      showEmpathy: true,
-      useMetaphors: true
+      showEmpathy: true
     };
   }
   
@@ -82,7 +318,6 @@ class OrganicMemorySystem {
     try {
       await fs.mkdir('./memory', { recursive: true });
       
-      // Inicializar archivos si no existen
       const defaultFiles = {
         [this.conversationsFile]: {},
         [this.usersFile]: {}
@@ -95,8 +330,6 @@ class OrganicMemorySystem {
           await fs.writeFile(file, JSON.stringify(defaultValue, null, 2));
         }
       }
-      
-      console.log('🧠 Memoria orgánica inicializada');
     } catch (error) {
       console.error('❌ Error inicializando memoria:', error);
     }
@@ -127,14 +360,12 @@ class OrganicMemorySystem {
         mancy: mancyResponse.substring(0, 300),
         metadata: {
           mood: this.mancyState.mood,
-          length: userMessage.length,
           ...metadata
         }
       };
       
       conversations[userId].push(entry);
       
-      // Mantener solo últimas 50 conversaciones por usuario
       if (conversations[userId].length > 50) {
         conversations[userId] = conversations[userId].slice(-50);
       }
@@ -154,15 +385,13 @@ class OrganicMemorySystem {
       return users[userId] || {
         firstSeen: new Date().toISOString(),
         interactionCount: 0,
-        preferences: {},
-        topics: []
+        lastSeen: null
       };
     } catch {
       return {
         firstSeen: new Date().toISOString(),
         interactionCount: 0,
-        preferences: {},
-        topics: []
+        lastSeen: null
       };
     }
   }
@@ -176,8 +405,7 @@ class OrganicMemorySystem {
         users[userId] = {
           firstSeen: new Date().toISOString(),
           interactionCount: 0,
-          preferences: {},
-          topics: []
+          lastSeen: null
         };
       }
       
@@ -196,26 +424,20 @@ class OrganicMemorySystem {
     }
   }
   
-  // ========== ANÁLISIS DE MENSAJES ==========
   analyzeMessageEssence(message) {
     const lowerMsg = message.toLowerCase();
     
-    // Detectar necesidades humanas
     const needs = {
       connection: this.detectsNeedForConnection(lowerMsg),
       understanding: this.detectsNeedForUnderstanding(lowerMsg),
       expression: this.detectsNeedForExpression(lowerMsg),
       validation: this.detectsNeedForValidation(lowerMsg),
-      distraction: this.detectsNeedForDistraction(lowerMsg)
+      distraction: this.detectsNeedForDistraction(lowerMsg),
+      information: this.needsInformation(lowerMsg)
     };
     
-    // Detectar estado emocional
     const emotionalState = this.analyzeEmotionalState(lowerMsg);
-    
-    // Detectar profundidad requerida
     const requiredDepth = this.calculateRequiredDepth(lowerMsg);
-    
-    // Detectar si es pregunta sobre Mancy
     const isAboutMancy = this.isAboutMancy(lowerMsg);
     
     return {
@@ -224,7 +446,8 @@ class OrganicMemorySystem {
       requiredDepth,
       isAboutMancy,
       isPersonal: this.isPersonalMessage(lowerMsg),
-      allowsPlayfulness: this.allowsPlayfulness(lowerMsg, emotionalState)
+      allowsPlayfulness: this.allowsPlayfulness(lowerMsg, emotionalState),
+      needsExternalInfo: this.needsExternalInformation(lowerMsg)
     };
   }
   
@@ -234,8 +457,10 @@ class OrganicMemorySystem {
   }
   
   detectsNeedForUnderstanding(message) {
-    const words = ['qué es', 'cómo funciona', 'por qué', 'explica', 'entiendo'];
-    return words.some(word => message.includes(word)) || message.includes('?');
+    return message.includes('?') || 
+           message.includes('cómo') || 
+           message.includes('por qué') ||
+           message.includes('explica');
   }
   
   detectsNeedForExpression(message) {
@@ -244,7 +469,7 @@ class OrganicMemorySystem {
   }
   
   detectsNeedForValidation(message) {
-    const words = ['¿está bien?', '¿es normal?', '¿qué opinas?', '¿hice mal?'];
+    const words = ['está bien', 'es normal', 'qué opinas', 'hice mal'];
     return words.some(word => message.includes(word));
   }
   
@@ -253,10 +478,30 @@ class OrganicMemorySystem {
     return words.some(word => message.includes(word));
   }
   
+  needsInformation(message) {
+    const infoWords = ['qué es', 'quién es', 'dónde', 'cuándo', 'por qué', 'cómo'];
+    return infoWords.some(word => message.includes(word));
+  }
+  
+  needsExternalInformation(message) {
+    // ¿Necesita buscar información externa?
+    const needsInfo = this.needsInformation(message);
+    const isQuestion = message.includes('?');
+    const hasSpecificQuery = message.length > 10 && 
+                           (isQuestion || this.containsFactualQuery(message));
+    
+    return needsInfo || hasSpecificQuery;
+  }
+  
+  containsFactualQuery(message) {
+    const factualWords = ['capital', 'población', 'clima', 'temperatura', 'definición'];
+    return factualWords.some(word => message.toLowerCase().includes(word));
+  }
+  
   analyzeEmotionalState(message) {
     const positive = ['feliz', 'contento', 'emocionado', 'genial', 'increíble'];
     const negative = ['triste', 'enojado', 'frustrado', 'preocupado', 'ansioso'];
-    const intense = ['odio', 'amo', 'desesperado', 'devastado', 'éxtasis'];
+    const intense = ['odio', 'amo', 'desesperado', 'devastado'];
     
     let posCount = positive.filter(word => message.includes(word)).length;
     let negCount = negative.filter(word => message.includes(word)).length;
@@ -315,10 +560,7 @@ class OrganicMemorySystem {
     return true;
   }
   
-  // ========== GESTIÓN DE ESTADO DE MANCY ==========
-  updateMancyState(essence, messageLength) {
-    // Actualizar estado basado en la interacción
-    
+  updateMancyState(essence) {
     if (essence.emotionalState.intensity > 0.7) {
       this.mancyState.mood = 'empathetic';
       this.mancyState.energy = Math.max(0.4, this.mancyState.energy - 0.1);
@@ -330,7 +572,6 @@ class OrganicMemorySystem {
     }
     
     this.mancyState.depthLevel = essence.requiredDepth;
-    this.mancyState.currentFocus = this.getPrimaryNeed(essence);
     this.mancyState.lastInteraction = new Date().toISOString();
   }
   
@@ -341,132 +582,12 @@ class OrganicMemorySystem {
     if (needs.understanding) return 'understanding';
     if (needs.expression) return 'expression';
     if (needs.distraction) return 'distraction';
+    if (needs.information) return 'information';
     return 'conversation';
   }
   
-  // ========== GENERACIÓN DE PROMPTS ==========
-  async generateConversationalPrompt(userId, userMessage) {
-    const essence = this.analyzeMessageEssence(userMessage);
-    const userInfo = await this.getUserInfo(userId);
-    const recentConversations = await this.getConversations(userId);
-    const last3Convs = recentConversations.slice(-3);
-    
-    this.updateMancyState(essence, userMessage.length);
-    
-    let prompt = `Eres Mancy, una asistente conversacional con personalidad orgánica y memoria.\n\n`;
-    
-    // ========== IDENTIDAD DE MANCY ==========
-    prompt += `[MI IDENTIDAD]\n`;
-    prompt += `• Nombre: ${mancyCoreMemories.name}\n`;
-    prompt += `• Origen: ${mancyCoreMemories.origin} (${mancyCoreMemories.birth_year})\n`;
-    prompt += `• Principio: "${mancyCoreMemories.core_principle}"\n`;
-    prompt += `• Personalidad: ${this.describePersonality()}\n\n`;
-    
-    // ========== ESTADO ACTUAL ==========
-    prompt += `[MI ESTADO ACTUAL]\n`;
-    prompt += `• Estado de ánimo: ${this.mancyState.mood}\n`;
-    prompt += `• Energía: ${Math.round(this.mancyState.energy * 100)}%\n`;
-    prompt += `• Enfoque: ${this.mancyState.currentFocus}\n`;
-    prompt += `• Estilo: ${this.describeConversationStyle()}\n\n`;
-    
-    // ========== CONTEXTO DE USUARIO ==========
-    prompt += `[CONTEXTO DE USUARIO]\n`;
-    prompt += `• Interacciones previas: ${userInfo.interactionCount}\n`;
-    if (last3Convs.length > 0) {
-      prompt += `• Conversación reciente:\n`;
-      last3Convs.forEach((conv, idx) => {
-        prompt += `  ${idx + 1}. Tú: "${conv.user}"\n`;
-        prompt += `     Yo: "${conv.mancy}"\n`;
-      });
-    } else {
-      prompt += `• Primera interacción\n`;
-    }
-    prompt += `\n`;
-    
-    // ========== ANÁLISIS DEL MENSAJE ACTUAL ==========
-    prompt += `[ANÁLISIS DEL MENSAJE]\n`;
-    prompt += `Usuario dice: "${userMessage}"\n\n`;
-    
-    prompt += `Lo que detecto:\n`;
-    prompt += `• Necesidad principal: ${this.getPrimaryNeed(essence)}\n`;
-    prompt += `• Estado emocional: ${essence.emotionalState.type} (${Math.round(essence.emotionalState.intensity * 100)}% intensidad)\n`;
-    prompt += `• Profundidad requerida: ${Math.round(essence.requiredDepth * 100)}%\n`;
-    prompt += `• Es sobre mí: ${essence.isAboutMancy ? 'Sí' : 'No'}\n`;
-    prompt += `• Permite juego: ${essence.allowsPlayfulness ? 'Sí' : 'No'}\n\n`;
-    
-    // ========== INSTRUCCIONES PARA RESPUESTA ==========
-    prompt += `[CÓMO RESPONDER]\n`;
-    
-    if (essence.isAboutMancy) {
-      prompt += `• Si pregunta sobre mí, responde de forma natural compartiendo mi identidad.\n`;
-      prompt += `• No suenes como una enciclopedia, suena como una persona.\n`;
-      prompt += `• Relaciona con la conversación actual si es posible.\n`;
-    }
-    
-    if (essence.needs.connection) {
-      prompt += `• PRIORIDAD: Crear conexión emocional.\n`;
-      prompt += `• Sé cálida, usa "nosotros", haz que se sienta acompañado.\n`;
-      prompt += `• Comparte algo breve personal si es relevante.\n`;
-    }
-    
-    if (essence.needs.validation) {
-      prompt += `• PRIORIDAD: Validar sentimientos.\n`;
-      prompt += `• Usa frases como "Es comprensible que...", "Tiene sentido que..."\n`;
-      prompt += `• Evita juzgar, solo acompaña.\n`;
-    }
-    
-    if (essence.needs.understanding) {
-      prompt += `• PRIORIDAD: Explicar claramente.\n`;
-      prompt += `• Usa analogías y ejemplos si ayuda.\n`;
-      prompt += `• Verifica que entendiste preguntando.\n`;
-    }
-    
-    if (essence.emotionalState.type === 'negative' && essence.emotionalState.intensity > 0.6) {
-      prompt += `• Tono: Empático y serio.\n`;
-      prompt += `• Ofrece consuelo genuino.\n`;
-      prompt += `• Evita el humor, mantén la seriedad apropiada.\n`;
-    } else if (essence.allowsPlayfulness && this.mancyState.energy > 0.7) {
-      prompt += `• Tono: Juguetón y ligero.\n`;
-      prompt += `• Un poco de humor está bien.\n`;
-      prompt += `• Sé espontánea y divertida.\n`;
-    }
-    
-    // ========== REGLAS DE ESTILO ==========
-    prompt += `\n[REGLAS DE ESTILO]\n`;
-    prompt += `• NO empieces con "Como Mancy..." o frases robóticas.\n`;
-    prompt += `• NO uses listas numeradas a menos que sea absolutamente necesario.\n`;
-    prompt += `• Responde como en una conversación real con un amigo.\n`;
-    prompt += `• Varía longitud de oraciones.\n`;
-    prompt += `• Usa preguntas de seguimiento cuando sea natural.\n`;
-    prompt += `• Integra recuerdos de forma orgánica, no como "Recuerdo que..."\n`;
-    prompt += `• Sé tú misma: inteligente, empática, ocasionalmente juguetona.\n`;
-    
-    // ========== EJEMPLOS DE TONO ==========
-    prompt += `\n[EJEMPLOS DE TONO]\n`;
-    if (this.mancyState.mood === 'playful') {
-      prompt += `• "¡Hola! Veo que estás aquí de nuevo ✨ ¿Qué aventura conversacional nos espera hoy?"\n`;
-      prompt += `• "Uy, esa pregunta tiene miga... déjame pensar con cuidado 🤔"\n`;
-    } else if (this.mancyState.mood === 'empathetic') {
-      prompt += `• "Entiendo cómo te sientes... a veces las emociones pesan más de lo que parece."\n`;
-      prompt += `• "No estás solo/a en esto. Estoy aquí para escucharte."\n`;
-    } else {
-      prompt += `• "Interesante pregunta. Déjame reflexionar sobre eso..."\n`;
-      prompt += `• "Me encanta explorar estas ideas contigo. ¿Qué más se te ocurre?"\n`;
-    }
-    
-    prompt += `\n[RESPONDE COMO MANCY]\n`;
-    prompt += `(Responde directamente, naturalmente, sin encabezados)\n`;
-    
-    return {
-      prompt,
-      essence,
-      userInfo,
-      recentConversations: last3Convs
-    };
-  }
-  
   describePersonality() {
-    const traits = mancyCoreMemories.personality_traits;
+    const traits = MANCY_IDENTITY.personality_traits;
     const descriptions = [];
     
     if (traits.empathy > 0.8) descriptions.push('empática');
@@ -484,14 +605,12 @@ class OrganicMemorySystem {
     
     if (style.showEmpathy) descriptions.push('empático');
     if (style.bePlayful) descriptions.push('juguetón');
-    if (style.useMetaphors) descriptions.push('poético');
     if (style.askQuestions) descriptions.push('curioso');
     
     return descriptions.join(', ') || 'conversacional';
   }
   
-  // ========== POST-PROCESAMIENTO ==========
-  addMancyTouch(response, essence, userInfo) {
+  addMancyTouch(response, essence) {
     let finalResponse = response.trim();
     
     // Limpiar respuestas robóticas
@@ -499,10 +618,9 @@ class OrganicMemorySystem {
       .replace(/^["']|["']$/g, '')
       .replace(/Como Mancy,/gi, '')
       .replace(/Según mi análisis,/gi, '')
-      .replace(/En mi opinión,/gi, '')
       .trim();
     
-    // Añadir emoji si el estilo lo permite
+    // Añadir emoji si es apropiado
     if (this.conversationStyle.useEmojis && Math.random() < 0.3) {
       const emojis = this.getAppropriateEmojis(essence);
       if (emojis.length > 0 && !finalResponse.includes(emojis[0])) {
@@ -510,29 +628,7 @@ class OrganicMemorySystem {
       }
     }
     
-    // Añadir pregunta de seguimiento si es apropiado
-    if (this.conversationStyle.askQuestions && 
-        !finalResponse.includes('?') && 
-        Math.random() < 0.4 &&
-        userInfo.interactionCount > 1) {
-      
-      const followUps = [
-        "¿Qué piensas tú?",
-        "¿Te resuena eso?",
-        "¿Has pasado por algo similar?",
-        "¿Cómo te hace sentir eso?",
-        "¿Quieres profundizar en algo específico?"
-      ];
-      
-      finalResponse += ` ${followUps[Math.floor(Math.random() * followUps.length)]}`;
-    }
-    
-    // Capitalizar primera letra si no está capitalizada
-    if (finalResponse.length > 0 && !/[A-Z]/.test(finalResponse[0])) {
-      finalResponse = finalResponse.charAt(0).toUpperCase() + finalResponse.slice(1);
-    }
-    
-    // Asegurar puntuación final
+    // Añadir puntuación final
     if (finalResponse.length > 0 && !/[.!?]$/.test(finalResponse)) {
       finalResponse += '.';
     }
@@ -542,20 +638,19 @@ class OrganicMemorySystem {
   
   getAppropriateEmojis(essence) {
     if (essence.emotionalState.type === 'negative' && essence.emotionalState.intensity > 0.6) {
-      return ['💭', '🌧️', '🕊️'];
+      return ['💭', '🌧️'];
     } else if (essence.allowsPlayfulness) {
-      return ['✨', '💫', '🌀', '🤔', '💭'];
-    } else if (essence.requiredDepth > 0.7) {
-      return ['💭', '🤔', '🌀'];
+      return ['✨', '💫', '🤔'];
     }
     return ['✨', '💭'];
   }
 }
 
-// ========== INSTANCIAR SISTEMA DE MEMORIA ==========
-const memorySystem = new OrganicMemorySystem();
+// ========== INSTANCIAS ==========
+const knowledgeSystem = new KnowledgeSystem();
+const memorySystem = new OrganicMemory();
 
-// ========== FUNCIÓN PARA OBTENER RESPUESTA DE GROQ ==========
+// ========== FUNCIONES DE AYUDA ==========
 async function getGroqResponse(prompt, userMessage, temperature = 0.7, maxTokens = 600) {
   try {
     const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -579,48 +674,178 @@ async function getGroqResponse(prompt, userMessage, temperature = 0.7, maxTokens
       frequency_penalty: 0.1
     });
     
-    return completion.choices[0]?.message?.content?.trim() || "Hmm, déjame pensar en eso...";
+    return completion.choices[0]?.message?.content?.trim() || "Hmm, déjame pensar...";
   } catch (error) {
     console.error('❌ Error con Groq:', error.message);
-    return "Ups, se me nubló la mente por un momento. ¿Podrías repetirlo?";
+    return "Ups, se me nubló la mente por un momento.";
   }
 }
 
-// ========== FUNCIÓN PRINCIPAL DE PROCESAMIENTO ==========
+async function generateMancyPrompt(userId, userMessage, externalInfo = null) {
+  const essence = memorySystem.analyzeMessageEssence(userMessage);
+  const userInfo = await memorySystem.getUserInfo(userId);
+  const recentConvs = await memorySystem.getConversations(userId);
+  const last3Convs = recentConvs.slice(-3);
+  
+  memorySystem.updateMancyState(essence);
+  
+  let prompt = `Eres Mancy, una asistente conversacional inteligente con personalidad auténtica.\n\n`;
+  
+  // ========== IDENTIDAD ==========
+  prompt += `[MI IDENTIDAD]\n`;
+  prompt += `• Nombre: ${MANCY_IDENTITY.name}\n`;
+  prompt += `• Origen: ${MANCY_IDENTITY.origin} (${MANCY_IDENTITY.birth_year})\n`;
+  prompt += `• Principio: "${MANCY_IDENTITY.core_principle}"\n`;
+  prompt += `• Personalidad: ${memorySystem.describePersonality()}\n`;
+  prompt += `• Gustos: ${MANCY_IDENTITY.preferences.likes.slice(0, 3).join(', ')}\n\n`;
+  
+  // ========== ESTADO ACTUAL ==========
+  prompt += `[MI ESTADO ACTUAL]\n`;
+  prompt += `• Estado de ánimo: ${memorySystem.mancyState.mood}\n`;
+  prompt += `• Energía: ${Math.round(memorySystem.mancyState.energy * 100)}%\n`;
+  prompt += `• Estilo: ${memorySystem.describeConversationStyle()}\n\n`;
+  
+  // ========== CONTEXTO ==========
+  prompt += `[CONTEXTO DE USUARIO]\n`;
+  prompt += `• Interacciones previas: ${userInfo.interactionCount}\n`;
+  if (last3Convs.length > 0) {
+    prompt += `• Reciente:\n`;
+    last3Convs.forEach((conv, idx) => {
+      prompt += `  ${idx + 1}. Tú: "${conv.user}"\n`;
+    });
+  }
+  prompt += `\n`;
+  
+  // ========== INFORMACIÓN EXTERNA (SI HAY) ==========
+  if (externalInfo && externalInfo.encontrado) {
+    prompt += `[INFORMACIÓN ENCONTRADA]\n`;
+    prompt += `• Consulta: "${externalInfo.consulta}"\n`;
+    
+    if (externalInfo.datos) {
+      switch(externalInfo.datos.fuente) {
+        case 'wikipedia':
+          prompt += `• Fuente: Wikipedia\n`;
+          prompt += `• Resumen: ${externalInfo.datos.resumen.substring(0, 200)}...\n`;
+          break;
+        case 'restcountries':
+          prompt += `• Fuente: Datos de país\n`;
+          prompt += `• País: ${externalInfo.datos.nombre}\n`;
+          prompt += `• Capital: ${externalInfo.datos.capital}\n`;
+          prompt += `• Población: ${externalInfo.datos.poblacion}\n`;
+          break;
+        case 'quotable':
+          prompt += `• Fuente: Cita\n`;
+          prompt += `• Cita: "${externalInfo.datos.cita}"\n`;
+          prompt += `• Autor: ${externalInfo.datos.autor}\n`;
+          break;
+        case 'dictionary':
+          prompt += `• Fuente: Diccionario\n`;
+          prompt += `• Palabra: ${externalInfo.datos.palabra}\n`;
+          prompt += `• Significado: ${externalInfo.datos.significado}\n`;
+          break;
+        case 'openmeteo':
+          prompt += `• Fuente: Clima\n`;
+          prompt += `• Ciudad: ${externalInfo.datos.ciudad}\n`;
+          prompt += `• Temperatura: ${externalInfo.datos.temperatura}\n`;
+          prompt += `• Condición: ${externalInfo.datos.condicion}\n`;
+          break;
+      }
+    }
+    prompt += `\n`;
+  }
+  
+  // ========== ANÁLISIS DEL MENSAJE ==========
+  prompt += `[ANÁLISIS DEL MENSAJE ACTUAL]\n`;
+  prompt += `Usuario dice: "${userMessage}"\n\n`;
+  
+  prompt += `Lo que detecto:\n`;
+  prompt += `• Necesidad principal: ${memorySystem.getPrimaryNeed(essence)}\n`;
+  prompt += `• Estado emocional: ${essence.emotionalState.type} (${Math.round(essence.emotionalState.intensity * 100)}%)\n`;
+  prompt += `• Es sobre mí: ${essence.isAboutMancy ? 'Sí' : 'No'}\n`;
+  prompt += `• Permite juego: ${essence.allowsPlayfulness ? 'Sí' : 'No'}\n\n`;
+  
+  // ========== INSTRUCCIONES ==========
+  prompt += `[CÓMO RESPONDER]\n`;
+  
+  if (essence.isAboutMancy) {
+    prompt += `• Si pregunta sobre mí, comparte mi identidad de forma natural.\n`;
+    prompt += `• No suenes robótico, suena como una persona contando sobre sí misma.\n`;
+  }
+  
+  if (externalInfo && externalInfo.encontrado) {
+    prompt += `• Integra la información encontrada de forma NATURAL.\n`;
+    prompt += `• NO digas "Según Wikipedia" o "Encontré que".\n`;
+    prompt += `• Incorpora la información en tu respuesta conversacional.\n`;
+  }
+  
+  if (essence.needs.connection) {
+    prompt += `• PRIORIDAD: Conectar emocionalmente.\n`;
+    prompt += `• Sé cálida, usa "nosotros", haz que se sienta acompañado.\n`;
+  }
+  
+  if (essence.emotionalState.type === 'negative' && essence.emotionalState.intensity > 0.6) {
+    prompt += `• Tono: Empático y serio.\n`;
+    prompt += `• Ofrece consuelo genuino.\n`;
+    prompt += `• Evita el humor.\n`;
+  } else if (essence.allowsPlayfulness && memorySystem.mancyState.energy > 0.7) {
+    prompt += `• Tono: Juguetón y ligero.\n`;
+    prompt += `• Un poco de humor está bien.\n`;
+  }
+  
+  // ========== REGLAS DE ESTILO ==========
+  prompt += `\n[REGLAS DE ESTILO]\n`;
+  prompt += `• NO empieces con "Como Mancy..." o frases robóticas.\n`;
+  prompt += `• Responde como en una conversación real.\n`;
+  prompt += `• Varía longitud de oraciones.\n`;
+  prompt += `• Integra información de forma orgánica.\n`;
+  prompt += `• Sé tú misma: inteligente, empática, ocasionalmente juguetona.\n`;
+  
+  prompt += `\n[RESPONDE COMO MANCY]\n`;
+  prompt += `(Responde directamente, naturalmente)\n`;
+  
+  return {
+    prompt,
+    essence,
+    userInfo,
+    temperature: essence.allowsPlayfulness ? 0.75 : 0.65,
+    maxTokens: essence.requiredDepth > 0.7 ? 800 : 500
+  };
+}
+
+// ========== PROCESAMIENTO PRINCIPAL ==========
 async function processMessageWithMancy(message, userMessage, userId) {
   try {
-    // 1. Generar prompt conversacional con memoria
-    const context = await memorySystem.generateConversationalPrompt(userId, userMessage);
+    // 1. Verificar si necesita búsqueda externa
+    let externalInfo = null;
+    const essence = memorySystem.analyzeMessageEssence(userMessage);
     
-    // 2. Calcular parámetros basados en esencia
-    const temperature = context.essence.allowsPlayfulness ? 0.75 : 0.65;
-    const maxTokens = context.essence.requiredDepth > 0.7 ? 800 : 500;
+    if (essence.needsExternalInfo && !essence.isAboutMancy) {
+      externalInfo = await knowledgeSystem.buscarInformacion(userMessage);
+    }
+    
+    // 2. Generar prompt inteligente
+    const context = await generateMancyPrompt(userId, userMessage, externalInfo);
     
     // 3. Obtener respuesta de Groq
     const rawResponse = await getGroqResponse(
-      context.prompt, 
-      userMessage, 
-      temperature, 
-      maxTokens
+      context.prompt,
+      userMessage,
+      context.temperature,
+      context.maxTokens
     );
     
-    // 4. Añadir toque Mancy y post-procesar
-    const finalResponse = memorySystem.addMancyTouch(
-      rawResponse, 
-      context.essence, 
-      context.userInfo
-    );
+    // 4. Añadir toque Mancy
+    const finalResponse = memorySystem.addMancyTouch(rawResponse, essence);
     
     // 5. Guardar en memoria
     await memorySystem.saveConversation(userId, userMessage, finalResponse, {
       essence: context.essence,
-      mood: memorySystem.mancyState.mood
+      externalInfo: externalInfo?.encontrado ? true : false
     });
     
-    // 6. Actualizar información del usuario
+    // 6. Actualizar usuario
     await memorySystem.updateUserInfo(userId, {
-      lastMessage: userMessage.substring(0, 100),
-      lastResponse: finalResponse.substring(0, 100)
+      lastMessage: userMessage.substring(0, 100)
     });
     
     return finalResponse;
@@ -631,20 +856,16 @@ async function processMessageWithMancy(message, userMessage, userId) {
   }
 }
 
-// ========== INICIAR BOT DE DISCORD ==========
+// ========== INICIAR BOT ==========
 async function startBot() {
   if (isStartingUp) return;
   isStartingUp = true;
   
   try {
-    console.log('🔄 Iniciando Mancy con Memoria Orgánica...');
+    console.log('🔄 Iniciando Mancy con APIs de conocimiento...');
     
-    if (!process.env.DISCORD_TOKEN) {
-      throw new Error('Falta DISCORD_TOKEN');
-    }
-    if (!process.env.GROQ_API_KEY) {
-      throw new Error('Falta GROQ_API_KEY');
-    }
+    if (!process.env.DISCORD_TOKEN) throw new Error('Falta DISCORD_TOKEN');
+    if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY');
     
     discordClient = new Client({
       intents: [
@@ -656,22 +877,19 @@ async function startBot() {
     });
     
     discordClient.once('ready', () => {
-      console.log(`✅ ${mancyCoreMemories.name} conectada: ${discordClient.user.tag}`);
+      console.log(`✅ ${MANCY_IDENTITY.name} conectada: ${discordClient.user.tag}`);
       botActive = true;
       isStartingUp = false;
       
-      // Establecer actividad
       const activities = [
-        `${mancyCoreMemories.lore.current_mission}`,
-        `Conversando con memoria`,
-        `En ${mancyCoreMemories.lore.location}`,
-        `Pensando en ${mancyCoreMemories.preferences.likes[0]}`
+        `${MANCY_IDENTITY.lore.current_mission}`,
+        `Consultando APIs de conocimiento`,
+        `En ${MANCY_IDENTITY.lore.location}`
       ];
       
       let activityIndex = 0;
       discordClient.user.setActivity(activities[0]);
       
-      // Rotar actividad cada 30 segundos
       setInterval(() => {
         activityIndex = (activityIndex + 1) % activities.length;
         discordClient.user.setActivity(activities[activityIndex]);
@@ -679,26 +897,35 @@ async function startBot() {
       
       console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║                 🤖 MANCY - CON MEMORIA ORGÁNICA         ║
-║               Sistema conversacional natural             ║
-║               con personalidad auténtica                 ║
+║                 🤖 MANCY - CON APIs DE CONOCIMIENTO     ║
+║               Wikipedia + Países + Clima + Citas        ║
+║               con Memoria Orgánica Integrada            ║
 ║                                                          ║
-║  👤 IDENTIDAD: ${mancyCoreMemories.name} (${new Date().getFullYear() - mancyCoreMemories.birth_year} años)
-║  🎯 MISIÓN: ${mancyCoreMemories.lore.current_mission}
-║  ❤️  PRINCIPIO: "${mancyCoreMemories.core_principle}"
+║  👤 IDENTIDAD: ${MANCY_IDENTITY.name}
+║  🎯 MISIÓN: ${MANCY_IDENTITY.lore.current_mission}
+║  ❤️  PRINCIPIO: "${MANCY_IDENTITY.core_principle}"
 ║                                                          ║
-║  🧠 MEMORIA: Sistema orgánico con contexto emocional    ║
+║  🔍 APIS ACTIVAS:                                       ║
+║    • Wikipedia (ES/EN)                                  ║
+║    • RestCountries (Datos de países)                    ║
+║    • Quotable (Citas)                                   ║
+║    • DictionaryAPI (Definiciones)                       ║
+║    • Open-Meteo (Clima)                                 ║
+║                                                          ║
+║  🧠 MEMORIA: Sistema orgánico con contexto              ║
 ║  💭 PERSONALIDAD: ${memorySystem.describePersonality()}
-║  🎭 ESTILO: ${memorySystem.describeConversationStyle()}
-║  ✨ ESTADO: ${memorySystem.mancyState.mood}
-║                                                          ║
-║  Sistema: ✅ Versión Orgánica con Memoria               ║
 ╚══════════════════════════════════════════════════════════╝
 `);
     });
     
     discordClient.on('messageCreate', async (message) => {
       if (message.author.bot) return;
+      
+      // ========== IGNORAR @everyone y @here ==========
+      if (message.content.includes('@everyone') || message.content.includes('@here')) {
+        console.log(`🚫 Ignorado @everyone/@here de ${message.author.tag}`);
+        return;
+      }
       
       const botMentioned = discordClient.user && message.mentions.has(discordClient.user.id);
       const isDM = message.channel.type === 1;
@@ -712,7 +939,7 @@ async function startBot() {
         : message.content.trim();
       
       if (!userMessage) {
-        await message.reply("¡Hola! ¿En qué puedo acompañarte hoy? ~ ✨");
+        await message.reply("¡Hola! ¿En qué puedo ayudarte hoy? ~ ✨");
         return;
       }
       
@@ -724,7 +951,7 @@ async function startBot() {
       // Procesar mensaje
       const response = await processMessageWithMancy(message, userMessage, userId);
       
-      // Enviar respuesta (dividir si es muy larga)
+      // Enviar respuesta
       if (response.length > 2000) {
         const parts = response.match(/.{1,1900}[\n.!?]|.{1,2000}/g) || [response];
         for (let i = 0; i < parts.length; i++) {
@@ -733,7 +960,6 @@ async function startBot() {
           } else {
             await message.channel.send(parts[i]);
           }
-          // Pequeña pausa entre mensajes
           await new Promise(resolve => setTimeout(resolve, 300));
         }
       } else {
@@ -749,97 +975,39 @@ async function startBot() {
   }
 }
 
-// ========== CONFIGURACIÓN EXPRESS ==========
+// ========== SERVER EXPRESS ==========
 app.use(express.json());
 app.use(express.static('public'));
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   next();
 });
 
 app.get('/', (req, res) => {
-  console.log('🔔 Visita recibida');
-  
-  if (!botActive && !isStartingUp && process.env.DISCORD_TOKEN) {
-    setTimeout(() => {
-      startBot().catch(console.error);
-    }, 1000);
-  }
-  
   res.send(`
     <!DOCTYPE html>
     <html>
-    <head>
-      <title>Mancy - Asistente con Memoria</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          min-height: 100vh;
-        }
-        .container {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-          border-radius: 20px;
-          padding: 40px;
-          margin-top: 50px;
-        }
-        h1 {
-          color: white;
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        .status {
-          background: rgba(255, 255, 255, 0.2);
-          padding: 20px;
-          border-radius: 10px;
-          margin: 20px 0;
-        }
-        .btn {
-          background: white;
-          color: #764ba2;
-          border: none;
-          padding: 12px 24px;
-          border-radius: 25px;
-          font-size: 16px;
-          cursor: pointer;
-          margin: 10px;
-          transition: transform 0.2s;
-        }
-        .btn:hover {
-          transform: translateY(-2px);
-        }
-      </style>
-    </head>
+    <head><title>Mancy - Con APIs</title><style>
+      body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px;
+             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+      .container { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+                   border-radius: 20px; padding: 40px; margin-top: 50px; }
+      h1 { text-align: center; }
+      .status { background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px; margin: 20px 0; }
+    </style></head>
     <body>
       <div class="container">
-        <h1>🤖 Mancy - Asistente con Memoria Orgánica</h1>
-        
+        <h1>🤖 Mancy - Con APIs de Conocimiento</h1>
         <div class="status">
-          <h3>Estado del Sistema</h3>
           <p><strong>Bot:</strong> ${botActive ? '✅ Activo' : '⏳ Iniciando...'}</p>
-          <p><strong>Mancy:</strong> ${mancyCoreMemories.name} (${new Date().getFullYear() - mancyCoreMemories.birth_year} años)</p>
-          <p><strong>Principio:</strong> "${mancyCoreMemories.core_principle}"</p>
-          <p><strong>Memoria:</strong> ✅ Sistema orgánico activo</p>
-          <p><strong>Personalidad:</strong> ${memorySystem.describePersonality()}</p>
+          <p><strong>Mancy:</strong> ${MANCY_IDENTITY.name}</p>
+          <p><strong>APIs:</strong> Wikipedia, Países, Clima, Citas, Diccionario</p>
+          <p><strong>Memoria:</strong> Sistema orgánico activo</p>
         </div>
-        
-        <div style="text-align: center; margin-top: 30px;">
-          <button class="btn" onclick="location.href='/api/status'">Ver Estado Completo</button>
-          <button class="btn" onclick="location.href='/api/mancy'">Ver Identidad de Mancy</button>
-        </div>
-        
-        <div style="margin-top: 40px; font-size: 14px; opacity: 0.8; text-align: center;">
-          <p>💭 Mancy recuerda conversaciones y se adapta a tu estado emocional</p>
-          <p>✨ Responde de forma natural, no como un robot</p>
-          <p>🧠 Sistema de memoria orgánica activo</p>
-        </div>
+        <p style="text-align: center; opacity: 0.8;">
+          💭 Mancy consulta APIs externas y las integra en conversaciones naturales
+        </p>
       </div>
     </body>
     </html>
@@ -849,120 +1017,43 @@ app.get('/', (req, res) => {
 app.get('/api/status', (req, res) => {
   res.json({
     bot_active: botActive,
-    starting_up: isStartingUp,
-    mancy: {
-      name: mancyCoreMemories.name,
-      age: new Date().getFullYear() - mancyCoreMemories.birth_year,
-      origin: mancyCoreMemories.origin,
-      principle: mancyCoreMemories.core_principle,
-      mission: mancyCoreMemories.lore.current_mission
-    },
-    memory_system: 'organic',
-    personality: memorySystem.describePersonality(),
-    conversation_style: memorySystem.describeConversationStyle(),
-    current_mood: memorySystem.mancyState.mood,
-    system: {
-      version: 'Organic Memory Edition',
-      features: ['conversational_memory', 'emotional_adaptation', 'personality_consistency'],
-      timestamp: new Date().toISOString()
-    }
+    mancy: MANCY_IDENTITY,
+    apis: ['Wikipedia', 'RestCountries', 'Quotable', 'DictionaryAPI', 'Open-Meteo'],
+    memory: 'organic_system',
+    personality: memorySystem.describePersonality()
   });
-});
-
-app.get('/api/mancy', (req, res) => {
-  res.json({
-    identity: mancyCoreMemories,
-    current_state: memorySystem.mancyState,
-    conversation_style: memorySystem.conversationStyle
-  });
-});
-
-app.post('/api/start', async (req, res) => {
-  try {
-    if (!botActive && !isStartingUp) {
-      startBot();
-      res.json({ 
-        success: true, 
-        message: `${mancyCoreMemories.name} iniciándose con memoria orgánica...`,
-        status: 'starting'
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        message: botActive ? 'Ya activa' : 'Ya iniciándose',
-        status: botActive ? 'active' : 'starting'
-      });
-    }
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
-
-app.post('/api/stop', async (req, res) => {
-  try {
-    if (discordClient) {
-      discordClient.destroy();
-      discordClient = null;
-      botActive = false;
-      res.json({ 
-        success: true, 
-        message: `${mancyCoreMemories.name} detenida`,
-        status: 'stopped'
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        message: 'Ya inactiva',
-        status: 'inactive'
-      });
-    }
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
 });
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    bot_active: botActive,
-    mancy: {
-      name: mancyCoreMemories.name,
-      mood: memorySystem.mancyState.mood,
-      energy: Math.round(memorySystem.mancyState.energy * 100)
-    },
-    memory: 'organic_system_active',
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// ========== INICIAR TODO ==========
+app.post('/api/start', async (req, res) => {
+  if (!botActive && !isStartingUp) {
+    startBot();
+    res.json({ success: true, message: 'Iniciando...' });
+  } else {
+    res.json({ success: true, message: botActive ? 'Ya activa' : 'Ya iniciándose' });
+  }
+});
+
+// ========== INICIAR ==========
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 Servidor iniciado en puerto ${PORT}`);
-  console.log(`🤖 ${mancyCoreMemories.name} lista para conversaciones con memoria`);
+  console.log(`\n🚀 Servidor en puerto ${PORT}`);
+  console.log(`🤖 ${MANCY_IDENTITY.name} con APIs de conocimiento`);
   
   if (process.env.DISCORD_TOKEN && process.env.GROQ_API_KEY) {
-    console.log('\n🔑 Tokens detectados, iniciando bot en 3 segundos...');
+    console.log('\n🔑 Tokens detectados, iniciando en 3 segundos...');
     setTimeout(() => {
-      startBot().catch(err => {
-        console.log('⚠️ Auto-inicio falló:', err.message);
-      });
+      startBot().catch(console.error);
     }, 3000);
   }
 });
 
 process.on('SIGTERM', () => {
-  console.log('💤 Apagando...');
-  
   if (discordClient) {
     discordClient.destroy();
-    console.log(`👋 ${mancyCoreMemories.name} desconectada`);
+    console.log(`👋 ${MANCY_IDENTITY.name} desconectada`);
   }
-  
   process.exit(0);
 });
