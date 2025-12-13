@@ -23,10 +23,10 @@ let startAttempts = 0;
 const MAX_START_ATTEMPTS = 3;
 
 // ========== RUTAS PARA CONTROL DEL BOT ==========
-app.get('/api/bot/status', (req, res) => {
+app.get('/api/status', (req, res) => {
     res.json({
-        active: botActive,
-        startingUp: isStartingUp,
+        bot_active: botActive,
+        starting_up: isStartingUp,
         startAttempts: startAttempts,
         maxAttempts: MAX_START_ATTEMPTS,
         memory_stats: {
@@ -39,7 +39,7 @@ app.get('/api/bot/status', (req, res) => {
     });
 });
 
-app.post('/api/bot/start', (req, res) => {
+app.post('/api/start', (req, res) => {
     if (botActive) {
         return res.json({ success: false, message: 'El bot ya está activo' });
     }
@@ -63,7 +63,7 @@ app.post('/api/bot/start', (req, res) => {
     }
 });
 
-app.post('/api/bot/stop', (req, res) => {
+app.post('/api/stop', (req, res) => {
     if (!botActive && !isStartingUp) {
         return res.json({ success: false, message: 'El bot ya está detenido' });
     }
@@ -1495,21 +1495,6 @@ async function processMessageWithMancy(message, userMessage, userId) {
 
 // ========== INICIO DEL SERVIDOR WEB Y DISCORD ==========
 
-// Mantener ruta /api/status para compatibilidad con el HTML
-app.get('/api/status', (req, res) => {
-    res.json({
-        bot_active: botActive,
-        starting_up: isStartingUp,
-        memory_stats: {
-            totalMessages: 0,
-            totalUsers: 0,
-            queriesProcessed: 0
-        },
-        capabilities: ["wikipedia", "knowledge", "learning", "memory"],
-        version: "3.0 - Super Inteligente"
-    });
-});
-
 // Ruta principal sirve el HTML
 app.get('/', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
@@ -1518,6 +1503,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🌐 Servidor Express escuchando en el puerto ${PORT}`);
     console.log(`📁 Sirviendo archivos estáticos desde la carpeta 'public'`);
+    console.log(`🚀 Panel de control disponible en: http://localhost:${PORT}`);
     
     // Iniciar el bot automáticamente al arrancar el servidor (opcional)
     // initializeDiscordClient();
