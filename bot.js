@@ -21,12 +21,10 @@ let discordClient = null;
 export let botActive = false;
 export let isStartingUp = false;
 let startAttempts = 0;
-// let messageQueue = []; // No usado en el código, se puede eliminar si no es necesario
-// let processingMessage = false; // No usado en el código, se puede eliminar si no es necesario
 
-// Cache simple para evitar procesamiento duplicado
+// Cache para BLOQUEO de mensajes duplicados/reprocesamiento, usando message.id
 const messageCache = new Map();
-const CACHE_DURATION = 5000; // 5 segundos
+const CACHE_DURATION = 5000; // 5 segundos, tiempo máximo de bloqueo de un mensaje
 
 // =================================================================
 // ========== CONFIGURACIÓN DE MODELO ==========
@@ -43,14 +41,14 @@ const SELECTED_MODEL = {
 const MODEL_TEMPERATURE = 0.7;
 const MODEL_MAX_TOKENS = 1024;
 const API_TIMEOUT = 30000; // 30 segundos
-const PROCESSING_TIMEOUT = 25000; // 25 segundos para el manejo de mensajes
+const PROCESSING_TIMEOUT = 25000; // 25 segundos para el manejo de mensajes completo
 
 // =================================================================
 // ========== FUNCIONES AUXILIARES ==========
 // =================================================================
 
 /**
- * Extrae JSON de un string que pueda contener texto adicional o markdown (MEJORA: Más robusto).
+ * Extrae JSON de un string que pueda contener texto adicional o markdown (ROBUSTO).
  */
 function extractJSONFromText(text) {
     if (!text) return null;
@@ -146,7 +144,7 @@ No expliques, no comentes, solo JSON.`;
                     content: userPrompt 
                 }
             ],
-            model: SELECTED_MODEL.name, // Usando llama-3.1-8b-instant
+            model: SELECTED_MODEL.name,
             temperature: temperature || MODEL_TEMPERATURE,
             max_tokens: maxTokens || MODEL_MAX_TOKENS,
             response_format: { type: "json_object" },
@@ -165,11 +163,6 @@ No expliques, no comentes, solo JSON.`;
         if (!rawContent) {
             console.error("❌ Contenido vacío recibido de Groq");
             return MANCY_CONFIG.FALLBACK_RESPONSE;
-        }
-
-        // DEBUG: Log para debugging
-        if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
-            // console.log(`📥 Raw content recibido:`, rawContent.substring(0, 300));
         }
 
         // Intentar extraer y validar JSON
@@ -194,8 +187,8 @@ No expliques, no comentes, solo JSON.`;
 
         // Sanitizar respuesta para Discord
         parsedResponse.respuesta_discord = parsedResponse.respuesta_discord
-            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Eliminar caracteres de control
-            .replace(/\s+/g, ' ') // Normalizar espacios
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+            .replace(/\s+/g, ' ')
             .trim();
 
         // Asegurar que no esté vacío
@@ -215,8 +208,6 @@ No expliques, no comentes, solo JSON.`;
             userErrorMessage = "El servicio de IA tardó demasiado en responder. ¿Puedes reformular la pregunta?";
         } else if (error.message.includes("Respuesta de API vacía")) {
              userErrorMessage = "El modelo no generó contenido. Intenta con un prompt diferente.";
-        } else if (error.message.includes("Bad Request")) {
-            userErrorMessage = "El formato de la solicitud no es correcto. Contacta al desarrollador.";
         }
 
         return {
@@ -314,7 +305,7 @@ async function startDiscordBot() {
 }
 
 // =================================================================
-// ========== MANEJADOR DE MENSAJES ==========
+// ========== MANEJADOR DE MENSAJES (CON BLOQUEO DE DUPLICADOS) ==========
 // =================================================================
 
 async function handleDiscordMessage(message) {
@@ -327,39 +318,48 @@ async function handleDiscordMessage(message) {
     
     let userMessage = message.content.replace(new RegExp(`<@!?${discordClient.user.id}>`), '').trim();
     if (!userMessage) {
-        await message.reply("¿Sí? ¿En qué puedo ayudarte?");
+        if (isMention || isDirectMessage) {
+             await message.reply("¿Sí? ¿En qué puedo ayudarte?");
+        }
         return;
     }
     
-    // Cache para evitar duplicados
-    const cacheKey = `${message.author.id}-${userMessage.substring(0, 50)}`;
+    // ** SOLUCIÓN DE DUPLICADOS **
+    const cacheKey = message.id; // Usamos el ID único del mensaje de Discord
+    
+    // 1. Detección de duplicados estricta 
     if (messageCache.has(cacheKey)) {
-        console.log("⚠️ Mensaje duplicado detectado, ignorando...");
+        console.log(`⚠️ Mensaje ID ${cacheKey} ya está siendo procesado o fue procesado recientemente, ignorando.`);
         return;
     }
     
-    // Configurar y limpiar cache
-    messageCache.set(cacheKey, true);
-    setTimeout(() => messageCache.delete(cacheKey), CACHE_DURATION);
+    // 2. Bloqueo de procesamiento: Marcar como en proceso.
+    messageCache.set(cacheKey, Date.now());
     
-    let typingInterval = null; // Variable para controlar el intervalo de 'typing'
+    // Limpieza automática (por si acaso el proceso falla y no se borra en finally)
+    let autoClearTimeout = setTimeout(() => {
+        if (messageCache.has(cacheKey)) {
+            messageCache.delete(cacheKey);
+            console.log(`🗑️ Bloqueo de mensaje ID ${cacheKey} expirado y liberado.`);
+        }
+    }, CACHE_DURATION); 
+
+    let typingInterval = null; 
 
     try {
-        // Inicializar 'Typing' y configurar el looper
+        // Inicializar 'Typing' y configurar el looper (Mejora de UX)
         await message.channel.sendTyping();
         typingInterval = setInterval(() => {
-            // Re-enviar typing cada ~7 segundos (Discord lo cancela después de 10s)
             message.channel.sendTyping().catch(e => {
-                // console.log("Error re-enviando typing:", e.message);
                 if (typingInterval) clearInterval(typingInterval);
             });
         }, 7000); 
 
         const systemPrompt = MANCY_CONFIG.IDENTITY;
         
-        console.log(`📨 Procesando mensaje de ${message.author.tag}`);
+        console.log(`📨 Procesando mensaje ID ${cacheKey} de ${message.author.tag}`);
         
-        // Timeout para procesamiento completo (incluye la espera a la API)
+        // Timeout para procesamiento completo
         const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error(`Timeout procesando después de ${PROCESSING_TIMEOUT / 1000}s`)), PROCESSING_TIMEOUT)
         );
@@ -373,28 +373,29 @@ async function handleDiscordMessage(message) {
         
         const mancyResponseObject = await Promise.race([aiPromise, timeoutPromise]);
         
-        // Detener el looper de typing al tener la respuesta
+        // Limpieza de recursos
         if (typingInterval) clearInterval(typingInterval);
+        clearTimeout(autoClearTimeout);
         
         await message.reply({
             content: mancyResponseObject.respuesta_discord,
             allowedMentions: { repliedUser: false }
         });
 
-        console.log(`✅ Respuesta enviada a ${message.author.tag}`);
+        console.log(`✅ Respuesta enviada para mensaje ID ${cacheKey}`);
 
     } catch (error) {
-        // Asegurar la limpieza del looper en caso de error
+        // Limpieza de recursos en caso de fallo
         if (typingInterval) clearInterval(typingInterval);
+        clearTimeout(autoClearTimeout);
         
-        console.error(`❌ Error procesando mensaje:`, error.message);
+        console.error(`❌ Error procesando mensaje ID ${cacheKey}:`, error.message);
         
         const errorResponses = [
             `¡Ups! Mi cerebro se ha atascado. ¿Podrías intentarlo de nuevo?`,
             `Error de procesamiento. Reiniciando...`,
             `Parece que hay interferencia. Intenta de nuevo.`,
-            `¡Vaya! Necesito un momento. ¿Repites?`,
-            `Hubo un problema de conexión con el modelo. Por favor, espera un segundo e inténtalo de nuevo. (Error: ${error.message.includes('Timeout') ? 'Timeout' : 'Desconocido'})`
+            `¡Vaya! Necesito un momento. ¿Repites?`
         ];
         
         const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
@@ -404,6 +405,9 @@ async function handleDiscordMessage(message) {
         } catch (replyError) {
             console.error("❌ Error al enviar mensaje de error:", replyError.message);
         }
+    } finally {
+        // 3. Liberación definitiva del bloqueo de la caché
+        messageCache.delete(cacheKey); 
     }
 }
 
@@ -431,4 +435,4 @@ export function forceRestartBot() {
 // Inicio automático
 if (import.meta.url === `file://${process.argv[1]}`) {
     initializeAndStartBot();
-}
+    }
