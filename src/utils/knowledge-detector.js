@@ -1,9 +1,7 @@
-import natural from 'natural';
-const { WordTokenizer } = natural;
+// knowledge-detector.js - Versión sin dependencias pesadas
 
 class KnowledgeDetector {
     constructor() {
-        this.tokenizer = new WordTokenizer();
         this.minimumConfidence = 0.4;
         
         // Patrones de preguntas de conocimiento
@@ -64,6 +62,24 @@ class KnowledgeDetector {
             'adiós', 'gracias', 'por favor', 'qué haces',
             'qué pasa', 'qué onda', 'qué hubo'
         ];
+        
+        // Palabras comunes para filtrar
+        this.commonWords = new Set([
+            'es', 'son', 'fue', 'era', 'ser', 'estar', 'tener', 'hacer',
+            'poder', 'decir', 'el', 'la', 'los', 'las', 'un', 'una',
+            'unos', 'unas', 'de', 'del', 'al', 'a', 'con', 'por', 'para'
+        ]);
+    }
+    
+    /**
+     * Tokenizador simple sin dependencias externas
+     */
+    tokenize(text) {
+        return text
+            .toLowerCase()
+            .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ]/gi, ' ')
+            .split(/\s+/)
+            .filter(token => token.length > 0);
     }
     
     /**
@@ -152,7 +168,7 @@ class KnowledgeDetector {
      * Verifica palabras clave en el texto
      */
     checkKeywords(text) {
-        const tokens = this.tokenizer.tokenize(text);
+        const tokens = this.tokenize(text);
         let keywordCount = 0;
         let confidence = 0;
         let detectedType = 'general';
@@ -180,7 +196,7 @@ class KnowledgeDetector {
             detectedType = 'concepto';
         }
         
-        // Extraer tema principal (últimas palabras como tema probable)
+        // Extraer tema principal
         const topic = this.extractTopicFromText(text);
         
         return {
@@ -198,16 +214,11 @@ class KnowledgeDetector {
         // Eliminar signos de interrogación
         let cleaned = text.replace(/\?/g, '').trim();
         
-        // Eliminar palabras interrogativas comunes
+        // Eliminar palabras interrogativas comunes al inicio
         const questionWords = ['qué', 'quién', 'cuándo', 'dónde', 'cómo', 'por qué', 'cuál', 'cuáles'];
         questionWords.forEach(word => {
-            cleaned = cleaned.replace(new RegExp(`^${word}\\s+`, 'i'), '');
-        });
-        
-        // Eliminar artículos y preposiciones comunes al inicio
-        const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'al'];
-        stopWords.forEach(word => {
-            cleaned = cleaned.replace(new RegExp(`^${word}\\s+`, 'i'), '');
+            const regex = new RegExp(`^${word}\\s+`, 'i');
+            cleaned = cleaned.replace(regex, '');
         });
         
         return this.cleanTopic(cleaned);
@@ -217,12 +228,11 @@ class KnowledgeDetector {
      * Extrae tema general del texto
      */
     extractTopicFromText(text) {
-        const tokens = this.tokenizer.tokenize(text);
+        const tokens = this.tokenize(text);
         
-        // Eliminar palabras comunes y cortas
-        const commonWords = ['es', 'son', 'fue', 'era', 'ser', 'estar', 'tener', 'hacer', 'poder', 'decir'];
+        // Filtrar palabras comunes
         const filteredTokens = tokens.filter(token => 
-            token.length > 2 && !commonWords.includes(token.toLowerCase())
+            token.length > 2 && !this.commonWords.has(token.toLowerCase())
         );
         
         // Tomar las últimas 2-4 palabras como tema
@@ -242,7 +252,7 @@ class KnowledgeDetector {
             .trim()
             .replace(/\s+/g, ' ')
             .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ\-]/gi, '')
-            .substring(0, 100); // Limitar longitud
+            .substring(0, 100);
     }
     
     /**
