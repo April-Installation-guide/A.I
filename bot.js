@@ -54,7 +54,7 @@ class ConversationalMemory {
         }
         
         this.messageCount++;
-        
+
         // Actualizar tema actual basado en el contenido
         this.updateCurrentTopic(content);
         
