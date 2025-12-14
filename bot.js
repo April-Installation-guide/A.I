@@ -21,8 +21,8 @@ let discordClient = null;
 export let botActive = false;
 export let isStartingUp = false;
 let startAttempts = 0;
-let messageQueue = [];
-let processingMessage = false;
+// let messageQueue = []; // No usado en el código, se puede eliminar si no es necesario
+// let processingMessage = false; // No usado en el código, se puede eliminar si no es necesario
 
 // Cache simple para evitar procesamiento duplicado
 const messageCache = new Map();
@@ -42,37 +42,40 @@ const SELECTED_MODEL = {
 
 const MODEL_TEMPERATURE = 0.7;
 const MODEL_MAX_TOKENS = 1024;
+const API_TIMEOUT = 30000; // 30 segundos
+const PROCESSING_TIMEOUT = 25000; // 25 segundos para el manejo de mensajes
 
 // =================================================================
 // ========== FUNCIONES AUXILIARES ==========
 // =================================================================
 
 /**
- * Extrae JSON de un string que pueda contener texto adicional
+ * Extrae JSON de un string que pueda contener texto adicional o markdown (MEJORA: Más robusto).
  */
 function extractJSONFromText(text) {
     if (!text) return null;
     
-    // Intentar parsear directamente
+    // 1. Limpieza de markdown común y bloques de código
+    let cleanedText = text
+        .replace(/```json\s*/g, '') // Eliminar ```json
+        .replace(/```\s*$/g, '')    // Eliminar ``` al final
+        .replace(/\s*(\{[\s\S]*\})\s*/, '$1') // Capturar y limpiar envoltorios de espacio
+        .trim();
+
+    // 2. Intentar parsear el texto limpio
     try {
-        return JSON.parse(text.trim());
-    } catch {
-        // Buscar objeto JSON en el texto
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        return JSON.parse(cleanedText);
+    } catch (e) {
+        // console.log("❌ Falló el primer intento de parseo. Buscando objeto:", e.message);
+        
+        // 3. Si falla, buscar la ocurrencia del objeto JSON
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             try {
+                // Intentar parsear solo lo que parece ser el JSON
                 return JSON.parse(jsonMatch[0]);
-            } catch {
-                // Intentar limpiar el JSON
-                const cleaned = jsonMatch[0]
-                    .replace(/```json\s*/g, '')
-                    .replace(/```\s*/g, '')
-                    .trim();
-                try {
-                    return JSON.parse(cleaned);
-                } catch (e) {
-                    console.log("❌ No se pudo limpiar el JSON:", e.message);
-                }
+            } catch (e) {
+                // console.log("❌ Falló el segundo intento de parseo con regex:", e.message);
             }
         }
     }
@@ -113,8 +116,8 @@ IMPORTANTE: Eres el modelo ${SELECTED_MODEL.displayName}.
 Debes responder ÚNICAMENTE con un objeto JSON válido.
 
 REGLAS ESTRICTAS:
-1. NO incluyas ningún texto fuera del JSON
-2. NO uses markdown, code blocks o comillas triples
+1. NO incluyas ningún texto fuera del JSON (ni explicaciones, ni comentarios).
+2. NO uses markdown, code blocks o comillas triples fuera del JSON.
 3. El JSON DEBE seguir exactamente este esquema:
 ${JSON.stringify(jsonSchema, null, 2)}
 
@@ -129,7 +132,7 @@ No expliques, no comentes, solo JSON.`;
         
         // Timeout para la llamada a la API
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error(`Timeout de API excedido (30s)`)), 30000)
+            setTimeout(() => reject(new Error(`Timeout de API excedido (${API_TIMEOUT / 1000}s)`)), API_TIMEOUT)
         );
 
         const apiPromise = groq.chat.completions.create({
@@ -166,27 +169,33 @@ No expliques, no comentes, solo JSON.`;
 
         // DEBUG: Log para debugging
         if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
-            console.log(`📥 Raw content recibido:`, rawContent.substring(0, 300));
+            // console.log(`📥 Raw content recibido:`, rawContent.substring(0, 300));
         }
 
         // Intentar extraer y validar JSON
         const parsedResponse = extractJSONFromText(rawContent);
         
         if (!parsedResponse) {
-            console.error("❌ No se pudo extraer JSON válido");
-            return MANCY_CONFIG.FALLBACK_RESPONSE;
+            console.error("❌ No se pudo extraer JSON válido.");
+            return {
+                ...MANCY_CONFIG.FALLBACK_RESPONSE,
+                respuesta_discord: "⚠️ Error interno: El modelo no devolvió un JSON válido. Intenta de nuevo."
+            };
         }
 
         // Validar estructura
         if (!validateResponseStructure(parsedResponse)) {
-            console.error("❌ Estructura JSON inválida");
-            return MANCY_CONFIG.FALLBACK_RESPONSE;
+            console.error("❌ Estructura JSON inválida.");
+            return {
+                ...MANCY_CONFIG.FALLBACK_RESPONSE,
+                respuesta_discord: "⚠️ Error interno: El modelo devolvió un JSON con estructura incorrecta."
+            };
         }
 
         // Sanitizar respuesta para Discord
         parsedResponse.respuesta_discord = parsedResponse.respuesta_discord
-            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
-            .replace(/\s+/g, ' ')
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Eliminar caracteres de control
+            .replace(/\s+/g, ' ') // Normalizar espacios
             .trim();
 
         // Asegurar que no esté vacío
@@ -200,9 +209,19 @@ No expliques, no comentes, solo JSON.`;
     } catch (error) {
         console.error("❌ Error en getGroqResponse:", error.message);
         
+        let userErrorMessage = "Lo siento, tengo un error desconocido. Inténtalo de nuevo.";
+        
+        if (error.message.includes("Timeout")) {
+            userErrorMessage = "El servicio de IA tardó demasiado en responder. ¿Puedes reformular la pregunta?";
+        } else if (error.message.includes("Respuesta de API vacía")) {
+             userErrorMessage = "El modelo no generó contenido. Intenta con un prompt diferente.";
+        } else if (error.message.includes("Bad Request")) {
+            userErrorMessage = "El formato de la solicitud no es correcto. Contacta al desarrollador.";
+        }
+
         return {
             ...MANCY_CONFIG.FALLBACK_RESPONSE,
-            respuesta_discord: `Error del modelo: ${error.message}. Inténtalo de nuevo.`
+            respuesta_discord: userErrorMessage
         };
     }
 }
@@ -246,7 +265,7 @@ async function startDiscordBot() {
     }
     
     if (startAttempts >= SYSTEM_CONSTANTS.MAX_START_ATTEMPTS) { 
-        console.error("❌ Error: Máximo de intentos de inicio alcanzado."); 
+        console.error("❌ Error: Máximo de intentos de inicio alcanzado. Abortando."); 
         isStartingUp = false; 
         return; 
     }
@@ -255,8 +274,7 @@ async function startDiscordBot() {
     startAttempts++;
 
     try {
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        
+        // Manejar evento de login exitoso
         discordClient.once('ready', () => {
             console.log(`🤖 Bot de Discord conectado como ${discordClient.user.tag}`);
             console.log(`📊 Modelo: ${SELECTED_MODEL.displayName}`);
@@ -264,7 +282,7 @@ async function startDiscordBot() {
             
             botActive = true;
             isStartingUp = false;
-            startAttempts = 0;
+            startAttempts = 0; // Resetear intentos al tener éxito
         });
         
         // Manejo de errores
@@ -272,6 +290,7 @@ async function startDiscordBot() {
             console.error("❌ Error en cliente de Discord:", error);
             if (botActive) {
                 botActive = false;
+                // Intento de reconexión si hay un error en tiempo de ejecución
                 setTimeout(initializeAndStartBot, 10000);
             }
         });
@@ -285,8 +304,10 @@ async function startDiscordBot() {
 
         discordClient.on('messageCreate', handleDiscordMessage);
 
+        await discordClient.login(process.env.DISCORD_TOKEN);
+
     } catch (error) {
-        console.error(`❌ Intento ${startAttempts} fallido. Reintentando...`, error.message);
+        console.error(`❌ Intento ${startAttempts} fallido al loguear. Reintentando en 5s...`, error.message);
         isStartingUp = false;
         setTimeout(startDiscordBot, 5000);
     }
@@ -317,19 +338,30 @@ async function handleDiscordMessage(message) {
         return;
     }
     
+    // Configurar y limpiar cache
     messageCache.set(cacheKey, true);
     setTimeout(() => messageCache.delete(cacheKey), CACHE_DURATION);
     
+    let typingInterval = null; // Variable para controlar el intervalo de 'typing'
+
     try {
+        // Inicializar 'Typing' y configurar el looper
         await message.channel.sendTyping();
-        
+        typingInterval = setInterval(() => {
+            // Re-enviar typing cada ~7 segundos (Discord lo cancela después de 10s)
+            message.channel.sendTyping().catch(e => {
+                // console.log("Error re-enviando typing:", e.message);
+                if (typingInterval) clearInterval(typingInterval);
+            });
+        }, 7000); 
+
         const systemPrompt = MANCY_CONFIG.IDENTITY;
         
         console.log(`📨 Procesando mensaje de ${message.author.tag}`);
         
-        // Timeout para procesamiento
+        // Timeout para procesamiento completo (incluye la espera a la API)
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error(`Timeout procesando`)), 25000)
+            setTimeout(() => reject(new Error(`Timeout procesando después de ${PROCESSING_TIMEOUT / 1000}s`)), PROCESSING_TIMEOUT)
         );
         
         const aiPromise = getGroqResponse(
@@ -341,6 +373,9 @@ async function handleDiscordMessage(message) {
         
         const mancyResponseObject = await Promise.race([aiPromise, timeoutPromise]);
         
+        // Detener el looper de typing al tener la respuesta
+        if (typingInterval) clearInterval(typingInterval);
+        
         await message.reply({
             content: mancyResponseObject.respuesta_discord,
             allowedMentions: { repliedUser: false }
@@ -349,13 +384,17 @@ async function handleDiscordMessage(message) {
         console.log(`✅ Respuesta enviada a ${message.author.tag}`);
 
     } catch (error) {
+        // Asegurar la limpieza del looper en caso de error
+        if (typingInterval) clearInterval(typingInterval);
+        
         console.error(`❌ Error procesando mensaje:`, error.message);
         
         const errorResponses = [
             `¡Ups! Mi cerebro se ha atascado. ¿Podrías intentarlo de nuevo?`,
             `Error de procesamiento. Reiniciando...`,
             `Parece que hay interferencia. Intenta de nuevo.`,
-            `¡Vaya! Necesito un momento. ¿Repites?`
+            `¡Vaya! Necesito un momento. ¿Repites?`,
+            `Hubo un problema de conexión con el modelo. Por favor, espera un segundo e inténtalo de nuevo. (Error: ${error.message.includes('Timeout') ? 'Timeout' : 'Desconocido'})`
         ];
         
         const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
