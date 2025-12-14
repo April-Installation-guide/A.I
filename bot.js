@@ -9,58 +9,73 @@ import { MANCY_CONFIG, SYSTEM_CONSTANTS } from './src/config/constants.js';
 dotenv.config();
 
 // =================================================================
-// ========== LOGGER ESTRUCTURADO ==========
+// ========== LOGGER SIMPLIFICADO ==========
 // =================================================================
 
-class StructuredLogger {
-    static log(level, message, metadata = {}) {
+const Logger = {
+    log(level, message, metadata = {}) {
         const timestamp = new Date().toISOString();
-        const logEntry = {
-            timestamp,
-            level,
-            message,
-            ...metadata
-        };
-        
         const formatted = `[${level.toUpperCase()}] ${timestamp} - ${message}`;
         
-        switch (level) {
-            case 'error':
-                console.error(formatted, metadata);
-                break;
-            case 'warn':
-                console.warn(formatted, metadata);
-                break;
-            case 'info':
-                console.log(formatted);
-                break;
-            case 'debug':
-                if (process.env.DEBUG_MODE === 'true') {
-                    console.debug(formatted, metadata);
-                }
-                break;
+        if (metadata && Object.keys(metadata).length > 0) {
+            switch (level) {
+                case 'error':
+                    console.error(formatted, metadata);
+                    break;
+                case 'warn':
+                    console.warn(formatted, metadata);
+                    break;
+                case 'info':
+                    console.log(formatted, metadata);
+                    break;
+                case 'debug':
+                    if (process.env.DEBUG_MODE === 'true') {
+                        console.debug(formatted, metadata);
+                    }
+                    break;
+                default:
+                    console.log(formatted, metadata);
+            }
+        } else {
+            switch (level) {
+                case 'error':
+                    console.error(formatted);
+                    break;
+                case 'warn':
+                    console.warn(formatted);
+                    break;
+                case 'info':
+                    console.log(formatted);
+                    break;
+                case 'debug':
+                    if (process.env.DEBUG_MODE === 'true') {
+                        console.debug(formatted);
+                    }
+                    break;
+                default:
+                    console.log(formatted);
+            }
         }
         
-        // Aquí podrías agregar envío a un servicio de logging externo
-        return logEntry;
-    }
+        return { timestamp, level, message, metadata };
+    },
     
-    static info(message, metadata = {}) {
+    info(message, metadata = {}) {
         return this.log('info', message, metadata);
-    }
+    },
     
-    static error(message, metadata = {}) {
+    error(message, metadata = {}) {
         return this.log('error', message, metadata);
-    }
+    },
     
-    static warn(message, metadata = {}) {
+    warn(message, metadata = {}) {
         return this.log('warn', message, metadata);
-    }
+    },
     
-    static debug(message, metadata = {}) {
+    debug(message, metadata = {}) {
         return this.log('debug', message, metadata);
     }
-}
+};
 
 // =================================================================
 // ========== CLASE PRINCIPAL DEL BOT ==========
@@ -72,7 +87,7 @@ class GroqDiscordBot {
         this.config = {
             groqApiKey: config.groqApiKey || process.env.GROQ_API_KEY,
             discordToken: config.discordToken || process.env.DISCORD_TOKEN,
-            allowedChannels: process.env.ALLOWED_CHANNELS?.split(',') || [],
+            allowedChannels: process.env.ALLOWED_CHANNELS ? process.env.ALLOWED_CHANNELS.split(',') : [],
             debugMode: process.env.DEBUG_MODE === 'true',
             ...config
         };
@@ -85,7 +100,7 @@ class GroqDiscordBot {
             active: false,
             startingUp: false,
             startAttempts: 0,
-            reconnectDelay: 5000, // Backoff inicial
+            reconnectDelay: 5000,
             lastStartTime: null
         };
         
@@ -107,7 +122,7 @@ class GroqDiscordBot {
         
         // Constantes
         this.CACHE_DURATION = 5000;
-        this.CACHE_TTL = 300000; // 5 minutos para cache de respuestas
+        this.CACHE_TTL = 300000;
         this.USER_RATE_LIMIT = {
             maxRequests: 5,
             windowMs: 60000
@@ -116,9 +131,6 @@ class GroqDiscordBot {
         // Clientes
         this.discordClient = null;
         this.groqClient = null;
-        
-        // Inicializar logger
-        this.logger = StructuredLogger;
         
         // Iniciar limpieza periódica
         this.startCleanupIntervals();
@@ -140,11 +152,11 @@ class GroqDiscordBot {
         }
         
         if (errors.length > 0) {
-            this.logger.error("Configuración inválida:", { errors });
+            Logger.error("Configuración inválida:", { errors });
             throw new Error(`Configuración inválida: ${errors.join(', ')}`);
         }
         
-        this.logger.info("Configuración validada correctamente");
+        Logger.info("Configuración validada correctamente");
     }
     
     // =================================================================
@@ -153,15 +165,15 @@ class GroqDiscordBot {
     
     startCleanupIntervals() {
         // Limpiar caché de mensajes cada minuto
-        setInterval(() => this.cleanMessageCache(), 60000);
+        this.messageCleanupInterval = setInterval(() => this.cleanMessageCache(), 60000);
         
         // Limpiar caché de respuestas cada 5 minutos
-        setInterval(() => this.cleanResponseCache(), 300000);
+        this.responseCleanupInterval = setInterval(() => this.cleanResponseCache(), 300000);
         
         // Limpiar rate limits cada 2 minutos
-        setInterval(() => this.cleanRateLimits(), 120000);
+        this.rateLimitCleanupInterval = setInterval(() => this.cleanRateLimits(), 120000);
         
-        this.logger.debug("Intervalos de limpieza iniciados");
+        Logger.debug("Intervalos de limpieza iniciados");
     }
     
     cleanMessageCache() {
@@ -176,7 +188,7 @@ class GroqDiscordBot {
         }
         
         if (cleaned > 0 && this.config.debugMode) {
-            this.logger.debug(`Limpieza de caché de mensajes: ${cleaned} entradas eliminadas`);
+            Logger.debug(`Limpieza de caché de mensajes: ${cleaned} entradas eliminadas`);
         }
     }
     
@@ -192,7 +204,7 @@ class GroqDiscordBot {
         }
         
         if (cleaned > 0 && this.config.debugMode) {
-            this.logger.debug(`Limpieza de caché de respuestas: ${cleaned} entradas eliminadas`);
+            Logger.debug(`Limpieza de caché de respuestas: ${cleaned} entradas eliminadas`);
         }
     }
     
@@ -214,7 +226,7 @@ class GroqDiscordBot {
         }
         
         if (cleaned > 0 && this.config.debugMode) {
-            this.logger.debug(`Limpieza de rate limits: ${cleaned} usuarios eliminados`);
+            Logger.debug(`Limpieza de rate limits: ${cleaned} usuarios eliminados`);
         }
     }
     
@@ -226,9 +238,9 @@ class GroqDiscordBot {
         if (typeof input !== 'string') return '';
         
         return input
-            .substring(0, 1000) // Limitar longitud
-            .replace(/[<>]/g, '') // Prevenir HTML/XML injection
-            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Eliminar caracteres de control
+            .substring(0, 1000)
+            .replace(/[<>]/g, '')
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
             .trim();
     }
     
@@ -290,7 +302,7 @@ class GroqDiscordBot {
                 try {
                     return JSON.parse(jsonMatch[0]);
                 } catch (e) {
-                    this.logger.debug("Falló parseo de JSON con regex:", { error: e.message });
+                    Logger.debug("Falló parseo de JSON con regex:", { error: e.message });
                 }
             }
         }
@@ -325,7 +337,7 @@ class GroqDiscordBot {
         const cached = this.responseCache.get(cacheKey);
         
         if (cached && Date.now() < cached.expiresAt) {
-            this.logger.info("Respuesta obtenida de caché");
+            Logger.info("Respuesta obtenida de caché");
             return cached.response;
         }
         
@@ -349,7 +361,7 @@ Tu respuesta debe comenzar con { y terminar con }.
 No expliques, no comentes, solo JSON.`;
         
         try {
-            this.logger.info(`Usando modelo: ${this.modelConfig.displayName}`, {
+            Logger.info(`Usando modelo: ${this.modelConfig.displayName}`, {
                 temperature: temperature || this.modelConfig.temperature,
                 maxTokens: maxTokens || this.modelConfig.maxTokens
             });
@@ -392,7 +404,7 @@ No expliques, no comentes, solo JSON.`;
             const rawContent = chatCompletion.choices[0].message?.content?.trim();
             
             if (!rawContent) {
-                this.logger.error("Contenido vacío recibido de Groq");
+                Logger.error("Contenido vacío recibido de Groq");
                 return MANCY_CONFIG.FALLBACK_RESPONSE;
             }
             
@@ -400,7 +412,7 @@ No expliques, no comentes, solo JSON.`;
             const parsedResponse = this.extractJSONFromText(rawContent);
             
             if (!parsedResponse) {
-                this.logger.error("No se pudo extraer JSON válido.");
+                Logger.error("No se pudo extraer JSON válido.");
                 return {
                     ...MANCY_CONFIG.FALLBACK_RESPONSE,
                     respuesta_discord: "⚠️ Error interno: El modelo no devolvió un JSON válido. Intenta de nuevo."
@@ -409,7 +421,7 @@ No expliques, no comentes, solo JSON.`;
             
             // Validar estructura
             if (!this.validateResponseStructure(parsedResponse)) {
-                this.logger.error("Estructura JSON inválida.");
+                Logger.error("Estructura JSON inválida.");
                 return {
                     ...MANCY_CONFIG.FALLBACK_RESPONSE,
                     respuesta_discord: "⚠️ Error interno: El modelo devolvió un JSON con estructura incorrecta."
@@ -433,11 +445,11 @@ No expliques, no comentes, solo JSON.`;
                 expiresAt: Date.now() + this.CACHE_TTL
             });
             
-            this.logger.info("Respuesta procesada correctamente");
+            Logger.info("Respuesta procesada correctamente");
             return parsedResponse;
             
         } catch (error) {
-            this.logger.error("Error en getGroqResponse:", {
+            Logger.error("Error en getGroqResponse:", {
                 error: error.message,
                 userPrompt: userPrompt.substring(0, 100)
             });
@@ -502,7 +514,7 @@ No expliques, no comentes, solo JSON.`;
         
         // 1. Detección de duplicados
         if (this.messageCache.has(cacheKey)) {
-            this.logger.warn(`Mensaje duplicado ignorado`, { messageId: cacheKey });
+            Logger.warn(`Mensaje duplicado ignorado`, { messageId: cacheKey });
             return;
         }
         
@@ -513,7 +525,7 @@ No expliques, no comentes, solo JSON.`;
         const autoClearTimeout = setTimeout(() => {
             if (this.messageCache.has(cacheKey)) {
                 this.messageCache.delete(cacheKey);
-                this.logger.debug(`Bloqueo de mensaje expirado`, { messageId: cacheKey });
+                Logger.debug(`Bloqueo de mensaje expirado`, { messageId: cacheKey });
             }
         }, this.CACHE_DURATION);
         
@@ -524,7 +536,7 @@ No expliques, no comentes, solo JSON.`;
             await message.channel.sendTyping();
             typingInterval = this.setupTypingIndicator(message);
             
-            this.logger.info(`Procesando mensaje`, {
+            Logger.info(`Procesando mensaje`, {
                 messageId: cacheKey,
                 user: message.author.tag,
                 channel: isDirectMessage ? 'DM' : message.channel.name
@@ -554,7 +566,7 @@ No expliques, no comentes, solo JSON.`;
                 allowedMentions: { repliedUser: false }
             });
             
-            this.logger.info(`Respuesta enviada`, { 
+            Logger.info(`Respuesta enviada`, { 
                 messageId: cacheKey,
                 responseLength: mancyResponseObject.respuesta_discord.length 
             });
@@ -563,7 +575,7 @@ No expliques, no comentes, solo JSON.`;
             // Limpieza de recursos en caso de fallo
             this.cleanupProcessingResources(typingInterval, autoClearTimeout);
             
-            this.logger.error(`Error procesando mensaje`, {
+            Logger.error(`Error procesando mensaje`, {
                 messageId: cacheKey,
                 error: error.message,
                 stack: error.stack
@@ -580,11 +592,7 @@ No expliques, no comentes, solo JSON.`;
     setupTypingIndicator(message) {
         return setInterval(() => {
             message.channel.sendTyping().catch(e => {
-                this.logger.debug("Error en typing indicator:", { error: e.message });
-                if (this.typingInterval) {
-                    clearInterval(this.typingInterval);
-                    this.typingInterval = null;
-                }
+                Logger.debug("Error en typing indicator:", { error: e.message });
             });
         }, 7000);
     }
@@ -607,7 +615,7 @@ No expliques, no comentes, solo JSON.`;
         try {
             await message.reply(randomError);
         } catch (replyError) {
-            this.logger.error("Error al enviar mensaje de error:", {
+            Logger.error("Error al enviar mensaje de error:", {
                 originalError: error.message,
                 replyError: replyError.message
             });
@@ -620,7 +628,7 @@ No expliques, no comentes, solo JSON.`;
     
     async initializeAndStartBot() {
         if (this.state.startingUp) {
-            this.logger.warn("Ya hay un inicio en proceso");
+            Logger.warn("Ya hay un inicio en proceso");
             return;
         }
         
@@ -641,14 +649,14 @@ No expliques, no comentes, solo JSON.`;
             ]
         });
         
-        this.logger.info(`Iniciando bot con modelo: ${this.modelConfig.displayName}`);
+        Logger.info(`Iniciando bot con modelo: ${this.modelConfig.displayName}`);
         
         await this.startDiscordBot();
     }
     
     async startDiscordBot() {
         if (this.state.startAttempts >= SYSTEM_CONSTANTS.MAX_START_ATTEMPTS) {
-            this.logger.error("Máximo de intentos de inicio alcanzado. Abortando.");
+            Logger.error("Máximo de intentos de inicio alcanzado. Abortando.");
             this.state.startingUp = false;
             return;
         }
@@ -664,10 +672,10 @@ No expliques, no comentes, solo JSON.`;
             // Iniciar sesión
             await this.discordClient.login(this.config.discordToken);
             
-            this.logger.info("Bot de Discord iniciado exitosamente");
+            Logger.info("Bot de Discord iniciado exitosamente");
             
         } catch (error) {
-            this.logger.error(`Intento ${this.state.startAttempts} fallido al iniciar sesión`, {
+            Logger.error(`Intento ${this.state.startAttempts} fallido al iniciar sesión`, {
                 error: error.message,
                 nextAttemptIn: `${this.state.reconnectDelay / 1000}s`
             });
@@ -685,7 +693,7 @@ No expliques, no comentes, solo JSON.`;
     setupDiscordEvents() {
         // Evento ready
         this.discordClient.once('ready', () => {
-            this.logger.info(`Bot conectado como ${this.discordClient.user.tag}`, {
+            Logger.info(`Bot conectado como ${this.discordClient.user.tag}`, {
                 guilds: this.discordClient.guilds.cache.size,
                 model: this.modelConfig.displayName
             });
@@ -693,12 +701,12 @@ No expliques, no comentes, solo JSON.`;
             this.state.active = true;
             this.state.startingUp = false;
             this.state.startAttempts = 0;
-            this.state.reconnectDelay = 5000; // Resetear backoff
+            this.state.reconnectDelay = 5000;
         });
         
         // Manejo de errores
         this.discordClient.on('error', (error) => {
-            this.logger.error("Error en cliente de Discord:", { error: error.message });
+            Logger.error("Error en cliente de Discord:", { error: error.message });
             
             if (this.state.active) {
                 this.state.active = false;
@@ -708,7 +716,7 @@ No expliques, no comentes, solo JSON.`;
         
         // Reconexión
         this.discordClient.on('disconnect', () => {
-            this.logger.warn("Bot desconectado, intentando reconectar...");
+            Logger.warn("Bot desconectado, intentando reconectar...");
             this.state.active = false;
             setTimeout(() => this.initializeAndStartBot(), 5000);
         });
@@ -716,7 +724,7 @@ No expliques, no comentes, solo JSON.`;
         // Mensajes
         this.discordClient.on('messageCreate', (message) => {
             this.handleDiscordMessage(message).catch(error => {
-                this.logger.error("Error no manejado en handleDiscordMessage:", {
+                Logger.error("Error no manejado en handleDiscordMessage:", {
                     error: error.message,
                     stack: error.stack
                 });
@@ -747,17 +755,22 @@ No expliques, no comentes, solo JSON.`;
     }
     
     forceRestartBot() {
-        this.logger.info("Reinicio forzado solicitado");
+        Logger.info("Reinicio forzado solicitado");
         this.state.startAttempts = 0;
         this.state.reconnectDelay = 5000;
         this.initializeAndStartBot();
     }
     
     async shutdown() {
-        this.logger.info("Apagando bot...");
+        Logger.info("Apagando bot...");
         
         this.state.active = false;
         this.state.startingUp = false;
+        
+        // Limpiar intervalos
+        if (this.messageCleanupInterval) clearInterval(this.messageCleanupInterval);
+        if (this.responseCleanupInterval) clearInterval(this.responseCleanupInterval);
+        if (this.rateLimitCleanupInterval) clearInterval(this.rateLimitCleanupInterval);
         
         if (this.discordClient) {
             this.discordClient.destroy();
@@ -769,7 +782,7 @@ No expliques, no comentes, solo JSON.`;
         this.responseCache.clear();
         this.userRateLimit.clear();
         
-        this.logger.info("Bot apagado correctamente");
+        Logger.info("Bot apagado correctamente");
     }
 }
 
