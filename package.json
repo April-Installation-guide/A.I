@@ -2,10 +2,10 @@
   "name": "mancy-discord-bot",
   "version": "1.0.0",
   "description": "Discord bot powered by Groq and Node.js",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
