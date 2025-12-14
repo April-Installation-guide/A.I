@@ -3,8 +3,6 @@ import { Client, GatewayIntentBits } from "discord.js";
 import Groq from "groq-sdk";
 import dotenv from 'dotenv';
 import { MANCY_CONFIG, SYSTEM_CONSTANTS } from './config/constants.js';
-import { OrganicMemory } from './modules/organic_memory.js'; // Módulos externos
-import { ContinuousLearningModule } from './modules/learning_module.js'; // Módulos externos
 
 dotenv.config();
 
@@ -25,9 +23,8 @@ if (!process.env.GROQ_API_KEY) {
 }
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// 1.2 Inicialización de Módulos (Cargan la lógica)
-const organicMemory = new OrganicMemory(MANCY_CONFIG.MEMORY);
-const learningModule = new ContinuousLearningModule(MANCY_CONFIG.LEARNING);
+// Se han eliminado las inicializaciones de OrganicMemory y ContinuousLearningModule.
+// El bot operará sin memoria de conversación a largo plazo.
 
 // =================================================================
 // ========== 2. ESTADO GLOBAL Y UTILIDADES DE CONTROL ==========
@@ -154,16 +151,11 @@ async function handleDiscordMessage(message) {
     try {
         await message.channel.sendTyping(); 
         
-        // 1. Análisis de Esencia (Simulado, idealmente es una llamada a un LLM/modelo pequeño)
-        const essenceData = organicMemory.analyzeMessageEssence(userMessage);
+        // Se ha eliminado la obtención de contexto de memoria y aprendizaje.
         
-        // 2. Obtener Contexto de Memoria y Aprendizaje
-        const memoryContext = await organicMemory.getConversations(userId);
-        const learningContext = await learningModule.getContextForResponse(userId, userMessage);
-
-        // 3. Construir System Prompt (Identidad + Memoria + Contexto)
-        // Se define en el módulo de memoria, que también usa la configuración
-        const systemPrompt = organicMemory.buildSystemPrompt(MANCY_CONFIG.IDENTITY, memoryContext, learningContext, essenceData);
+        // 3. Construir System Prompt (Solo Identidad)
+        // El prompt se construye únicamente con la identidad base.
+        const systemPrompt = MANCY_CONFIG.IDENTITY;
         
         // 4. Llamar a la IA (Obtiene Objeto JSON)
         const mancyResponseObject = await getGroqResponse(
@@ -175,13 +167,11 @@ async function handleDiscordMessage(message) {
 
         // 5. Responder a Discord
         const mancyTextResponse = mancyResponseObject.respuesta_discord;
-        const mancyMetaData = mancyResponseObject.meta_datos;
+        // const mancyMetaData = mancyResponseObject.meta_datos; // Metadatos aún se reciben pero no se usan.
         
         await message.reply(mancyTextResponse);
 
-        // 6. Guardar y Aprender (Post-Proceso)
-        await organicMemory.saveConversation(userId, userMessage, mancyTextResponse, essenceData, mancyMetaData);
-        await learningModule.processConversation(userId, userMessage, mancyTextResponse, essenceData, mancyMetaData);
+        // Se ha eliminado el post-proceso de guardar y aprender.
 
     } catch (error) {
         console.error(`❌ Error en el manejador de mensajes de ${userId}:`, error);
@@ -194,19 +184,14 @@ async function handleDiscordMessage(message) {
 // ========== 4. RUTAS Y ESCUCHA DEL SERVIDOR ==========
 // =================================================================
 
-// Rutas de control (Start, Stop, Status, Memory Stats - se mantienen igual, solo usan SYSTEM_CONSTANTS)
-// ... (El código de rutas se mantiene, solo usa el nuevo PORT y constantes)
+// Rutas de control (Start, Stop, Status)
 app.get('/api/status', (req, res) => {
     res.json({
         bot_active: botActive,
         starting_up: isStartingUp,
         startAttempts: startAttempts,
         maxAttempts: SYSTEM_CONSTANTS.MAX_START_ATTEMPTS,
-        memory_stats: {
-             totalMessages: organicMemory.getStats().totalMessages,
-             totalUsers: organicMemory.getStats().totalUsers,
-             queriesProcessed: 0
-        },
+        // Las estadísticas de memoria han sido eliminadas.
         capabilities: MANCY_CONFIG.CAPABILITIES,
         version: MANCY_CONFIG.VERSION
     });
