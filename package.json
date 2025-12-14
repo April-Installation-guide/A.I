@@ -1,7 +1,7 @@
 {
   "name": "mancy-ai",
-  "version": "3.0.0",
-  "description": "Mancy AI - Asistente Ético UNESCO con Identidad Personal",
+  "version": "0.0.1",
+  "description": "Mancy Preliminar version",
   "type": "module",
   "main": "server.js",
   "scripts": {
