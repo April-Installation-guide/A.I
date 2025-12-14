@@ -1,6 +1,5 @@
 import { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } from 'discord.js';
 import { Groq } from 'groq-sdk';
-import { jsonrepair } from 'jsonrepair';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,6 +20,36 @@ import { SYSTEM_CONSTANTS } from './src/config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ========== FUNCIÓN REPLACEMENT PARA jsonrepair ==========
+function safeJsonParse(jsonString) {
+    try {
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.error('Error parsing JSON, attempting repair...');
+        
+        // Intentar reparar JSON común
+        try {
+            // Remover comentarios
+            let repaired = jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m);
+            
+            // Corregir comillas simples
+            repaired = repaired.replace(/'/g, '"');
+            
+            // Corregir trailing commas
+            repaired = repaired.replace(/,\s*}/g, '}');
+            repaired = repaired.replace(/,\s*]/g, ']');
+            
+            // Corregir nombres de propiedades sin comillas
+            repaired = repaired.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+            
+            return JSON.parse(repaired);
+        } catch (repairError) {
+            console.error('Could not repair JSON:', repairError.message);
+            return {};
+        }
+    }
+}
 
 // ========== SISTEMA DE DETECCIÓN NATIVA DE APIS ==========
 class NativeAPIIntegration {
@@ -267,7 +296,7 @@ class NativeAPIIntegration {
     }
 }
 
-// Clase principal del bot - COMPLETAMENTE INTACTA excepto por la nueva integración
+// Clase principal del bot
 class DiscordBot {
     constructor() {
         // Inicializar cliente de Discord
@@ -666,7 +695,6 @@ class DiscordBot {
             }
             
             if (args[0] === 'limpiar') {
-                // Implementar limpieza de caché si es necesario
                 message.reply('🔄 La caché se limpia automáticamente. No es necesario limpiarla manualmente.');
                 return;
             }
@@ -748,7 +776,7 @@ class DiscordBot {
                 message.reply('🔄 Reiniciando bot...');
                 console.log('🔄 Reiniciando por comando de administrador...');
                 setTimeout(() => {
-                    process.exit(1); // Código de salida diferente para reinicio
+                    process.exit(1);
                 }, 2000);
                 return;
             }
@@ -944,7 +972,7 @@ class DiscordBot {
             content: systemMessage
         });
         
-        // Añadir historial de memoria (últimas 10 interacciones) - ORIGINAL
+        // Añadir historial de memoria (últimas 10 interacciones)
         if (this.enableMemory && userMemory.length > 0) {
             const recentMemory = userMemory.slice(-10);
             recentMemory.forEach(item => {
@@ -1057,16 +1085,16 @@ class DiscordBot {
             filteredWords.forEach(word => topics.add(word));
         });
         
-        return Array.from(topics).slice(0, 20); // Limitar a 20 temas
+        return Array.from(topics).slice(0, 20);
     }
 
-    // ========== PERSISTENCIA DE MEMORIA ==========
+    // ========== PERSISTENCIA DE MEMORIA (MODIFICADA) ==========
     loadMemories() {
         try {
             const memoriesPath = path.join(__dirname, 'data', 'memories.json');
             if (fs.existsSync(memoriesPath)) {
                 const data = fs.readFileSync(memoriesPath, 'utf8');
-                const parsed = JSON.parse(jsonrepair(data));
+                const parsed = safeJsonParse(data);
                 this.userMemories = new Map(Object.entries(parsed));
                 console.log(`📂 Memorias cargadas: ${this.userMemories.size} usuarios`);
             }
@@ -1189,10 +1217,8 @@ export async function shutdownBot() {
 
 // ========== EJECUCIÓN DIRECTA ==========
 if (import.meta.url === `file://${process.argv[1]}`) {
-    // Si se ejecuta directamente, iniciar el bot
     initializeAndStartBot().catch(console.error);
     
-    // Manejar señales de terminación
     process.on('SIGTERM', async () => {
         console.log('SIGTERM recibido, apagando bot...');
         await shutdownBot();
