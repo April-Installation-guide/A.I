@@ -855,11 +855,30 @@ INSTRUCCIONES DE CONTEXTO:
         const isDirectMessage = message.channel.type === 1; 
         const isMention = message.mentions.users.has(this.discordClient.user.id);
         
-        if (!isDirectMessage && !isMention) {
-            if (this.config.allowedChannels.length > 0 && 
-                !this.config.allowedChannels.includes(message.channel.id)) {
-                return;
+        // **CORRECCIÓN: El bot solo debe responder cuando:**
+        // 1. Es un mensaje directo (DM)
+        // 2. Es mencionado explícitamente
+        // 3. El mensaje está en un canal permitido configurado específicamente
+        
+        let shouldRespond = false;
+        
+        if (isDirectMessage) {
+            // Siempre responder en mensajes directos
+            shouldRespond = true;
+        } else if (isMention) {
+            // Si es mencionado, verificar si está en un canal permitido
+            if (this.config.allowedChannels.length > 0) {
+                if (this.config.allowedChannels.includes(message.channel.id)) {
+                    shouldRespond = true;
+                }
+            } else {
+                // Si no hay canales específicos configurados, responder a menciones en cualquier canal
+                shouldRespond = true;
             }
+        }
+        
+        if (!shouldRespond) {
+            return;
         }
         
         let userMessage = message.content.replace(new RegExp(`<@!?${this.discordClient.user.id}>`), '').trim();
@@ -907,7 +926,9 @@ INSTRUCCIONES DE CONTEXTO:
                 messageId: cacheKey,
                 user: message.author.tag,
                 userId: message.author.id,
-                hasMemory: this.config.enableMemory
+                hasMemory: this.config.enableMemory,
+                channelType: isDirectMessage ? 'DM' : 'Server',
+                isMention: isMention
             });
             
             const timeoutPromise = new Promise((_, reject) => 
