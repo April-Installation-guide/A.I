@@ -1,13 +1,13 @@
-import express from 'express';
-import { Client, GatewayIntentBits } from "discord.js";
-import Groq from "groq-sdk";
-import dotenv from 'dotenv';
-import { MANCY_CONFIG, SYSTEM_CONSTANTS } from './config/constants.js';
+// server.js
 
-dotenv.config();
+import express from 'express';
+// Importar funciones y estados de bot.js
+import { initializeAndStartBot, getBotStatus } from './bot.js'; 
+// Importación crucial con la nueva ruta
+import { SYSTEM_CONSTANTS } from './src/config/constants.js';
 
 // =================================================================
-// ========== 1. INICIALIZACIÓN DE COMPONENTES CENTRALES ==========
+// ========== INICIALIZACIÓN DE EXPRESS ==========
 // =================================================================
 
 const app = express();
@@ -16,190 +16,21 @@ const PORT = process.env.PORT || SYSTEM_CONSTANTS.DEFAULT_PORT;
 app.use(express.static('public'));
 app.use(express.json());
 
-// 1.1 Configuración del motor de inferencia (Groq)
-if (!process.env.GROQ_API_KEY) {
-    console.error("❌ ERROR: La variable GROQ_API_KEY no está definida en .env");
-    process.exit(1);
-}
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-// Se han eliminado las inicializaciones de OrganicMemory y ContinuousLearningModule.
-// El bot operará sin memoria de conversación a largo plazo.
-
 // =================================================================
-// ========== 2. ESTADO GLOBAL Y UTILIDADES DE CONTROL ==========
+// ========== RUTAS DE CONTROL ==========
 // =================================================================
 
-let discordClient = null;
-let botActive = false;
-let isStartingUp = false;
-let startAttempts = 0;
-
-/**
- * Función CRÍTICA: Llama a la API de Groq con la lógica de forzar JSON.
- * (El cuerpo de esta función se mantiene aquí por la dependencia directa del SDK)
- */
-async function getGroqResponse(systemPrompt, userPrompt, temperature, maxTokens) {
-    // Definición del esquema JSON para la salida (Importado de la configuración)
-    const jsonSchema = MANCY_CONFIG.OUTPUT_SCHEMA;
-    
-    // Inyección de la instrucción JSON CRÍTICA en el System Prompt
-    const groqSystemPrompt = `${systemPrompt}\n\n
-INSTRUCCIÓN CRÍTICA: Debes responder **ÚNICAMENTE** con un objeto JSON válido que siga **EXACTAMENTE** el siguiente esquema. No añadas texto explicativo, preámbulos, ni markdown fuera del JSON.
-
-ESQUEMA JSON REQUERIDO: ${JSON.stringify(jsonSchema, null, 2)}
-`;
-    
-    try {
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: groqSystemPrompt },
-                { role: "user", content: userPrompt }
-            ],
-            model: MANCY_CONFIG.MODEL.name,
-            temperature: temperature,
-            max_tokens: maxTokens,
-        });
-        
-        const rawContent = chatCompletion.choices[0].message.content.trim();
-        const parsedJson = JSON.parse(rawContent);
-        return parsedJson;
-        
-    } catch (error) {
-        console.error("❌ Error en getGroqResponse o al parsear JSON:", error.message);
-        // Fallback estructurado (definido en config)
-        return MANCY_CONFIG.FALLBACK_RESPONSE;
-    }
-}
-
-// =================================================================
-// ========== 3. LÓGICA DE DISCORD (Inicialización y Manejo) ==========
-// =================================================================
-
-function initializeDiscordClient() {
-    if (discordClient) discordClient.destroy();
-    
-    discordClient = new Client({
-        intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent
-        ]
-    });
-    startDiscordBot(); 
-}
-
-// Lógica de inicio de sesión y reintentos (se mantiene igual)
-async function startDiscordBot() {
-    // ... (El código de inicio de Discord se mantiene, solo usa SYSTEM_CONSTANTS.MAX_START_ATTEMPTS)
-    // ... (Por brevedad, se omite el cuerpo de esta función, pero se reutiliza el original)
-    if (!process.env.DISCORD_TOKEN) {
-        console.error("❌ ERROR: DISCORD_TOKEN no está definido en .env");
-        isStartingUp = false;
-        return;
-    }
-
-    if (startAttempts >= SYSTEM_CONSTANTS.MAX_START_ATTEMPTS) {
-        console.error("❌ Error: Máximo de intentos de inicio alcanzado.");
-        isStartingUp = false;
-        return;
-    }
-    
-    isStartingUp = true;
-    startAttempts++;
-
-    try {
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        
-        discordClient.once('ready', () => {
-            console.log(`🤖 Bot de Discord conectado como ${discordClient.user.tag}`);
-            botActive = true;
-            isStartingUp = false;
-            startAttempts = 0;
-        });
-        
-        discordClient.on('messageCreate', handleDiscordMessage);
-
-    } catch (error) {
-        console.error(`❌ Intento ${startAttempts} fallido. Reintentando en 5s...`, error);
-        isStartingUp = false;
-        setTimeout(startDiscordBot, 5000);
-    }
-}
-
-/**
- * MANEJADOR CENTRAL DE MENSAJES DE DISCORD
- */
-async function handleDiscordMessage(message) {
-    if (message.author.bot) return;
-
-    const isDirectMessage = message.channel.type === 1; 
-    const isMention = message.mentions.users.has(discordClient.user.id);
-    
-    if (!isDirectMessage && !isMention) return;
-
-    const userId = message.author.id;
-    let userMessage = message.content;
-
-    if (isMention) {
-        const mentionRegex = new RegExp(`<@!?${discordClient.user.id}>`);
-        userMessage = userMessage.replace(mentionRegex, '').trim();
-    }
-    
-    if (!userMessage) return;
-
-    try {
-        await message.channel.sendTyping(); 
-        
-        // Se ha eliminado la obtención de contexto de memoria y aprendizaje.
-        
-        // 3. Construir System Prompt (Solo Identidad)
-        // El prompt se construye únicamente con la identidad base.
-        const systemPrompt = MANCY_CONFIG.IDENTITY;
-        
-        // 4. Llamar a la IA (Obtiene Objeto JSON)
-        const mancyResponseObject = await getGroqResponse(
-            systemPrompt, 
-            userMessage, 
-            MANCY_CONFIG.MODEL.temperature, 
-            MANCY_CONFIG.MODEL.max_tokens
-        );
-
-        // 5. Responder a Discord
-        const mancyTextResponse = mancyResponseObject.respuesta_discord;
-        // const mancyMetaData = mancyResponseObject.meta_datos; // Metadatos aún se reciben pero no se usan.
-        
-        await message.reply(mancyTextResponse);
-
-        // Se ha eliminado el post-proceso de guardar y aprender.
-
-    } catch (error) {
-        console.error(`❌ Error en el manejador de mensajes de ${userId}:`, error);
-        message.reply(MANCY_CONFIG.FALLBACK_RESPONSE.respuesta_discord);
-    }
-}
-
-
-// =================================================================
-// ========== 4. RUTAS Y ESCUCHA DEL SERVIDOR ==========
-// =================================================================
-
-// Rutas de control (Start, Stop, Status)
 app.get('/api/status', (req, res) => {
-    res.json({
-        bot_active: botActive,
-        starting_up: isStartingUp,
-        startAttempts: startAttempts,
-        maxAttempts: SYSTEM_CONSTANTS.MAX_START_ATTEMPTS,
-        // Las estadísticas de memoria han sido eliminadas.
-        capabilities: MANCY_CONFIG.CAPABILITIES,
-        version: MANCY_CONFIG.VERSION
-    });
+    // Usa el estado exportado por bot.js
+    res.json(getBotStatus());
 });
-// (otras rutas omitidas por brevedad, asumiendo que se adaptan al nuevo esquema de módulos)
 
-// Inicializar el cliente de Discord al iniciar el servidor Express
+// =================================================================
+// ========== INICIO ==========
+// =================================================================
+
 app.listen(PORT, () => {
     console.log(`🚀 Servidor Express escuchando en el puerto ${PORT}`);
-    initializeDiscordClient();
+    // Inicia el bot de Discord después de iniciar el servidor
+    initializeAndStartBot();
 });
