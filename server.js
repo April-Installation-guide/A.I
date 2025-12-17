@@ -1,6 +1,7 @@
 import express from 'express';
 import { getBotStatus, initializeAndStartBot, forceRestartBot, shutdownBot, getUserMemoryInfo } from './bot.js';
 import { SYSTEM_CONSTANTS } from './src/config/constants.js';
+import { ... } from './src/utils/free-apis.js';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
