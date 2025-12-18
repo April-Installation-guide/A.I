@@ -1,242 +1,63 @@
-import { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } from 'discord.js';
+import { Client, GatewayIntentBits, MessageEmbed, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { Groq } from 'groq-sdk';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 
-// Configuración de entorno
-import dotenv from 'dotenv';
-dotenv.config();
-
-// ========== SISTEMA DE CONOCIMIENTO INTEGRADO (TODO EN UNO) ==========
-
-// Constantes del sistema
-const SYSTEM_CONSTANTS = {
-    VERSION: '2.0.0',
-    MAX_MEMORY_PER_USER: 100,
-    MAX_CONVERSATION_LENGTH: 10
-};
-
-// Sistema de conocimiento simplificado
-const knowledgeIntegration = {
-    enabled: true,
-    
-    async processMessage(message) {
-        if (!this.enabled) return { shouldEnhance: false };
-        
-        // Detectar solicitudes de información
-        const patterns = [
-            /(qu[ée] es|qu[ií]en es|qu[ée] son|qu[ií]enes son)\s+([^?.!]+)/i,
-            /(hablame|cu[eé]ntame|dime|sabes).*sobre\s+([^?.!]+)/i,
-            /(informaci[oó]n|datos|historia|biograf[ií]a|definici[oó]n).*de\s+([^?.!]+)/i
-        ];
-        
-        for (const pattern of patterns) {
-            const match = message.match(pattern);
-            if (match) {
-                const topic = this.extractTopic(match);
-                if (topic && topic.length > 3) {
-                    return {
-                        shouldEnhance: true,
-                        detection: { topic: topic },
-                        knowledge: await this.fetchWikipedia(topic)
-                    };
-                }
-            }
-        }
-        
-        return { shouldEnhance: false };
-    },
-    
-    extractTopic(match) {
-        let topic = match[2] || match[3] || '';
-        
-        // Limpiar el tema
-        topic = topic.replace(/\b(por favor|gracias|puedes|podrías|dime|dame|un|una|el|la|los|las|sobre|acerca de|qué es|quién es)\b/gi, '')
-                    .trim()
-                    .replace(/[?¿!¡.,;:]+$/g, '');
-        
-        return topic.length > 2 ? topic : null;
-    },
-    
-    async fetchWikipedia(topic) {
-        try {
-            const response = await axios.get('https://en.wikipedia.org/w/api.php', {
-                params: {
-                    action: 'query',
-                    format: 'json',
-                    list: 'search',
-                    srsearch: topic,
-                    utf8: 1,
-                    srlimit: 1
-                },
-                timeout: 5000
-            });
-            
-            if (response.data.query?.search?.[0]) {
-                const page = response.data.query.search[0];
-                return {
-                    title: page.title,
-                    snippet: page.snippet,
-                    source: 'Wikipedia',
-                    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`
-                };
-            }
-        } catch (error) {
-            console.error('Error fetching Wikipedia:', error.message);
-        }
-        
-        return null;
-    },
-    
-    formatKnowledgeForPrompt(knowledge) {
-        if (!knowledge) return '';
-        return `Título: ${knowledge.title}\nInformación: ${knowledge.snippet}\nFuente: ${knowledge.source}`;
-    },
-    
-    getStats() {
-        return {
-            enabled: this.enabled,
-            totalQueries: 0,
-            knowledgeFetches: 0,
-            cacheHits: 0,
-            cacheHitRate: '0%',
-            avgResponseTime: 0,
-            successfulFetches: 0,
-            failedFetches: 0,
-            cacheSize: 0
-        };
-    },
-    
-    setEnabled(status) {
-        this.enabled = status;
-    }
-};
-
-// Comandos de conocimiento
-const knowledgeCommands = {
-    wikipedia: async (message, args) => {
-        const topic = args.join(' ');
-        if (!topic) {
-            message.reply('❌ Uso: `!wiki [tema]`\nEjemplo: `!wiki inteligencia artificial`');
-            return;
-        }
-        
-        try {
-            const knowledge = await knowledgeIntegration.fetchWikipedia(topic);
-            if (knowledge) {
-                const embed = new MessageEmbed()
-                    .setTitle(`📚 ${knowledge.title}`)
-                    .setDescription(knowledge.snippet + '...')
-                    .setColor('#0099ff')
-                    .setURL(knowledge.url)
-                    .setFooter('Fuente: Wikipedia')
-                    .setTimestamp();
-                message.channel.send({ embeds: [embed] });
-            } else {
-                message.reply('❌ No encontré información sobre ese tema.');
-            }
-        } catch (error) {
-            message.reply('❌ Error al buscar información.');
-        }
-    },
-    
-    libros: async (message, args) => {
-        const title = args.join(' ');
-        if (!title) {
-            message.reply('❌ Uso: `!libros [título]`\nEjemplo: `!libros El Quijote`');
-            return;
-        }
-        message.reply(`📚 Buscaré información sobre "${title}".`);
-    },
-    
-    definir: async (message, args) => {
-        const word = args.join(' ');
-        if (!word) {
-            message.reply('❌ Uso: `!definir [palabra]`\nEjemplo: `!definir inteligencia`');
-            return;
-        }
-        message.reply(`📖 Buscaré la definición de "${word}".`);
-    },
-    
-    filosofo: async (message, args) => {
-        const name = args.join(' ');
-        if (!name) {
-            message.reply('❌ Uso: `!filosofo [nombre]`\nEjemplo: `!filosofo Platón`');
-            return;
-        }
-        message.reply(`🧠 Buscaré información sobre ${name}.`);
-    },
-    
-    historia: async (message, args) => {
-        const date = args.join(' ');
-        if (!date) {
-            message.reply('❌ Uso: `!historia [DD/MM]`\nEjemplo: `!historia 12/10`');
-            return;
-        }
-        message.reply(`📅 Buscaré eventos históricos del ${date}.`);
-    },
-    
-    documentacion: async (message, args) => {
-        const term = args.join(' ');
-        if (!term) {
-            message.reply('❌ Uso: `!doc [término]`\nEjemplo: `!doc JavaScript`');
-            return;
-        }
-        message.reply(`📄 Buscaré documentación sobre "${term}".`);
-    }
-};
-
-// Comandos de APIs
+// Importar APIs de conocimiento - CORREGIDO
+import { knowledgeIntegration } from './src/services/knowledge-integration.js';
+import { freeAPIs } from './src/utils/free-apis.js';
+// Comandos básicos
 const apiCommands = {
     clima: async (message, args) => {
         const city = args.join(' ');
-        if (!city) {
-            message.reply('❌ Uso: `!clima [ciudad]`\nEjemplo: `!clima Madrid`');
-            return;
-        }
-        message.reply(`🌤️ Buscaré el clima de ${city}.`);
+        message.reply(`🌤️ Buscaré el clima de ${city || 'tu ciudad'}.`);
     },
-    
     convertir: async (message, args) => {
-        if (args.length < 3) {
-            message.reply('❌ Uso: `!convertir [cantidad] [de] [a]`\nEjemplo: `!convertir 100 USD EUR`');
-            return;
-        }
-        message.reply(`🔄 Convertiré ${args[0]} ${args[1]} a ${args[2]}.`);
+        message.reply(`🔄 Convertiré ${args[0] || 'algo'}.`);
     },
-    
-    chiste: async (message, args) => {
-        const chistes = [
-            "¿Qué le dice un bit a otro? Nos vemos en el bus.",
-            "¿Cómo se llama el campeón de buceo informático? Windows.",
-            "¿Qué hace una abeja en el gimnasio? ¡Zum-ba!",
-            "¿Por qué los pájaros no usan Facebook? Porque ya tienen Twitter.",
-            "¿Qué le dice un gusano a otro gusano? Me voy a dar la vuelta a la manzana."
-        ];
-        const randomJoke = chistes[Math.floor(Math.random() * chistes.length)];
-        message.reply(`😂 ${randomJoke}`);
+    chiste: async (message) => {
+        message.reply('😂 ¿Qué le dice un bit a otro? Nos vemos en el bus.');
     },
-    
     pais: async (message, args) => {
-        const country = args.join(' ');
-        if (!country) {
-            message.reply('❌ Uso: `!pais [nombre]`\nEjemplo: `!pais España`');
-            return;
-        }
-        message.reply(`🌍 Buscaré información sobre ${country}.`);
+        message.reply(`🌍 Buscaré información sobre ${args.join(' ') || 'ese país'}.`);
     },
-    
     anime: async (message, args) => {
-        const anime = args.join(' ');
-        if (!anime) {
-            message.reply('❌ Uso: `!anime [nombre]`\nEjemplo: `!anime Naruto`');
-            return;
-        }
-        message.reply(`🎌 Buscaré información sobre ${anime}.`);
+        message.reply(`🎌 Buscaré información sobre ${args.join(' ') || 'ese anime'}.`);
     }
 };
+
+const knowledgeCommands = {
+    wikipedia: async (message, args) => {
+        const topic = args.join(' ');
+        message.reply(`🔍 Buscaré información sobre "${topic}".`);
+    },
+    libros: async (message, args) => {
+        message.reply(`📚 Buscaré libros sobre "${args.join(' ')}".`);
+    },
+    definir: async (message, args) => {
+        message.reply(`📖 Buscaré la definición de "${args.join(' ')}".`);
+    },
+    filosofo: async (message, args) => {
+        message.reply(`🧠 Buscaré información sobre ${args.join(' ')}.`);
+    },
+    historia: async (message, args) => {
+        message.reply(`📅 Buscaré eventos históricos del ${args.join(' ')}.`);
+    },
+    documentacion: async (message, args) => {
+        message.reply(`📄 Buscaré documentación sobre "${args.join(' ')}".`);
+    }
+};
+
+// Importar constantes si existen
+let SYSTEM_CONSTANTS = { VERSION: '2.0.0' };
+try {
+    const constantsModule = await import('./src/config/constants.js');
+    SYSTEM_CONSTANTS = constantsModule.SYSTEM_CONSTANTS || SYSTEM_CONSTANTS;
+} catch (error) {
+    console.log('Usando constantes por defecto');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -248,19 +69,11 @@ function safeJsonParse(jsonString) {
     } catch (error) {
         console.error('Error parsing JSON, attempting repair...');
         
-        // Intentar reparar JSON común
         try {
-            // Remover comentarios
             let repaired = jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m);
-            
-            // Corregir comillas simples
             repaired = repaired.replace(/'/g, '"');
-            
-            // Corregir trailing commas
             repaired = repaired.replace(/,\s*}/g, '}');
             repaired = repaired.replace(/,\s*]/g, ']');
-            
-            // Corregir nombres de propiedades sin comillas
             repaired = repaired.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
             
             return JSON.parse(repaired);
@@ -277,27 +90,17 @@ class NativeAPIIntegration {
         this.QUOTABLE_URL = 'https://api.quotable.io';
         this.WIKIPEDIA_URL = 'https://en.wikipedia.org/w/api.php';
         this.cache = new Map();
-        this.cacheDuration = 300000; // 5 minutos
+        this.cacheDuration = 300000;
         this.enabled = true;
         
-        // Patrones para detectar solicitudes de frases
         this.quotePatterns = [
             /(dime|dame|quiero|necesito|podrías|puedes).*(frase|cita|palabra|motivaci[oó]n|inspiraci[oó]n|sabidur[ií]a)/i,
             /(frase|cita|motivaci[oó]n|inspiraci[oó]n).*(del d[ií]a|para m[ií]|aleatoria|random|filos[oó]fica|bonita)/i,
-            /(alguien|alguien tiene|conoces|sabes).*(frase|cita).*(interesante|bonita|filos[oó]fica)/i,
-            /(mot[ií]vame|an[ií]mame|al[eé]grame|insp[ií]rame)/i,
-            /(palabras|reflexi[oó]n).*(sabias|profundas|inteligentes|hermosas)/i,
-            /(vida|amor|[eé]xito|felicidad).*(frase|cita|dicho)/i
         ];
         
-        // Patrones para detectar solicitudes de información
         this.infoPatterns = [
             /(qu[ée] es|qu[ií]en es|qu[ée] son|qu[ií]enes son)\s+([^?.!]+)/i,
             /(hablame|cu[eé]ntame|dime|sabes).*sobre\s+([^?.!]+)/i,
-            /(informaci[oó]n|datos|historia|biograf[ií]a|definici[oó]n).*de\s+([^?.!]+)/i,
-            /(explica|describe|define).*([^?.!]+)/i,
-            /(c[oó]mo funciona|c[oó]mo se hace|c[oó]mo es).*([^?.!]+)/i,
-            /(caracter[ií]sticas|elementos|partes).*de\s+([^?.!]+)/i
         ];
     }
     
@@ -306,7 +109,6 @@ class NativeAPIIntegration {
         
         const lowerMessage = message.toLowerCase();
         
-        // Detectar si es solicitud de frase
         for (const pattern of this.quotePatterns) {
             if (pattern.test(lowerMessage)) {
                 const filters = this.extractQuoteFilters(lowerMessage);
@@ -318,7 +120,6 @@ class NativeAPIIntegration {
             }
         }
         
-        // Detectar si es solicitud de información
         for (const pattern of this.infoPatterns) {
             const match = message.match(pattern);
             if (match) {
@@ -340,32 +141,12 @@ class NativeAPIIntegration {
     extractQuoteFilters(message) {
         const filters = {};
         
-        // Detectar tipo de frase solicitada
         if (message.includes('filosof') || message.includes('filosófico')) {
             filters.tags = 'philosophy';
         } else if (message.includes('amor') || message.includes('romántic')) {
             filters.tags = 'love';
         } else if (message.includes('motiv') || message.includes('éxito')) {
             filters.tags = 'motivational';
-        } else if (message.includes('vida') || message.includes('existencial')) {
-            filters.tags = 'life';
-        } else if (message.includes('ciencia') || message.includes('científico')) {
-            filters.tags = 'science';
-        } else if (message.includes('humor') || message.includes('divertid')) {
-            filters.tags = 'humor';
-        }
-        
-        // Detectar longitud
-        if (message.includes('corta') || message.includes('breve') || message.includes('pequeña')) {
-            filters.maxLength = 100;
-        } else if (message.includes('larga') || message.includes('extensa') || message.includes('completa')) {
-            filters.minLength = 150;
-        }
-        
-        // Detectar autor específico
-        const authorMatches = message.match(/(de|por|del autor)\s+([a-záéíóúñ\s]+)/i);
-        if (authorMatches && authorMatches[2]) {
-            filters.author = authorMatches[2].trim();
         }
         
         return filters;
@@ -373,8 +154,6 @@ class NativeAPIIntegration {
     
     extractTopic(match) {
         let topic = match[2] || match[3] || '';
-        
-        // Limpiar el tema
         topic = topic.replace(/\b(por favor|gracias|puedes|podrías|dime|dame|un|una|el|la|los|las|sobre|acerca de|qué es|quién es)\b/gi, '')
                     .trim()
                     .replace(/[?¿!¡.,;:]+$/g, '');
@@ -393,8 +172,6 @@ class NativeAPIIntegration {
             
             if (filters.tags) params.append('tags', filters.tags);
             if (filters.author) params.append('author', filters.author);
-            if (filters.maxLength) params.append('maxLength', filters.maxLength);
-            if (filters.minLength) params.append('minLength', filters.minLength);
             
             const response = await axios.get(`${this.QUOTABLE_URL}/quotes/random?${params}`, {
                 timeout: 5000,
@@ -405,8 +182,6 @@ class NativeAPIIntegration {
                 const quote = {
                     content: response.data[0].content,
                     author: response.data[0].author,
-                    length: response.data[0].length,
-                    tags: response.data[0].tags || [],
                     source: 'Quotable API'
                 };
                 
@@ -426,14 +201,13 @@ class NativeAPIIntegration {
         if (cached) return cached;
         
         try {
-            // Buscar página
             const searchParams = new URLSearchParams({
                 action: 'query',
                 list: 'search',
                 srsearch: topic,
                 format: 'json',
                 utf8: 1,
-                srlimit: 3
+                srlimit: 1
             });
             
             const searchResponse = await axios.get(`${this.WIKIPEDIA_URL}?${searchParams}`, {
@@ -449,17 +223,15 @@ class NativeAPIIntegration {
             
             const pageTitle = searchData.query.search[0].title;
             
-            // Obtener contenido
             const contentParams = new URLSearchParams({
                 action: 'query',
-                prop: 'extracts|info',
+                prop: 'extracts',
                 exintro: 1,
                 explaintext: 1,
                 titles: pageTitle,
                 format: 'json',
                 formatversion: 2,
-                inprop: 'url',
-                exchars: 1200
+                exchars: 500
             });
             
             const contentResponse = await axios.get(`${this.WIKIPEDIA_URL}?${contentParams}`, {
@@ -475,9 +247,8 @@ class NativeAPIIntegration {
             const info = {
                 title: pageData.title,
                 summary: pageData.extract,
-                url: pageData.fullurl || `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`,
-                source: 'Wikipedia API',
-                searchScore: searchData.query.search[0].score
+                url: `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`,
+                source: 'Wikipedia API'
             };
             
             this.setCached(cacheKey, info);
@@ -519,12 +290,12 @@ class NativeAPIIntegration {
 // Clase principal del bot
 class DiscordBot {
     constructor() {
-        // Inicializar cliente de Discord
+        // Inicializar cliente de Discord con GatewayIntentBits
         this.client = new Client({
             intents: [
-                Intents.FLAGS.GUILDS,
-                Intents.FLAGS.GUILD_MESSAGES,
-                Intents.FLAGS.MESSAGE_CONTENT
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent
             ]
         });
 
@@ -540,9 +311,8 @@ class DiscordBot {
         this.enableMemory = process.env.ENABLE_MEMORY !== 'false';
         this.enableKnowledge = process.env.ENABLE_KNOWLEDGE_INTEGRATION !== 'false';
         
-        // Almacenamiento de memoria por usuario
+        // Almacenamiento de memoria
         this.userMemories = new Map();
-        this.userConversations = new Map();
         
         // Estado del bot
         this.isReady = false;
@@ -550,39 +320,32 @@ class DiscordBot {
         this.messageCount = 0;
         this.commandCount = 0;
         
-        // NUEVO: Sistema de integración nativa de APIs
+        // Sistema de integración nativa de APIs
         this.nativeAPIs = new NativeAPIIntegration();
         this.nativeAPICalls = { quotes: 0, wikipedia: 0 };
         
-        // Cargar memorias existentes
+        // Cargar memorias
         this.loadMemories();
         
         // Configurar manejadores de eventos
         this.setupEventHandlers();
     }
 
-    // ========== CONFIGURACIÓN DE EVENTOS ==========
     setupEventHandlers() {
         this.client.once('ready', () => this.onReady());
         this.client.on('messageCreate', (message) => this.onMessage(message));
         this.client.on('error', (error) => this.onError(error));
-        this.client.on('warn', (warning) => this.onWarning(warning));
     }
 
-    // ========== MANEJADOR DE INICIO ==========
     async onReady() {
         console.log(`🤖 ${this.client.user.tag} está en línea!`);
-        console.log(`📚 Memoria: ${this.enableMemory ? 'ACTIVADA' : 'DESACTIVADA'}`);
-        console.log(`🧠 Conocimiento: ${this.enableKnowledge ? 'ACTIVADO' : 'DESACTIVADO'}`);
         console.log(`🔧 Prefijo: ${this.prefix}`);
         console.log(`👥 Servidores: ${this.client.guilds.cache.size}`);
-        console.log(`🌐 APIs Nativas: Quotable & Wikipedia integradas`);
         
-        // Establecer estado personalizado
         this.client.user.setPresence({
             activities: [{
                 name: `${this.prefix}ayuda | ${this.client.guilds.cache.size} servidores`,
-                type: 'LISTENING'
+                type: 3 // LISTENING
             }],
             status: 'online'
         });
@@ -590,18 +353,12 @@ class DiscordBot {
         this.isReady = true;
     }
 
-    // ========== MANEJADOR DE MENSAJES ==========
     async onMessage(message) {
-        // Ignorar mensajes de bots
         if (message.author.bot) return;
-
-        // Ignorar mensajes sin contenido
         if (!message.content) return;
 
-        // Contador de mensajes
         this.messageCount++;
 
-        // Verificar si es un comando
         if (message.content.startsWith(this.prefix)) {
             await this.handleCommand(message);
         } else {
@@ -609,16 +366,15 @@ class DiscordBot {
         }
     }
 
-    // ========== MANEJO DE COMANDOS ==========
     async handleCommand(message) {
         const args = message.content.slice(this.prefix.length).trim().split(/ +/);
         const command = args.shift().toLowerCase();
         
         this.commandCount++;
 
-        console.log(`🛠️ Comando: ${command} por ${message.author.tag} (${message.author.id})`);
+        console.log(`🛠️ Comando: ${command} por ${message.author.tag}`);
 
-        // ========== COMANDOS DE AYUDA ==========
+        // COMANDO AYUDA
         if (command === 'ayuda' || command === 'help') {
             const embed = new MessageEmbed()
                 .setTitle('🤖 Comandos de Mancy')
@@ -626,121 +382,34 @@ class DiscordBot {
                 .setColor('#0099ff')
                 .addField('🧠 Memoria', 
                     '`memoria` - Ver tu memoria\n' +
-                    '`olvidar` - Olvidar tema específico\n' +
                     '`temas` - Ver temas guardados\n' +
                     '`reiniciar` - Reiniciar tu memoria', false)
-                .addField('🧪 Conocimiento Nativo', 
-                    '**¡Habla conmigo naturalmente!**\n' +
+                .addField('🧪 Conocimiento', 
                     '• "Dime una frase motivadora"\n' +
                     '• "¿Qué es la inteligencia artificial?"\n' +
-                    '• "Necesito una cita filosófica"\n' +
-                    '• "Háblame sobre la historia de Roma"\n' +
-                    '• "Una frase sobre el amor"\n' +
-                    '• "Define la mecánica cuántica"\n\n' +
-                    'Buscaré automáticamente en Quotable y Wikipedia', false)
-                .addField('📚 Búsquedas Directas', 
+                    '• "Necesito una cita filosófica"', false)
+                .addField('📚 Búsquedas', 
                     '`wiki [tema]` - Buscar en Wikipedia\n' +
-                    '`libros [título]` - Buscar libros\n' +
                     '`definir [palabra]` - Definición\n' +
-                    '`filosofo [nombre]` - Información de filósofo\n' +
-                    '`historia [DD/MM]` - Eventos históricos\n' +
-                    '`doc [término]` - Documentación técnica', false)
-                .addField('💬 Citas y Frases', 
-                    '`frase` - Frase aleatoria\n' +
-                    '`frase tags=filosofía` - Frase por tema\n' +
-                    '`frase author=Einstein` - Frase por autor\n' +
-                    '`frase limit=3` - Múltiples frases', false)
+                    '`filosofo [nombre]` - Filósofo', false)
                 .addField('🌤️ Utilidades', 
-                    '`clima [ciudad]` - Clima actual\n' +
-                    '`convertir [cant] [de] [a]` - Conversor\n' +
+                    '`clima [ciudad]` - Clima\n' +
                     '`chiste` - Chiste aleatorio\n' +
-                    '`pais [nombre]` - Info de país\n' +
-                    '`anime [nombre]` - Info de anime', false)
-                .addField('⚙️ Administración', 
-                    '`conocimiento estado` - Estado del sistema\n' +
-                    '`conocimiento activar/desactivar` - Control\n' +
-                    '`estadisticas` - Estadísticas del bot\n' +
-                    '`ping` - Latencia del bot\n' +
-                    '`apinativo` - Control APIs nativas', false)
-                .setFooter(`Versión ${SYSTEM_CONSTANTS.VERSION} • Habla naturalmente conmigo`)
+                    '`pais [nombre]` - Info de país', false)
+                .setFooter(`Versión ${SYSTEM_CONSTANTS.VERSION}`)
                 .setTimestamp();
 
             message.channel.send({ embeds: [embed] });
             return;
         }
 
-        // ========== NUEVO: COMANDO CONTROL APIS NATIVAS ==========
-        if (command === 'apinativo' || command === 'nativo') {
-            if (!args[0]) {
-                const stats = this.nativeAPIs.getStats();
-                const embed = new MessageEmbed()
-                    .setTitle('🌐 Control de APIs Nativas')
-                    .setColor('#9B59B6')
-                    .setDescription('Sistema de integración automática de Quotable y Wikipedia')
-                    .addField('🔧 Estado', this.nativeAPIs.enabled ? '✅ ACTIVADO' : '❌ DESACTIVADO', true)
-                    .addField('💾 Cache', `${stats.cacheSize} items`, true)
-                    .addField('📊 Uso', 
-                        `Frases: ${this.nativeAPICalls.quotes}\n` +
-                        `Wikipedia: ${this.nativeAPICalls.wikipedia}`, false)
-                    .addField('🔄 Comandos', 
-                        '`!apinativo on/off` - Activar/desactivar\n' +
-                        '`!apinativo clear` - Limpiar caché\n' +
-                        '`!apinativo stats` - Ver estadísticas', false)
-                    .setFooter('Las APIs se usan automáticamente en conversaciones')
-                    .setTimestamp();
-                
-                message.channel.send({ embeds: [embed] });
-                return;
-            }
-            
-            const subcommand = args[0].toLowerCase();
-            
-            if (subcommand === 'on' || subcommand === 'activar') {
-                this.nativeAPIs.enabled = true;
-                message.reply('✅ **APIs nativas ACTIVADAS.** Ahora buscaré frases e información automáticamente cuando me hables.');
-                return;
-            }
-            
-            if (subcommand === 'off' || subcommand === 'desactivar') {
-                this.nativeAPIs.enabled = false;
-                message.reply('✅ **APIs nativas DESACTIVADAS.** Solo usaré mi conocimiento general.');
-                return;
-            }
-            
-            if (subcommand === 'clear' || subcommand === 'limpiar') {
-                this.nativeAPIs.clearCache();
-                message.reply('✅ **Caché de APIs limpiado.**');
-                return;
-            }
-            
-            if (subcommand === 'stats' || subcommand === 'estadisticas') {
-                const stats = this.nativeAPIs.getStats();
-                const embed = new MessageEmbed()
-                    .setTitle('📊 Estadísticas APIs Nativas')
-                    .setColor('#3498DB')
-                    .addField('🌐 Quotable API', `Llamadas: ${this.nativeAPICalls.quotes}`, true)
-                    .addField('📚 Wikipedia API', `Llamadas: ${this.nativeAPICalls.wikipedia}`, true)
-                    .addField('💾 Caché', `${stats.cacheSize} items`, true)
-                    .addField('🔧 Estado', stats.enabled ? '✅ Activado' : '❌ Desactivado', true)
-                    .setFooter('Total mensajes procesados: ' + this.messageCount)
-                    .setTimestamp();
-                
-                message.channel.send({ embeds: [embed] });
-                return;
-            }
-            
-            message.reply('❌ Comando no reconocido. Usa `!apinativo` para ver opciones.');
-            return;
-        }
-
-        // ========== COMANDOS DE MEMORIA ==========
+        // COMANDOS DE MEMORIA
         if (command === 'memoria') {
             const memory = this.getUserMemory(message.author.id);
             const embed = new MessageEmbed()
                 .setTitle(`🧠 Memoria de ${message.author.username}`)
                 .setColor('#9B59B6')
-                .setDescription(`Total de interacciones: ${memory.length}`)
-                .setFooter('Últimas 5 interacciones:')
+                .setDescription(`Total interacciones: ${memory.length}`)
                 .setTimestamp();
 
             const recent = memory.slice(-5);
@@ -751,37 +420,12 @@ class DiscordBot {
                 
                 embed.addField(
                     `${index + 1}. ${item.role === 'user' ? '🗣️ Tú' : '🤖 Mancy'}`,
-                    `**${new Date(item.timestamp).toLocaleTimeString()}**\n${content}`,
+                    content,
                     false
                 );
             });
 
-            if (memory.length > 5) {
-                embed.addField('📊 Estadísticas', 
-                    `Total: ${memory.length} mensajes\n` +
-                    `Temas: ${this.extractTopics(memory).length}\n` +
-                    `Desde: ${new Date(memory[0]?.timestamp).toLocaleDateString()}`,
-                    true
-                );
-            }
-
             message.channel.send({ embeds: [embed] });
-            return;
-        }
-
-        if (command === 'olvidar') {
-            const topic = args.join(' ');
-            if (!topic) {
-                message.reply('❌ Uso: `!olvidar [tema]`\nEjemplo: `!olvidar programación`');
-                return;
-            }
-
-            const removed = this.removeTopicFromMemory(message.author.id, topic);
-            if (removed > 0) {
-                message.reply(`✅ Olvidé ${removed} mensajes relacionados con "${topic}"`);
-            } else {
-                message.reply(`ℹ️ No encontré mensajes sobre "${topic}" en tu memoria`);
-            }
             return;
         }
 
@@ -790,23 +434,15 @@ class DiscordBot {
             const topics = this.extractTopics(memory);
             
             const embed = new MessageEmbed()
-                .setTitle(`📚 Temas de conversación con ${message.author.username}`)
+                .setTitle(`📚 Temas de ${message.author.username}`)
                 .setColor('#3498DB')
                 .setFooter(`Total temas: ${topics.length}`)
                 .setTimestamp();
 
             if (topics.length === 0) {
-                embed.setDescription('Aún no hay temas guardados en tu memoria.');
+                embed.setDescription('Aún no hay temas guardados.');
             } else {
-                const chunkSize = 10;
-                for (let i = 0; i < topics.length; i += chunkSize) {
-                    const chunk = topics.slice(i, i + chunkSize);
-                    embed.addField(
-                        `Temas ${i + 1}-${i + chunk.length}`,
-                        chunk.map(t => `• ${t}`).join('\n'),
-                        false
-                    );
-                }
+                embed.setDescription(topics.map(t => `• ${t}`).join('\n'));
             }
 
             message.channel.send({ embeds: [embed] });
@@ -816,18 +452,13 @@ class DiscordBot {
         if (command === 'reiniciar') {
             this.userMemories.delete(message.author.id);
             this.saveMemories();
-            message.reply('✅ Tu memoria ha sido reiniciada completamente.');
+            message.reply('✅ Memoria reiniciada.');
             return;
         }
 
-        // ========== COMANDOS DE CONOCIMIENTO DIRECTO ==========
+        // COMANDOS DE CONOCIMIENTO
         if (command === 'wiki' || command === 'wikipedia') {
             await knowledgeCommands.wikipedia(message, args);
-            return;
-        }
-
-        if (command === 'libros' || command === 'books') {
-            await knowledgeCommands.libros(message, args);
             return;
         }
 
@@ -841,24 +472,9 @@ class DiscordBot {
             return;
         }
 
-        if (command === 'historia' || command === 'history') {
-            await knowledgeCommands.historia(message, args);
-            return;
-        }
-
-        if (command === 'doc' || command === 'documentacion') {
-            await knowledgeCommands.documentacion(message, args);
-            return;
-        }
-
-        // ========== COMANDOS DE APIS GRATUITAS ==========
+        // COMANDOS DE APIS
         if (command === 'clima' || command === 'weather') {
             await apiCommands.clima(message, args);
-            return;
-        }
-
-        if (command === 'convertir' || command === 'convert') {
-            await apiCommands.convertir(message, args);
             return;
         }
 
@@ -872,192 +488,26 @@ class DiscordBot {
             return;
         }
 
-        if (command === 'anime') {
-            await apiCommands.anime(message, args);
-            return;
-        }
-
-        // ========== COMANDOS DE ADMINISTRACIÓN ==========
-        if (command === 'conocimiento') {
-            if (args[0] === 'estado') {
-                const stats = knowledgeIntegration.getStats();
-                const embed = new MessageEmbed()
-                    .setTitle('🧠 Estado del Sistema de Conocimiento')
-                    .setColor('#0099ff')
-                    .addField('🔧 Estado', stats.enabled ? '✅ ACTIVADO' : '❌ DESACTIVADO', true)
-                    .addField('📊 Total consultas', stats.totalQueries.toString(), true)
-                    .addField('🧠 Búsquedas', stats.knowledgeFetches.toString(), true)
-                    .addField('💾 Cache hits', stats.cacheHits.toString(), true)
-                    .addField('📈 Tasa cache', stats.cacheHitRate, true)
-                    .addField('⚡ Tiempo promedio', `${stats.avgResponseTime}ms`, true)
-                    .addField('✅ Éxitos', stats.successfulFetches.toString(), true)
-                    .addField('❌ Fallos', stats.failedFetches.toString(), true)
-                    .addField('🗃️ Tamaño cache', `${stats.cacheSize} items`, true)
-                    .setFooter('Sistema de Conocimiento Integrado • Mancy')
-                    .setTimestamp();
-                
-                message.channel.send({ embeds: [embed] });
-                return;
-            }
-            
-            if (args[0] === 'activar') {
-                knowledgeIntegration.setEnabled(true);
-                this.enableKnowledge = true;
-                message.reply('✅ Sistema de conocimiento **activado**. Ahora buscaré información automáticamente.');
-                return;
-            }
-            
-            if (args[0] === 'desactivar') {
-                knowledgeIntegration.setEnabled(false);
-                this.enableKnowledge = false;
-                message.reply('✅ Sistema de conocimiento **desactivado**. Usaré solo mi conocimiento general.');
-                return;
-            }
-            
-            if (args[0] === 'limpiar') {
-                message.reply('🔄 La caché se limpia automáticamente. No es necesario limpiarla manualmente.');
-                return;
-            }
-            
-            // Mostrar ayuda de conocimiento
-            const embed = new MessageEmbed()
-                .setTitle('🧠 Comandos de Conocimiento')
-                .setColor('#0099ff')
-                .setDescription('Control del sistema de conocimiento integrado')
-                .addField('📊 Estado', '`!conocimiento estado` - Ver estadísticas del sistema', false)
-                .addField('🔧 Control', '`!conocimiento activar` - Activar búsqueda automática\n`!conocimiento desactivar` - Desactivar búsqueda automática', false)
-                .addField('ℹ️ Información', 'El sistema detecta automáticamente cuando necesitas información y busca en fuentes confiables.', false)
-                .setFooter('El conocimiento se integra naturalmente en conversaciones')
-                .setTimestamp();
-            
-            message.channel.send({ embeds: [embed] });
-            return;
-        }
-
-        if (command === 'estadisticas' || command === 'stats') {
-            const uptime = Date.now() - this.startTime;
-            const days = Math.floor(uptime / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((uptime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
-            
-            const embed = new MessageEmbed()
-                .setTitle('📊 Estadísticas de Mancy')
-                .setColor('#2ECC71')
-                .addField('⏰ Tiempo activo', `${days}d ${hours}h ${minutes}m`, true)
-                .addField('📨 Mensajes procesados', this.messageCount.toString(), true)
-                .addField('🛠️ Comandos ejecutados', this.commandCount.toString(), true)
-                .addField('👥 Usuarios con memoria', this.userMemories.size.toString(), true)
-                .addField('🤖 Servidores', this.client.guilds.cache.size.toString(), true)
-                .addField('🧠 Memoria', this.enableMemory ? '✅ Activada' : '❌ Desactivada', true)
-                .addField('📚 Conocimiento', this.enableKnowledge ? '✅ Integrado' : '❌ Desactivado', true)
-                .addField('🌐 APIs Nativas', 
-                    `Quotable: ${this.nativeAPICalls.quotes}\n` +
-                    `Wikipedia: ${this.nativeAPICalls.wikipedia}`, true)
-                .addField('🔧 Versión', SYSTEM_CONSTANTS.VERSION, true)
-                .setFooter(`PID: ${process.pid} • Iniciado: ${this.startTime.toLocaleString()}`)
-                .setTimestamp();
-            
-            message.channel.send({ embeds: [embed] });
-            return;
-        }
-
+        // COMANDO PING
         if (command === 'ping') {
             const start = Date.now();
             const msg = await message.channel.send('🏓 Pinging...');
             const latency = Date.now() - start;
             const apiLatency = Math.round(this.client.ws.ping);
             
-            msg.edit(`🏓 Pong!\n🤖 Bot Latency: ${latency}ms\n📡 API Latency: ${apiLatency}ms`);
+            msg.edit(`🏓 Pong!\n🤖 Latencia: ${latency}ms\n📡 API: ${apiLatency}ms`);
             return;
         }
 
-        // ========== COMANDOS DE ADMINISTRADOR ==========
-        if (this.adminIds.includes(message.author.id)) {
-            if (command === 'shutdown' || command === 'apagar') {
-                if (!this.adminIds.includes(message.author.id)) {
-                    message.reply('❌ No tienes permisos para usar este comando.');
-                    return;
-                }
-                
-                message.reply('🔄 Apagando bot...');
-                console.log('🔄 Apagando por comando de administrador...');
-                setTimeout(() => {
-                    process.exit(0);
-                }, 2000);
-                return;
-            }
-            
-            if (command === 'restart' || command === 'reiniciar') {
-                if (!this.adminIds.includes(message.author.id)) {
-                    message.reply('❌ No tienes permisos para usar este comando.');
-                    return;
-                }
-                
-                message.reply('🔄 Reiniciando bot...');
-                console.log('🔄 Reiniciando por comando de administrador...');
-                setTimeout(() => {
-                    process.exit(1);
-                }, 2000);
-                return;
-            }
-            
-            if (command === 'broadcast') {
-                if (!this.adminIds.includes(message.author.id)) {
-                    message.reply('❌ No tienes permisos para usar este comando.');
-                    return;
-                }
-                
-                const broadcastMessage = args.join(' ');
-                if (!broadcastMessage) {
-                    message.reply('❌ Uso: `!broadcast [mensaje]`');
-                    return;
-                }
-                
-                let sent = 0;
-                this.client.guilds.cache.forEach(guild => {
-                    const defaultChannel = guild.channels.cache.find(channel => 
-                        channel.type === 'GUILD_TEXT' && 
-                        channel.permissionsFor(guild.me).has('SEND_MESSAGES')
-                    );
-                    
-                    if (defaultChannel) {
-                        defaultChannel.send(`📢 **Anuncio del Administrador:**\n${broadcastMessage}`)
-                            .then(() => sent++)
-                            .catch(console.error);
-                    }
-                });
-                
-                message.reply(`✅ Anuncio enviado a ${sent} servidores.`);
-                return;
-            }
-        }
-
-        // ========== COMANDO NO ENCONTRADO ==========
-        const embed = new MessageEmbed()
-            .setTitle('❓ Comando no encontrado')
-            .setColor('#E74C3C')
-            .setDescription(`El comando \`${command}\` no existe.`)
-            .addField('📖 Comandos disponibles', 
-                'Usa `!ayuda` para ver todos los comandos\n' +
-                'O simplemente habla conmigo normalmente y buscaré información cuando sea necesario', false)
-            .addField('💡 ¿Sabías que...?', 
-                'Puedes pedirme frases o información sin comandos:\n' +
-                '• "Dime una frase motivadora"\n' +
-                '• "¿Qué es la inteligencia artificial?"\n' +
-                '• "Háblame sobre la historia de Roma"', false)
-            .setFooter('Mancy • Sistema de conocimiento integrado')
-            .setTimestamp();
-        
-        message.channel.send({ embeds: [embed] });
+        // COMANDO NO ENCONTRADO
+        message.reply(`❌ Comando \`${command}\` no encontrado. Usa \`!ayuda\`.`);
     }
 
-    // ========== MANEJO DE CONVERSACIÓN NATURAL ==========
     async handleConversation(message) {
         try {
-            // Obtener memoria del usuario
             const userMemory = this.getUserMemory(message.author.id);
             
-            // NUEVO: Detectar y obtener datos de APIs nativas
+            // Detectar APIs nativas
             let nativeAPIData = null;
             if (this.enableKnowledge) {
                 const apiResult = await this.nativeAPIs.detectAndFetch(message.content);
@@ -1065,134 +515,75 @@ class DiscordBot {
                 if (apiResult.detected && apiResult.data) {
                     nativeAPIData = apiResult;
                     
-                    // Contar estadísticas
                     if (apiResult.type === 'quote') {
                         this.nativeAPICalls.quotes++;
-                        console.log(`💬 [NATIVO] Frase detectada para: "${message.author.tag}"`);
                     } else if (apiResult.type === 'wikipedia') {
                         this.nativeAPICalls.wikipedia++;
-                        console.log(`📚 [NATIVO] Wikipedia detectada: "${apiResult.topic}"`);
                     }
                 }
             }
             
-            // Verificar si necesita conocimiento (sistema original)
-            let enhancedResponse = null;
-            let knowledgeContext = null;
-            
-            if (this.enableKnowledge && !nativeAPIData) {
-                const knowledgeResult = await knowledgeIntegration.processMessage(message.content);
-                
-                if (knowledgeResult.shouldEnhance) {
-                    knowledgeContext = knowledgeResult;
-                    console.log(`🧠 [AUTO] Búsqueda automática para: "${knowledgeResult.detection.topic}"`);
-                }
-            }
-            
-            // Preparar mensajes para Groq con datos nativos si existen
+            // Preparar mensajes para Groq
             const messages = this.prepareMessagesForGroq(
                 userMemory, 
                 message.content, 
-                knowledgeContext,
+                null,
                 nativeAPIData
             );
             
-            // Indicar que está pensando
-            const thinkingMsg = await message.channel.send('💭 Pensando...');
-            
             // Generar respuesta
+            const thinkingMsg = await message.channel.send('💭 Pensando...');
             const response = await this.generateGroqResponse(messages);
             
             // Guardar en memoria
             this.saveToMemory(message.author.id, {
                 role: 'user',
                 content: message.content,
-                timestamp: new Date().toISOString(),
-                knowledgeRequested: !!knowledgeContext,
-                nativeAPIRequested: !!nativeAPIData,
-                nativeAPIType: nativeAPIData?.type
+                timestamp: new Date().toISOString()
             });
             
             this.saveToMemory(message.author.id, {
                 role: 'assistant',
                 content: response,
-                timestamp: new Date().toISOString(),
-                enhanced: !!knowledgeContext || !!nativeAPIData,
-                knowledgeSource: knowledgeContext?.knowledge?.source,
-                nativeAPISource: nativeAPIData?.data?.source
+                timestamp: new Date().toISOString()
             });
-            
-            // Guardar memorias periódicamente
-            if (this.messageCount % 10 === 0) {
-                this.saveMemories();
-            }
             
             // Enviar respuesta
             await thinkingMsg.edit(response);
             
-            // Log estadístico
-            if (nativeAPIData) {
-                console.log(`✅ ${nativeAPIData.type === 'quote' ? 'Frase' : 'Info'} nativa enviada a ${message.author.tag}`);
-            } else if (knowledgeContext) {
-                console.log(`✅ Respuesta mejorada enviada a ${message.author.tag} (${knowledgeContext.knowledge?.source})`);
+            // Guardar cada 10 mensajes
+            if (this.messageCount % 10 === 0) {
+                this.saveMemories();
             }
             
         } catch (error) {
             console.error('Error en conversación:', error);
-            
-            // Respuesta de error amigable
-            const errorResponses = [
-                "Lo siento, hubo un error procesando tu mensaje. ¿Podrías intentarlo de nuevo?",
-                "Parece que hay un problema técnico. Intenta en un momento.",
-                "¡Ups! Algo salió mal. ¿Podrías reformular tu pregunta?",
-                "Tengo problemas para procesar tu mensaje. Intenta más tarde."
-            ];
-            
-            const randomError = errorResponses[Math.floor(Math.random() * errorResponses.length)];
-            message.channel.send(randomError);
+            message.channel.send('Lo siento, hubo un error. ¿Podrías intentarlo de nuevo?');
         }
     }
 
-    // ========== PREPARAR MENSAJES PARA GROQ (MODIFICADA PARA APIS NATIVAS) ==========
     prepareMessagesForGroq(userMemory, currentMessage, knowledgeContext, nativeAPIData) {
         const messages = [];
         
-        // Añadir instrucción del sistema con conocimiento si está disponible
         let systemMessage = `Eres Mancy, un asistente de Discord inteligente y amigable.`;
         
         if (this.enableMemory && userMemory.length > 0) {
             systemMessage += ` Tienes memoria de conversación con este usuario.`;
         }
         
-        // Prioridad 1: Datos de APIs nativas
         if (nativeAPIData && nativeAPIData.data) {
             if (nativeAPIData.type === 'quote') {
                 const quote = nativeAPIData.data;
-                systemMessage += `\n\nEL USUARIO PIDIÓ UNA FRASE. TIENES ESTA CITA DISPONIBLE:\n` +
-                               `"${quote.content}"\n— ${quote.author}\n\n` +
-                               `Instrucción: Integra esta cita de forma natural en tu respuesta. ` +
-                               `No la cites textualmente a menos que sea apropiado. Responde como si fuera tu propia reflexión.`;
-                
+                systemMessage += `\n\nEL USUARIO PIDIÓ UNA FRASE. TIENES ESTA CITA:\n"${quote.content}"\n— ${quote.author}`;
             } else if (nativeAPIData.type === 'wikipedia') {
                 const wiki = nativeAPIData.data;
-                systemMessage += `\n\nINFORMACIÓN SOBRE "${wiki.title}":\n${wiki.summary}\n\n` +
-                               `Instrucción: Usa esta información para responder con precisión pero de forma conversacional. ` +
-                               `No menciones que viene de Wikipedia. Integra los hechos naturalmente.`;
+                systemMessage += `\n\nINFORMACIÓN SOBRE "${wiki.title}":\n${wiki.summary}`;
             }
         }
-        // Prioridad 2: Conocimiento general del sistema original
-        else if (knowledgeContext && knowledgeContext.knowledge) {
-            const knowledgeText = knowledgeIntegration.formatKnowledgeForPrompt(knowledgeContext.knowledge);
-            systemMessage += `\n\nINFORMACIÓN DE REFERENCIA (usa esto para responder con precisión):\n${knowledgeText}\n\n`;
-            systemMessage += `Instrucción: Usa la información de referencia para enriquecer tu respuesta. Sé preciso y natural.`;
-        }
         
-        messages.push({
-            role: 'system',
-            content: systemMessage
-        });
+        messages.push({ role: 'system', content: systemMessage });
         
-        // Añadir historial de memoria (últimas 10 interacciones)
+        // Historial de memoria
         if (this.enableMemory && userMemory.length > 0) {
             const recentMemory = userMemory.slice(-10);
             recentMemory.forEach(item => {
@@ -1203,16 +594,12 @@ class DiscordBot {
             });
         }
         
-        // Añadir mensaje actual
-        messages.push({
-            role: 'user',
-            content: currentMessage
-        });
+        // Mensaje actual
+        messages.push({ role: 'user', content: currentMessage });
         
         return messages;
     }
 
-    // ========== GENERAR RESPUESTA CON GROQ ==========
     async generateGroqResponse(messages) {
         try {
             const completion = await this.groq.chat.completions.create({
@@ -1225,10 +612,8 @@ class DiscordBot {
             
             let response = completion.choices[0]?.message?.content || 'Lo siento, no pude generar una respuesta.';
             
-            // Limpiar respuesta si es necesario
             response = response.trim();
             
-            // Asegurarse de que no exceda el límite de Discord
             if (response.length > 2000) {
                 response = response.substring(0, 1997) + '...';
             }
@@ -1242,11 +627,7 @@ class DiscordBot {
                 return 'Estoy recibiendo muchas peticiones. Por favor, intenta de nuevo en un momento.';
             }
             
-            if (error.message.includes('timeout')) {
-                return 'La respuesta está tardando demasiado. ¿Podrías reformular tu pregunta?';
-            }
-            
-            throw error;
+            return 'Lo siento, hubo un error al procesar tu mensaje.';
         }
     }
 
@@ -1262,7 +643,6 @@ class DiscordBot {
         const memory = this.getUserMemory(userId);
         memory.push(message);
         
-        // Limitar memoria a 100 mensajes por usuario
         if (memory.length > 100) {
             memory.splice(0, memory.length - 100);
         }
@@ -1270,33 +650,16 @@ class DiscordBot {
         this.userMemories.set(userId, memory);
     }
 
-    removeTopicFromMemory(userId, topic) {
-        const memory = this.getUserMemory(userId);
-        const originalLength = memory.length;
-        
-        // Filtrar mensajes que contengan el tema
-        const filtered = memory.filter(item => 
-            !item.content.toLowerCase().includes(topic.toLowerCase())
-        );
-        
-        this.userMemories.set(userId, filtered);
-        this.saveMemories();
-        
-        return originalLength - filtered.length;
-    }
-
     extractTopics(memory) {
         const topics = new Set();
         
         memory.forEach(item => {
-            // Extraer palabras clave (palabras de 4+ letras que no sean comunes)
             const words = item.content.toLowerCase()
                 .replace(/[^\w\sáéíóúñ]/gi, '')
                 .split(/\s+/)
                 .filter(word => word.length >= 4);
             
-            // Filtrar palabras comunes
-            const commonWords = ['hola', 'gracias', 'porque', 'quiero', 'puedes', 'ayuda', 'buenos', 'tardes', 'noches', 'muchas'];
+            const commonWords = ['hola', 'gracias', 'porque', 'quiero', 'puedes', 'ayuda'];
             const filteredWords = words.filter(word => 
                 !commonWords.includes(word) && 
                 !word.match(/^\d+$/)
@@ -1305,10 +668,9 @@ class DiscordBot {
             filteredWords.forEach(word => topics.add(word));
         });
         
-        return Array.from(topics).slice(0, 20);
+        return Array.from(topics).slice(0, 10);
     }
 
-    // ========== PERSISTENCIA DE MEMORIA (MODIFICADA) ==========
     loadMemories() {
         try {
             const memoriesPath = path.join(__dirname, 'data', 'memories.json');
@@ -1342,21 +704,14 @@ class DiscordBot {
         }
     }
 
-    // ========== MANEJADORES DE ERRORES ==========
     onError(error) {
         console.error('❌ Error del cliente Discord:', error);
     }
 
-    onWarning(warning) {
-        console.warn('⚠️ Advertencia del cliente Discord:', warning);
-    }
-
-    // ========== FUNCIONES DE INICIO/APAGADO ==========
     async start() {
         try {
             console.log('🚀 Iniciando Mancy...');
             console.log('🌐 APIs Nativas: Quotable & Wikipedia listas');
-            console.log('💬 Modo conversacional: ACTIVADO (sin comandos necesarios)');
             await this.client.login(process.env.DISCORD_BOT_TOKEN);
         } catch (error) {
             console.error('❌ Error al iniciar el bot:', error);
@@ -1365,89 +720,36 @@ class DiscordBot {
     }
 
     async shutdown() {
-        console.log('🔄 Guardando memorias antes de apagar...');
+        console.log('🔄 Guardando memorias...');
         this.saveMemories();
-        
-        console.log('👋 Desconectando del cliente Discord...');
+        console.log('👋 Desconectando...');
         this.client.destroy();
-        
-        console.log('✅ Bot apagado correctamente');
-    }
-
-    // ========== FUNCIONES PARA API REST ==========
-    getBotStatus() {
-        return {
-            status: this.isReady ? 'online' : 'offline',
-            uptime: Date.now() - this.startTime,
-            messageCount: this.messageCount,
-            commandCount: this.commandCount,
-            userCount: this.client.users.cache.size,
-            guildCount: this.client.guilds.cache.size,
-            memoryEnabled: this.enableMemory,
-            knowledgeEnabled: this.enableKnowledge,
-            userMemories: this.userMemories.size,
-            nativeAPICalls: this.nativeAPICalls,
-            version: SYSTEM_CONSTANTS.VERSION
-        };
-    }
-
-    getUserMemoryInfo(userId) {
-        const memory = this.getUserMemory(userId);
-        return {
-            userId: userId,
-            messageCount: memory.length,
-            lastInteraction: memory.length > 0 ? memory[memory.length - 1].timestamp : null,
-            topics: this.extractTopics(memory).slice(0, 10),
-            memorySize: JSON.stringify(memory).length,
-            nativeAPIUses: memory.filter(m => m.nativeAPIRequested).length
-        };
-    }
-
-    forceRestart() {
-        console.log('🔄 Reinicio forzado solicitado...');
-        this.messageCount = 0;
-        this.commandCount = 0;
-        this.nativeAPIs.clearCache();
-        return { message: 'Reinicio forzado ejecutado' };
+        console.log('✅ Bot apagado');
     }
 }
 
-// ========== FUNCIONES DE EXPORTACIÓN ==========
-export const bot = new DiscordBot();
+// ========== INICIAR BOT ==========
+const bot = new DiscordBot();
 
-export async function initializeAndStartBot() {
+async function initializeAndStartBot() {
     await bot.start();
 }
 
-export function getBotStatus() {
-    return bot.getBotStatus();
-}
-
-export function getUserMemoryInfo(userId) {
-    return bot.getUserMemoryInfo(userId);
-}
-
-export function forceRestartBot() {
-    return bot.forceRestart();
-}
-
-export async function shutdownBot() {
-    await bot.shutdown();
-}
-
-// ========== EJECUCIÓN DIRECTA ==========
+// Iniciar si es el archivo principal
 if (import.meta.url === `file://${process.argv[1]}`) {
     initializeAndStartBot().catch(console.error);
     
     process.on('SIGTERM', async () => {
         console.log('SIGTERM recibido, apagando bot...');
-        await shutdownBot();
+        await bot.shutdown();
         process.exit(0);
     });
     
     process.on('SIGINT', async () => {
         console.log('SIGINT recibido, apagando bot...');
-        await shutdownBot();
+        await bot.shutdown();
         process.exit(0);
     });
 }
+
+export { bot, initializeAndStartBot };
