@@ -8,7 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // utils
-import { getFreeAPIs } from './src/utils/free-apis.js';
+import { getFreeAPIs } from './utils/free-apis.js';
 import { analyzeUserMessage } from './utils/knowledge-detector.js';
 
 // services
