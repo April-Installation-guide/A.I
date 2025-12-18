@@ -21,7 +21,8 @@
     "discord.js": "^14.16.3",
     "express": "^4.21.1",
     "dotenv": "^16.4.5",
-    "groq-sdk": "^0.7.0"
+    "groq-sdk": "^0.7.0",
+    "cors": "^2.8.5"
   },
   "engines": {
     "node": ">=18.0.0",
