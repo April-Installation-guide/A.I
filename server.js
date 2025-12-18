@@ -5,18 +5,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 
-// Importar APIs de conocimiento
-import { knowledgeIntegration } from './src/services/knowledge-integration.js';
-import { freeAPIs } from './src/api/free-apis.js';
-import { apiCommands } from './src/commands/api-commands.js';
-import { knowledgeCommands } from './src/commands/knowledge-commands.js';
+// Importar APIs de conocimiento - RUTAS CORREGIDAS
+import { knowledgeIntegration } from './services/knowledge-integration.js';
+import { freeAPIs } from './api/free-apis.js';
+import { apiCommands } from './commands/api-commands.js';
+import { knowledgeCommands } from './commands/knowledge-commands.js';
 
 // Configuración de entorno
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Constantes del sistema
-import { SYSTEM_CONSTANTS } from './src/config/constants.js';
+// Constantes del sistema - RUTA CORREGIDA
+import { SYSTEM_CONSTANTS } from './config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -442,7 +442,7 @@ class DiscordBot {
                     '`estadisticas` - Estadísticas del bot\n' +
                     '`ping` - Latencia del bot\n' +
                     '`apinativo` - Control APIs nativas', false)
-                .setFooter(`Versión ${SYSTEM_CONSTANTS.VERSION || '2.0.0'} • Habla naturalmente conmigo`)
+                .setFooter(`Versión ${SYSTEM_CONSTANTS?.VERSION || '2.0.0'} • Habla naturalmente conmigo`)
                 .setTimestamp();
 
             message.channel.send({ embeds: [embed] });
@@ -602,65 +602,130 @@ class DiscordBot {
 
         // ========== COMANDOS DE CONOCIMIENTO DIRECTO ==========
         if (command === 'wiki' || command === 'wikipedia') {
-            await knowledgeCommands.wikipedia(message, args);
+            if (knowledgeCommands && knowledgeCommands.wikipedia) {
+                await knowledgeCommands.wikipedia(message, args);
+            } else {
+                const topic = args.join(' ');
+                message.reply(`🔍 Buscaré información sobre "${topic || 'tu tema'}" en Wikipedia.`);
+            }
             return;
         }
 
         if (command === 'libros' || command === 'books') {
-            await knowledgeCommands.libros(message, args);
+            if (knowledgeCommands && knowledgeCommands.libros) {
+                await knowledgeCommands.libros(message, args);
+            } else {
+                message.reply('📚 El sistema de búsqueda de libros no está disponible temporalmente.');
+            }
             return;
         }
 
         if (command === 'definir' || command === 'definicion') {
-            await knowledgeCommands.definir(message, args);
+            if (knowledgeCommands && knowledgeCommands.definir) {
+                await knowledgeCommands.definir(message, args);
+            } else {
+                const word = args.join(' ');
+                message.reply(`📖 Buscaré la definición de "${word || 'esa palabra'}".`);
+            }
             return;
         }
 
         if (command === 'filosofo' || command === 'philosopher') {
-            await knowledgeCommands.filosofo(message, args);
+            if (knowledgeCommands && knowledgeCommands.filosofo) {
+                await knowledgeCommands.filosofo(message, args);
+            } else {
+                message.reply('🧠 El sistema de información de filósofos no está disponible temporalmente.');
+            }
             return;
         }
 
         if (command === 'historia' || command === 'history') {
-            await knowledgeCommands.historia(message, args);
+            if (knowledgeCommands && knowledgeCommands.historia) {
+                await knowledgeCommands.historia(message, args);
+            } else {
+                message.reply('📅 El sistema de eventos históricos no está disponible temporalmente.');
+            }
             return;
         }
 
         if (command === 'doc' || command === 'documentacion') {
-            await knowledgeCommands.documentacion(message, args);
+            if (knowledgeCommands && knowledgeCommands.documentacion) {
+                await knowledgeCommands.documentacion(message, args);
+            } else {
+                message.reply('📄 El sistema de documentación técnica no está disponible temporalmente.');
+            }
             return;
         }
 
         // ========== COMANDOS DE APIS GRATUITAS ==========
         if (command === 'clima' || command === 'weather') {
-            await apiCommands.clima(message, args);
+            if (apiCommands && apiCommands.clima) {
+                await apiCommands.clima(message, args);
+            } else {
+                const city = args.join(' ');
+                message.reply(`🌤️ Buscaré el clima de "${city || 'tu ciudad'}".`);
+            }
             return;
         }
 
         if (command === 'convertir' || command === 'convert') {
-            await apiCommands.convertir(message, args);
+            if (apiCommands && apiCommands.convertir) {
+                await apiCommands.convertir(message, args);
+            } else {
+                message.reply('🔄 El sistema de conversión no está disponible temporalmente.');
+            }
             return;
         }
 
         if (command === 'chiste' || command === 'joke') {
-            await apiCommands.chiste(message, args);
+            if (apiCommands && apiCommands.chiste) {
+                await apiCommands.chiste(message, args);
+            } else {
+                message.reply('😂 El sistema de chistes no está disponible temporalmente.');
+            }
             return;
         }
 
         if (command === 'pais' || command === 'country') {
-            await apiCommands.pais(message, args);
+            if (apiCommands && apiCommands.pais) {
+                await apiCommands.pais(message, args);
+            } else {
+                const country = args.join(' ');
+                message.reply(`🌍 Buscaré información sobre "${country || 'ese país'}".`);
+            }
             return;
         }
 
         if (command === 'anime') {
-            await apiCommands.anime(message, args);
+            if (apiCommands && apiCommands.anime) {
+                await apiCommands.anime(message, args);
+            } else {
+                const anime = args.join(' ');
+                message.reply(`🎌 Buscaré información sobre "${anime || 'ese anime'}".`);
+            }
             return;
         }
 
         // ========== COMANDOS DE ADMINISTRACIÓN ==========
         if (command === 'conocimiento') {
             if (args[0] === 'estado') {
-                const stats = knowledgeIntegration.getStats();
+                let stats;
+                if (knowledgeIntegration && knowledgeIntegration.getStats) {
+                    stats = knowledgeIntegration.getStats();
+                } else {
+                    stats = {
+                        enabled: this.enableKnowledge,
+                        totalQueries: 0,
+                        knowledgeFetches: 0,
+                        cacheHits: 0,
+                        cacheHitRate: '0%',
+                        avgResponseTime: 0,
+                        successfulFetches: 0,
+                        failedFetches: 0,
+                        cacheSize: 0
+                    };
+                }
+                
                 const embed = new MessageEmbed()
                     .setTitle('🧠 Estado del Sistema de Conocimiento')
                     .setColor('#0099ff')
@@ -681,14 +746,18 @@ class DiscordBot {
             }
             
             if (args[0] === 'activar') {
-                knowledgeIntegration.setEnabled(true);
+                if (knowledgeIntegration && knowledgeIntegration.setEnabled) {
+                    knowledgeIntegration.setEnabled(true);
+                }
                 this.enableKnowledge = true;
                 message.reply('✅ Sistema de conocimiento **activado**. Ahora buscaré información automáticamente.');
                 return;
             }
             
             if (args[0] === 'desactivar') {
-                knowledgeIntegration.setEnabled(false);
+                if (knowledgeIntegration && knowledgeIntegration.setEnabled) {
+                    knowledgeIntegration.setEnabled(false);
+                }
                 this.enableKnowledge = false;
                 message.reply('✅ Sistema de conocimiento **desactivado**. Usaré solo mi conocimiento general.');
                 return;
@@ -733,7 +802,7 @@ class DiscordBot {
                 .addField('🌐 APIs Nativas', 
                     `Quotable: ${this.nativeAPICalls.quotes}\n` +
                     `Wikipedia: ${this.nativeAPICalls.wikipedia}`, true)
-                .addField('🔧 Versión', SYSTEM_CONSTANTS.VERSION || '2.0.0', true)
+                .addField('🔧 Versión', SYSTEM_CONSTANTS?.VERSION || '2.0.0', true)
                 .setFooter(`PID: ${process.pid} • Iniciado: ${this.startTime.toLocaleString()}`)
                 .setTimestamp();
             
@@ -860,7 +929,7 @@ class DiscordBot {
             let enhancedResponse = null;
             let knowledgeContext = null;
             
-            if (this.enableKnowledge && !nativeAPIData) {
+            if (this.enableKnowledge && !nativeAPIData && knowledgeIntegration && knowledgeIntegration.processMessage) {
                 const knowledgeResult = await knowledgeIntegration.processMessage(message.content);
                 
                 if (knowledgeResult.shouldEnhance) {
@@ -961,8 +1030,14 @@ class DiscordBot {
             }
         }
         // Prioridad 2: Conocimiento general del sistema original
-        else if (knowledgeContext) {
-            const knowledgeText = knowledgeIntegration.formatKnowledgeForPrompt(knowledgeContext.knowledge);
+        else if (knowledgeContext && knowledgeContext.knowledge) {
+            let knowledgeText = '';
+            if (knowledgeIntegration && knowledgeIntegration.formatKnowledgeForPrompt) {
+                knowledgeText = knowledgeIntegration.formatKnowledgeForPrompt(knowledgeContext.knowledge);
+            } else {
+                knowledgeText = JSON.stringify(knowledgeContext.knowledge, null, 2);
+            }
+            
             systemMessage += `\n\nINFORMACIÓN DE REFERENCIA (usa esto para responder con precisión):\n${knowledgeText}\n\n`;
             systemMessage += `Instrucción: Usa la información de referencia para enriquecer tu respuesta. Sé preciso y natural.`;
         }
@@ -1167,7 +1242,7 @@ class DiscordBot {
             knowledgeEnabled: this.enableKnowledge,
             userMemories: this.userMemories.size,
             nativeAPICalls: this.nativeAPICalls,
-            version: SYSTEM_CONSTANTS.VERSION || '2.0.0'
+            version: SYSTEM_CONSTANTS?.VERSION || '2.0.0'
         };
     }
 
