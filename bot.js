@@ -5,18 +5,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 
-// Importar APIs de conocimiento
-import { knowledgeIntegration } from './src/services/knowledge-integration.js';
-import { freeAPIs } from './src/api/free-apis.js';
-import { apiCommands } from './src/commands/api-commands.js';
-import { knowledgeCommands } from './src/commands/knowledge-commands.js';
+// Importar APIs de conocimiento - CORREGIDO: eliminar src/ extra
+import { knowledgeIntegration } from './services/knowledge-integration.js';
+import { freeAPIs } from './api/free-apis.js';
+import { apiCommands } from './commands/api-commands.js';
+import { knowledgeCommands } from './commands/knowledge-commands.js';
 
 // Configuración de entorno
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Constantes del sistema
-import { SYSTEM_CONSTANTS } from './src/config/constants.js';
+// Constantes del sistema - CORREGIDO: eliminar src/ extra
+import { SYSTEM_CONSTANTS } from './config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
