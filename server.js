@@ -5,18 +5,238 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 
-// Importar APIs de conocimiento - RUTAS CORREGIDAS
-import { knowledgeIntegration } from './services/knowledge-integration.js';
-import { freeAPIs } from './api/free-apis.js';
-import { apiCommands } from './commands/api-commands.js';
-import { knowledgeCommands } from './commands/knowledge-commands.js';
-
 // Configuración de entorno
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Constantes del sistema - RUTA CORREGIDA
-import { SYSTEM_CONSTANTS } from './config/constants.js';
+// ========== SISTEMA DE CONOCIMIENTO INTEGRADO (TODO EN UNO) ==========
+
+// Constantes del sistema
+const SYSTEM_CONSTANTS = {
+    VERSION: '2.0.0',
+    MAX_MEMORY_PER_USER: 100,
+    MAX_CONVERSATION_LENGTH: 10
+};
+
+// Sistema de conocimiento simplificado
+const knowledgeIntegration = {
+    enabled: true,
+    
+    async processMessage(message) {
+        if (!this.enabled) return { shouldEnhance: false };
+        
+        // Detectar solicitudes de información
+        const patterns = [
+            /(qu[ée] es|qu[ií]en es|qu[ée] son|qu[ií]enes son)\s+([^?.!]+)/i,
+            /(hablame|cu[eé]ntame|dime|sabes).*sobre\s+([^?.!]+)/i,
+            /(informaci[oó]n|datos|historia|biograf[ií]a|definici[oó]n).*de\s+([^?.!]+)/i
+        ];
+        
+        for (const pattern of patterns) {
+            const match = message.match(pattern);
+            if (match) {
+                const topic = this.extractTopic(match);
+                if (topic && topic.length > 3) {
+                    return {
+                        shouldEnhance: true,
+                        detection: { topic: topic },
+                        knowledge: await this.fetchWikipedia(topic)
+                    };
+                }
+            }
+        }
+        
+        return { shouldEnhance: false };
+    },
+    
+    extractTopic(match) {
+        let topic = match[2] || match[3] || '';
+        
+        // Limpiar el tema
+        topic = topic.replace(/\b(por favor|gracias|puedes|podrías|dime|dame|un|una|el|la|los|las|sobre|acerca de|qué es|quién es)\b/gi, '')
+                    .trim()
+                    .replace(/[?¿!¡.,;:]+$/g, '');
+        
+        return topic.length > 2 ? topic : null;
+    },
+    
+    async fetchWikipedia(topic) {
+        try {
+            const response = await axios.get('https://en.wikipedia.org/w/api.php', {
+                params: {
+                    action: 'query',
+                    format: 'json',
+                    list: 'search',
+                    srsearch: topic,
+                    utf8: 1,
+                    srlimit: 1
+                },
+                timeout: 5000
+            });
+            
+            if (response.data.query?.search?.[0]) {
+                const page = response.data.query.search[0];
+                return {
+                    title: page.title,
+                    snippet: page.snippet,
+                    source: 'Wikipedia',
+                    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`
+                };
+            }
+        } catch (error) {
+            console.error('Error fetching Wikipedia:', error.message);
+        }
+        
+        return null;
+    },
+    
+    formatKnowledgeForPrompt(knowledge) {
+        if (!knowledge) return '';
+        return `Título: ${knowledge.title}\nInformación: ${knowledge.snippet}\nFuente: ${knowledge.source}`;
+    },
+    
+    getStats() {
+        return {
+            enabled: this.enabled,
+            totalQueries: 0,
+            knowledgeFetches: 0,
+            cacheHits: 0,
+            cacheHitRate: '0%',
+            avgResponseTime: 0,
+            successfulFetches: 0,
+            failedFetches: 0,
+            cacheSize: 0
+        };
+    },
+    
+    setEnabled(status) {
+        this.enabled = status;
+    }
+};
+
+// Comandos de conocimiento
+const knowledgeCommands = {
+    wikipedia: async (message, args) => {
+        const topic = args.join(' ');
+        if (!topic) {
+            message.reply('❌ Uso: `!wiki [tema]`\nEjemplo: `!wiki inteligencia artificial`');
+            return;
+        }
+        
+        try {
+            const knowledge = await knowledgeIntegration.fetchWikipedia(topic);
+            if (knowledge) {
+                const embed = new MessageEmbed()
+                    .setTitle(`📚 ${knowledge.title}`)
+                    .setDescription(knowledge.snippet + '...')
+                    .setColor('#0099ff')
+                    .setURL(knowledge.url)
+                    .setFooter('Fuente: Wikipedia')
+                    .setTimestamp();
+                message.channel.send({ embeds: [embed] });
+            } else {
+                message.reply('❌ No encontré información sobre ese tema.');
+            }
+        } catch (error) {
+            message.reply('❌ Error al buscar información.');
+        }
+    },
+    
+    libros: async (message, args) => {
+        const title = args.join(' ');
+        if (!title) {
+            message.reply('❌ Uso: `!libros [título]`\nEjemplo: `!libros El Quijote`');
+            return;
+        }
+        message.reply(`📚 Buscaré información sobre "${title}".`);
+    },
+    
+    definir: async (message, args) => {
+        const word = args.join(' ');
+        if (!word) {
+            message.reply('❌ Uso: `!definir [palabra]`\nEjemplo: `!definir inteligencia`');
+            return;
+        }
+        message.reply(`📖 Buscaré la definición de "${word}".`);
+    },
+    
+    filosofo: async (message, args) => {
+        const name = args.join(' ');
+        if (!name) {
+            message.reply('❌ Uso: `!filosofo [nombre]`\nEjemplo: `!filosofo Platón`');
+            return;
+        }
+        message.reply(`🧠 Buscaré información sobre ${name}.`);
+    },
+    
+    historia: async (message, args) => {
+        const date = args.join(' ');
+        if (!date) {
+            message.reply('❌ Uso: `!historia [DD/MM]`\nEjemplo: `!historia 12/10`');
+            return;
+        }
+        message.reply(`📅 Buscaré eventos históricos del ${date}.`);
+    },
+    
+    documentacion: async (message, args) => {
+        const term = args.join(' ');
+        if (!term) {
+            message.reply('❌ Uso: `!doc [término]`\nEjemplo: `!doc JavaScript`');
+            return;
+        }
+        message.reply(`📄 Buscaré documentación sobre "${term}".`);
+    }
+};
+
+// Comandos de APIs
+const apiCommands = {
+    clima: async (message, args) => {
+        const city = args.join(' ');
+        if (!city) {
+            message.reply('❌ Uso: `!clima [ciudad]`\nEjemplo: `!clima Madrid`');
+            return;
+        }
+        message.reply(`🌤️ Buscaré el clima de ${city}.`);
+    },
+    
+    convertir: async (message, args) => {
+        if (args.length < 3) {
+            message.reply('❌ Uso: `!convertir [cantidad] [de] [a]`\nEjemplo: `!convertir 100 USD EUR`');
+            return;
+        }
+        message.reply(`🔄 Convertiré ${args[0]} ${args[1]} a ${args[2]}.`);
+    },
+    
+    chiste: async (message, args) => {
+        const chistes = [
+            "¿Qué le dice un bit a otro? Nos vemos en el bus.",
+            "¿Cómo se llama el campeón de buceo informático? Windows.",
+            "¿Qué hace una abeja en el gimnasio? ¡Zum-ba!",
+            "¿Por qué los pájaros no usan Facebook? Porque ya tienen Twitter.",
+            "¿Qué le dice un gusano a otro gusano? Me voy a dar la vuelta a la manzana."
+        ];
+        const randomJoke = chistes[Math.floor(Math.random() * chistes.length)];
+        message.reply(`😂 ${randomJoke}`);
+    },
+    
+    pais: async (message, args) => {
+        const country = args.join(' ');
+        if (!country) {
+            message.reply('❌ Uso: `!pais [nombre]`\nEjemplo: `!pais España`');
+            return;
+        }
+        message.reply(`🌍 Buscaré información sobre ${country}.`);
+    },
+    
+    anime: async (message, args) => {
+        const anime = args.join(' ');
+        if (!anime) {
+            message.reply('❌ Uso: `!anime [nombre]`\nEjemplo: `!anime Naruto`');
+            return;
+        }
+        message.reply(`🎌 Buscaré información sobre ${anime}.`);
+    }
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -442,7 +662,7 @@ class DiscordBot {
                     '`estadisticas` - Estadísticas del bot\n' +
                     '`ping` - Latencia del bot\n' +
                     '`apinativo` - Control APIs nativas', false)
-                .setFooter(`Versión ${SYSTEM_CONSTANTS?.VERSION || '2.0.0'} • Habla naturalmente conmigo`)
+                .setFooter(`Versión ${SYSTEM_CONSTANTS.VERSION} • Habla naturalmente conmigo`)
                 .setTimestamp();
 
             message.channel.send({ embeds: [embed] });
@@ -602,130 +822,65 @@ class DiscordBot {
 
         // ========== COMANDOS DE CONOCIMIENTO DIRECTO ==========
         if (command === 'wiki' || command === 'wikipedia') {
-            if (knowledgeCommands && knowledgeCommands.wikipedia) {
-                await knowledgeCommands.wikipedia(message, args);
-            } else {
-                const topic = args.join(' ');
-                message.reply(`🔍 Buscaré información sobre "${topic || 'tu tema'}" en Wikipedia.`);
-            }
+            await knowledgeCommands.wikipedia(message, args);
             return;
         }
 
         if (command === 'libros' || command === 'books') {
-            if (knowledgeCommands && knowledgeCommands.libros) {
-                await knowledgeCommands.libros(message, args);
-            } else {
-                message.reply('📚 El sistema de búsqueda de libros no está disponible temporalmente.');
-            }
+            await knowledgeCommands.libros(message, args);
             return;
         }
 
         if (command === 'definir' || command === 'definicion') {
-            if (knowledgeCommands && knowledgeCommands.definir) {
-                await knowledgeCommands.definir(message, args);
-            } else {
-                const word = args.join(' ');
-                message.reply(`📖 Buscaré la definición de "${word || 'esa palabra'}".`);
-            }
+            await knowledgeCommands.definir(message, args);
             return;
         }
 
         if (command === 'filosofo' || command === 'philosopher') {
-            if (knowledgeCommands && knowledgeCommands.filosofo) {
-                await knowledgeCommands.filosofo(message, args);
-            } else {
-                message.reply('🧠 El sistema de información de filósofos no está disponible temporalmente.');
-            }
+            await knowledgeCommands.filosofo(message, args);
             return;
         }
 
         if (command === 'historia' || command === 'history') {
-            if (knowledgeCommands && knowledgeCommands.historia) {
-                await knowledgeCommands.historia(message, args);
-            } else {
-                message.reply('📅 El sistema de eventos históricos no está disponible temporalmente.');
-            }
+            await knowledgeCommands.historia(message, args);
             return;
         }
 
         if (command === 'doc' || command === 'documentacion') {
-            if (knowledgeCommands && knowledgeCommands.documentacion) {
-                await knowledgeCommands.documentacion(message, args);
-            } else {
-                message.reply('📄 El sistema de documentación técnica no está disponible temporalmente.');
-            }
+            await knowledgeCommands.documentacion(message, args);
             return;
         }
 
         // ========== COMANDOS DE APIS GRATUITAS ==========
         if (command === 'clima' || command === 'weather') {
-            if (apiCommands && apiCommands.clima) {
-                await apiCommands.clima(message, args);
-            } else {
-                const city = args.join(' ');
-                message.reply(`🌤️ Buscaré el clima de "${city || 'tu ciudad'}".`);
-            }
+            await apiCommands.clima(message, args);
             return;
         }
 
         if (command === 'convertir' || command === 'convert') {
-            if (apiCommands && apiCommands.convertir) {
-                await apiCommands.convertir(message, args);
-            } else {
-                message.reply('🔄 El sistema de conversión no está disponible temporalmente.');
-            }
+            await apiCommands.convertir(message, args);
             return;
         }
 
         if (command === 'chiste' || command === 'joke') {
-            if (apiCommands && apiCommands.chiste) {
-                await apiCommands.chiste(message, args);
-            } else {
-                message.reply('😂 El sistema de chistes no está disponible temporalmente.');
-            }
+            await apiCommands.chiste(message, args);
             return;
         }
 
         if (command === 'pais' || command === 'country') {
-            if (apiCommands && apiCommands.pais) {
-                await apiCommands.pais(message, args);
-            } else {
-                const country = args.join(' ');
-                message.reply(`🌍 Buscaré información sobre "${country || 'ese país'}".`);
-            }
+            await apiCommands.pais(message, args);
             return;
         }
 
         if (command === 'anime') {
-            if (apiCommands && apiCommands.anime) {
-                await apiCommands.anime(message, args);
-            } else {
-                const anime = args.join(' ');
-                message.reply(`🎌 Buscaré información sobre "${anime || 'ese anime'}".`);
-            }
+            await apiCommands.anime(message, args);
             return;
         }
 
         // ========== COMANDOS DE ADMINISTRACIÓN ==========
         if (command === 'conocimiento') {
             if (args[0] === 'estado') {
-                let stats;
-                if (knowledgeIntegration && knowledgeIntegration.getStats) {
-                    stats = knowledgeIntegration.getStats();
-                } else {
-                    stats = {
-                        enabled: this.enableKnowledge,
-                        totalQueries: 0,
-                        knowledgeFetches: 0,
-                        cacheHits: 0,
-                        cacheHitRate: '0%',
-                        avgResponseTime: 0,
-                        successfulFetches: 0,
-                        failedFetches: 0,
-                        cacheSize: 0
-                    };
-                }
-                
+                const stats = knowledgeIntegration.getStats();
                 const embed = new MessageEmbed()
                     .setTitle('🧠 Estado del Sistema de Conocimiento')
                     .setColor('#0099ff')
@@ -746,18 +901,14 @@ class DiscordBot {
             }
             
             if (args[0] === 'activar') {
-                if (knowledgeIntegration && knowledgeIntegration.setEnabled) {
-                    knowledgeIntegration.setEnabled(true);
-                }
+                knowledgeIntegration.setEnabled(true);
                 this.enableKnowledge = true;
                 message.reply('✅ Sistema de conocimiento **activado**. Ahora buscaré información automáticamente.');
                 return;
             }
             
             if (args[0] === 'desactivar') {
-                if (knowledgeIntegration && knowledgeIntegration.setEnabled) {
-                    knowledgeIntegration.setEnabled(false);
-                }
+                knowledgeIntegration.setEnabled(false);
                 this.enableKnowledge = false;
                 message.reply('✅ Sistema de conocimiento **desactivado**. Usaré solo mi conocimiento general.');
                 return;
@@ -802,7 +953,7 @@ class DiscordBot {
                 .addField('🌐 APIs Nativas', 
                     `Quotable: ${this.nativeAPICalls.quotes}\n` +
                     `Wikipedia: ${this.nativeAPICalls.wikipedia}`, true)
-                .addField('🔧 Versión', SYSTEM_CONSTANTS?.VERSION || '2.0.0', true)
+                .addField('🔧 Versión', SYSTEM_CONSTANTS.VERSION, true)
                 .setFooter(`PID: ${process.pid} • Iniciado: ${this.startTime.toLocaleString()}`)
                 .setTimestamp();
             
@@ -929,7 +1080,7 @@ class DiscordBot {
             let enhancedResponse = null;
             let knowledgeContext = null;
             
-            if (this.enableKnowledge && !nativeAPIData && knowledgeIntegration && knowledgeIntegration.processMessage) {
+            if (this.enableKnowledge && !nativeAPIData) {
                 const knowledgeResult = await knowledgeIntegration.processMessage(message.content);
                 
                 if (knowledgeResult.shouldEnhance) {
@@ -1031,13 +1182,7 @@ class DiscordBot {
         }
         // Prioridad 2: Conocimiento general del sistema original
         else if (knowledgeContext && knowledgeContext.knowledge) {
-            let knowledgeText = '';
-            if (knowledgeIntegration && knowledgeIntegration.formatKnowledgeForPrompt) {
-                knowledgeText = knowledgeIntegration.formatKnowledgeForPrompt(knowledgeContext.knowledge);
-            } else {
-                knowledgeText = JSON.stringify(knowledgeContext.knowledge, null, 2);
-            }
-            
+            const knowledgeText = knowledgeIntegration.formatKnowledgeForPrompt(knowledgeContext.knowledge);
             systemMessage += `\n\nINFORMACIÓN DE REFERENCIA (usa esto para responder con precisión):\n${knowledgeText}\n\n`;
             systemMessage += `Instrucción: Usa la información de referencia para enriquecer tu respuesta. Sé preciso y natural.`;
         }
@@ -1242,7 +1387,7 @@ class DiscordBot {
             knowledgeEnabled: this.enableKnowledge,
             userMemories: this.userMemories.size,
             nativeAPICalls: this.nativeAPICalls,
-            version: SYSTEM_CONSTANTS?.VERSION || '2.0.0'
+            version: SYSTEM_CONSTANTS.VERSION
         };
     }
 
