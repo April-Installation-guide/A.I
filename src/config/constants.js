@@ -46,7 +46,7 @@ const FALLBACK_RESPONSE = {
 export const MANCY_CONFIG = {
     IDENTITY: IDENTITY_PROMPT,
     MODEL: {
-        name: "mixtral-8x7b-32768",
+        name: "	llama-3.1-8b-instant",
         temperature: 0.7,
         max_tokens: 1024
     },
