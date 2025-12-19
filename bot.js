@@ -7,7 +7,7 @@ import axios from 'axios';
 
 // Importar APIs de conocimiento - CORREGIDO: eliminar src/ extra
 import { knowledgeIntegration } from './services/knowledge-integration.js';
-import { freeAPIs } from './api/free-apis.js';
+import { freeAPIs } from './utils/free-apis.js';
 import { apiCommands } from './commands/api-commands.js';
 import { knowledgeCommands } from './commands/knowledge-commands.js';
 
