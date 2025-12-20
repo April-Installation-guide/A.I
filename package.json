@@ -1,20 +1,31 @@
 {
   "name": "mancy-discord-bot",
   "version": "2.0.0",
-  "description": "Bot de Discord con IA (Groq), memoria persistente y búsqueda de conocimiento",
+  "description": "Bot de Discord con IA (Groq), memoria persistente, búsqueda de conocimiento y API REST",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
     "dev:debug": "node --watch --inspect server.js",
+    "dev:break": "node --watch --inspect-brk server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{js,json,md}\"",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
-    "validate": "npm run lint && npm run test"
+    "lint:watch": "eslint . --watch",
+    "format": "prettier --write \"**/*.{js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md,yml,yaml}\"",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --passWithNoTests",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --passWithNoTests",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=unit --passWithNoTests",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=integration --passWithNoTests",
+    "validate": "npm run lint && npm run format:check && npm run test",
+    "prepare": "husky install",
+    "docker:build": "docker build -t mancy-bot .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env mancy-bot",
+    "docker:compose": "docker-compose up",
+    "docker:compose:build": "docker-compose up --build",
+    "docs:generate": "jsdoc -c jsdoc.json"
   },
   "dependencies": {
     "axios": "^1.7.7",
@@ -22,16 +33,48 @@
     "express": "^4.21.1",
     "dotenv": "^16.4.5",
     "groq-sdk": "^0.7.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "winston": "^3.13.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "prettier": "^3.3.2",
+    "nodemon": "^3.1.0",
+    "jsdoc": "^4.0.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.2"
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "npm": ">=9.0.0",
+    "pnpm": ">=8.0.0",
+    "yarn": ">=1.22.0"
   },
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tu-usuario/mancy-bot.git"
+    "url": "https://github.com/tu-usuario/mancy-bot.git",
+    "directory": "/"
   },
+  "bugs": {
+    "url": "https://github.com/tu-usuario/mancy-bot/issues"
+  },
+  "homepage": "https://github.com/tu-usuario/mancy-bot#readme",
   "keywords": [
     "discord",
     "bot",
@@ -41,8 +84,36 @@
     "discord.js",
     "knowledge-base",
     "wikipedia",
-    "quotes"
+    "quotes",
+    "artificial-intelligence",
+    "chat-gpt",
+    "llm",
+    "machine-learning",
+    "api",
+    "rest-api"
   ],
   "author": "Tu Nombre <tu@email.com>",
-  "license": "MIT"
+  "contributors": [],
+  "license": "MIT",
+  "private": false,
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/tu-usuario"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "src/",
+    "server.js",
+    "README.md",
+    "LICENSE",
+    ".env.example",
+    "config/"
+  ],
+  "volta": {
+    "node": "18.20.4",
+    "npm": "10.7.0"
+  }
 }
