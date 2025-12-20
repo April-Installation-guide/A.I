@@ -1,0 +1,17 @@
+{
+  "source": {
+    "include": ["src", "server.js"],
+    "includePattern": ".js$",
+    "excludePattern": "(node_modules|test|coverage)"
+  },
+  "opts": {
+    "destination": "./docs/",
+    "recurse": true,
+    "readme": "./README.md"
+  },
+  "plugins": [],
+  "templates": {
+    "cleverLinks": false,
+    "monospaceLinks": false
+  }
+}
