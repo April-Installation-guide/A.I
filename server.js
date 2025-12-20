@@ -1,494 +1,598 @@
-// ===============================
-// Imports
-// ===============================
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// utils - Importaciones seguras con manejo de errores
-import { analyzeUserMessage } from './src/utils/knowledge-detector.js';
-
-// services
-import { getGroqChatCompletion } from './services/groq-enhanced.js';
-import { integrateKnowledge } from './services/knowledge-integration.js';
-
-// config
-import { API_KEYS } from './config/constants.js';
-
 // ===============================
-// ES Modules setup (__dirname)
+// Configuración inicial
 // ===============================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ===============================
-// Environment variables
-// ===============================
 dotenv.config();
 
-// ===============================
-// Importación segura de free-apis.js
-// ===============================
-let getFreeAPIs = null;
-let freeApisModule = {};
-
-try {
-    // Intenta importar el módulo real
-    const freeApisModule = await import('./utils/free-apis.js');
-    console.log('✅ Módulo free-apis.js cargado correctamente');
-    
-    // Si el módulo exporta una función getFreeAPIs, úsala
-    if (typeof freeApisModule.getFreeAPIs === 'function') {
-        getFreeAPIs = freeApisModule.getFreeAPIs;
-    } else {
-        // Si no, usa nuestra versión local
-        console.log('⚠️  free-apis.js no exporta getFreeAPIs, usando versión interna');
-        getFreeAPIs = createLocalFreeAPIs();
-    }
-} catch (error) {
-    console.log('⚠️  No se pudo cargar free-apis.js, usando versión interna:', error.message);
-    getFreeAPIs = createLocalFreeAPIs();
-}
-
-// Función local como fallback
-function createLocalFreeAPIs() {
-    const LOCAL_FREE_APIS = [
-        {
-            id: 1,
-            name: 'REST Countries',
-            description: 'Información sobre países del mundo',
-            url: 'https://restcountries.com/',
-            category: 'Geografía',
-            auth: 'none',
-            cors: true
-        },
-        {
-            id: 2,
-            name: 'JSONPlaceholder',
-            description: 'API falsa para testing y prototipado',
-            url: 'https://jsonplaceholder.typicode.com/',
-            category: 'Testing',
-            auth: 'none',
-            cors: true
-        },
-        {
-            id: 3,
-            name: 'OpenWeatherMap',
-            description: 'Datos meteorológicos (tier gratuito disponible)',
-            url: 'https://openweathermap.org/api',
-            category: 'Clima',
-            auth: 'apiKey',
-            cors: true
-        }
-    ];
-
-    return async function() {
-        return {
-            success: true,
-            count: LOCAL_FREE_APIS.length,
-            apis: LOCAL_FREE_APIS,
-            timestamp: new Date().toISOString(),
-            note: 'Usando datos temporales - free-apis.js no disponible'
-        };
-    };
-}
-
-// ===============================
-// Funciones para usar las APIs de tu módulo
-// ===============================
-async function useFreeAPIs() {
-    try {
-        // Si tenemos acceso al módulo, usamos sus funciones
-        if (freeApisModule) {
-            const results = [];
-            
-            // Prueba algunas funciones del módulo
-            const quoteResult = await freeApisModule.getRandomQuote?.();
-            if (quoteResult?.success) {
-                results.push({
-                    type: 'quote',
-                    data: `${quoteResult.quote} - ${quoteResult.author}`
-                });
-            }
-            
-            const cryptoResult = await freeApisModule.getCryptoPrice?.('bitcoin');
-            if (cryptoResult?.success) {
-                results.push({
-                    type: 'crypto',
-                    data: `Bitcoin: $${cryptoResult.prices.usd} USD`
-                });
-            }
-            
-            const factResult = await freeApisModule.getRandomFact?.();
-            if (factResult?.success) {
-                results.push({
-                    type: 'fact',
-                    data: factResult.fact
-                });
-            }
-            
-            if (results.length > 0) {
-                return {
-                    success: true,
-                    demoResults: results,
-                    message: 'APIs funcionando correctamente',
-                    timestamp: new Date().toISOString()
-                };
-            }
-        }
-        
-        // Si no hay módulo o no funcionó, devolvemos info básica
-        return await getFreeAPIs();
-        
-    } catch (error) {
-        console.error('Error usando APIs:', error);
-        return {
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString(),
-            fallbackData: {
-                message: 'Módulo free-apis.js disponible pero con errores'
-            }
-        };
-    }
-}
-
-// ===============================
-// App initialization
-// ===============================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===============================
-// Middlewares
+// Middleware
 // ===============================
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Servir archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ===============================
+// Variables globales para módulos
+// ===============================
+let modulesLoaded = {
+    freeApis: false,
+    knowledgeDetector: false,
+    groqEnhanced: false,
+    knowledgeIntegration: false
+};
+
+// ===============================
+// Carga segura de módulos
+// ===============================
+
+// 1. Free APIs Module
+let freeApisModule = {};
+async function loadFreeAPIs() {
+    try {
+        const module = await import('./utils/free-apis.js');
+        if (module && Object.keys(module).length > 0) {
+            freeApisModule = module;
+            modulesLoaded.freeApis = true;
+            console.log('✅ Módulo free-apis.js cargado');
+            return true;
+        }
+    } catch (error) {
+        console.log('⚠️  No se pudo cargar free-apis.js:', error.message);
+    }
+    return false;
+}
+
+// 2. Knowledge Detector Module
+let analyzeUserMessage = null;
+async function loadKnowledgeDetector() {
+    try {
+        const module = await import('./utils/knowledge-detector.js');
+        if (module.analyzeUserMessage) {
+            analyzeUserMessage = module.analyzeUserMessage;
+            modulesLoaded.knowledgeDetector = true;
+            console.log('✅ Módulo knowledge-detector.js cargado');
+            return true;
+        }
+    } catch (error) {
+        console.log('⚠️  No se pudo cargar knowledge-detector.js:', error.message);
+        // Función por defecto
+        analyzeUserMessage = (message) => ({
+            topic: 'general',
+            requiresKnowledge: message.length > 20 && /qué|quien|cómo|por qué|define|explica/i.test(message),
+            confidence: 0.7,
+            categories: ['general'],
+            keywords: message.toLowerCase().split(' ').filter(w => w.length > 3)
+        });
+    }
+    return false;
+}
+
+// 3. Groq Enhanced Module
+let getGroqChatCompletion = null;
+async function loadGroqEnhanced() {
+    try {
+        // Primero intentamos importar dinámicamente
+        const module = await import('./services/groq-enhanced.js');
+        
+        // Verificar si es default export
+        const GroqEnhanced = module.default || module.GroqEnhanced || module;
+        
+        if (GroqEnhanced && process.env.GROQ_API_KEY) {
+            const instance = new GroqEnhanced(process.env.GROQ_API_KEY);
+            
+            getGroqChatCompletion = async (message, knowledge) => {
+                try {
+                    // Usar la función existente o crear una wrapper
+                    if (typeof instance.generateEnhancedResponse === 'function') {
+                        const result = await instance.generateEnhancedResponse(message, [], 'user');
+                        return result.response || result.message || 'No response generated';
+                    } else if (typeof instance.chat === 'function') {
+                        return await instance.chat(message);
+                    } else {
+                        return `[Groq] Received: ${message}`;
+                    }
+                } catch (error) {
+                    console.error('Error calling Groq:', error.message);
+                    return `Fallback: ${message}`;
+                }
+            };
+            
+            modulesLoaded.groqEnhanced = true;
+            console.log('✅ Módulo groq-enhanced.js cargado');
+            return true;
+        }
+    } catch (error) {
+        console.log('⚠️  No se pudo cargar groq-enhanced.js:', error.message);
+    }
+    
+    // Fallback
+    getGroqChatCompletion = async (message) => {
+        return `Bot: He recibido tu mensaje "${message}". (Modo simple - Groq no disponible)`;
+    };
+    return false;
+}
+
+// 4. Knowledge Integration Module
+let integrateKnowledge = null;
+async function loadKnowledgeIntegration() {
+    try {
+        const module = await import('./services/knowledge-integration.js');
+        
+        // Manejar diferentes tipos de exportación
+        const integration = module.default || module.knowledgeIntegration || module;
+        
+        if (integration && integration.processMessage) {
+            integrateKnowledge = async (message, analysis) => {
+                try {
+                    const result = await integration.processMessage(message);
+                    return result.knowledge || null;
+                } catch (error) {
+                    console.error('Error processing knowledge:', error);
+                    return null;
+                }
+            };
+            modulesLoaded.knowledgeIntegration = true;
+            console.log('✅ Módulo knowledge-integration.js cargado');
+            return true;
+        }
+    } catch (error) {
+        console.log('⚠️  No se pudo cargar knowledge-integration.js:', error.message);
+    }
+    
+    integrateKnowledge = async () => null;
+    return false;
+}
+
+// ===============================
+// Funciones de utilidad
+// ===============================
+
+// Función para obtener APIs gratuitas
+async function getFreeAPIsList() {
+    if (modulesLoaded.freeApis && freeApisModule.getFreeAPIs) {
+        try {
+            return await freeApisModule.getFreeAPIs();
+        } catch (error) {
+            console.error('Error usando getFreeAPIs:', error);
+        }
+    }
+    
+    // Datos de fallback
+    return {
+        success: true,
+        count: 3,
+        apis: [
+            {
+                name: 'REST Countries',
+                description: 'Información sobre países',
+                url: 'https://restcountries.com/',
+                category: 'Geography',
+                free: true
+            },
+            {
+                name: 'Quotable',
+                description: 'Citas y frases inspiradoras',
+                url: 'https://api.quotable.io/',
+                category: 'Quotes',
+                free: true
+            },
+            {
+                name: 'OpenWeatherMap',
+                description: 'Datos del clima',
+                url: 'https://openweathermap.org/api',
+                category: 'Weather',
+                free: true
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        note: 'Usando datos de respaldo'
+    };
+}
+
+// ===============================
+// Cargar todos los módulos al inicio
+// ===============================
+async function loadAllModules() {
+    console.log('📦 Cargando módulos...');
+    
+    await Promise.allSettled([
+        loadFreeAPIs(),
+        loadKnowledgeDetector(),
+        loadGroqEnhanced(),
+        loadKnowledgeIntegration()
+    ]);
+    
+    console.log('📊 Estado de módulos:', modulesLoaded);
+}
 
 // ===============================
 // Routes
 // ===============================
 
-// Home
+// 1. Home
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Test free APIs
-app.get('/api/free-apis', async (req, res) => {
-    try {
-        const apis = await getFreeAPIs();
-        res.json({ 
-            success: true, 
-            data: apis,
-            hasModule: !!freeApisModule,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('Error en /api/free-apis:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString(),
-            fallbackData: {
-                success: true,
-                count: 3,
-                apis: [
-                    {
-                        name: 'REST Countries',
-                        description: 'API de países',
-                        url: 'https://restcountries.com/'
-                    },
-                    {
-                        name: 'JSONPlaceholder',
-                        description: 'API para testing',
-                        url: 'https://jsonplaceholder.typicode.com/'
-                    },
-                    {
-                        name: 'Quotable',
-                        description: 'Citas aleatorias',
-                        url: 'https://api.quotable.io/'
-                    }
-                ],
-                isFallback: true
-            }
-        });
-    }
-});
-
-// Demo de APIs específicas
-app.get('/api/demo', async (req, res) => {
-    try {
-        const demoResults = await useFreeAPIs();
-        res.json({
-            success: true,
-            ...demoResults,
-            moduleAvailable: !!freeApisModule,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('Error en /api/demo:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// Chatbot
-app.post('/api/chat', async (req, res) => {
-    try {
-        const { message } = req.body;
-
-        if (!message || typeof message !== 'string' || message.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                error: 'Message is required and must be a non-empty string'
-            });
-        }
-
-        console.log(`📨 Mensaje recibido: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
-
-        // 1. Analyze user message
-        let analysis = {};
-        try {
-            analysis = analyzeUserMessage(message);
-        } catch (analysisError) {
-            console.warn('Error en análisis, usando valores por defecto:', analysisError.message);
-            analysis = {
-                topic: 'general',
-                requiresKnowledge: false,
-                confidence: 0.5
-            };
-        }
-
-        // 2. Integrate knowledge if needed
-        let knowledge = null;
-        try {
-            knowledge = await integrateKnowledge(message, analysis);
-        } catch (knowledgeError) {
-            console.warn('Error integrando conocimiento:', knowledgeError.message);
-            knowledge = null;
-        }
-
-        // 3. Get response from Groq
-        let groqResponse = '';
-        try {
-            groqResponse = await getGroqChatCompletion(message, knowledge);
-        } catch (groqError) {
-            console.error('Error con Groq API:', groqError.message);
-            
-            // Fallback response si Groq falla
-            groqResponse = `He recibido tu mensaje: "${message}". Actualmente estoy teniendo problemas para acceder a mi motor de IA principal. `;
-            
-            // Si tenemos el módulo de APIs, ofrecemos alternativas
-            if (freeApisModule) {
-                groqResponse += `Puedo ayudarte con: citas aleatorias, clima, criptomonedas, traducciones y datos de países usando APIs gratuitas.`;
-            }
-        }
-
-        // 4. Final response
-        res.json({
-            success: true,
-            message: groqResponse,
-            analysis,
-            timestamp: new Date().toISOString(),
-            messageLength: message.length,
-            hasKnowledge: !!knowledge,
-            hasFreeAPIs: !!freeApisModule
-        });
-
-    } catch (error) {
-        console.error('Error en /api/chat:', error);
-        res.status(500).json({
-            success: false,
-            error: process.env.NODE_ENV === 'production' 
-                ? 'Internal server error' 
-                : error.message,
-            timestamp: new Date().toISOString(),
-            ...(process.env.NODE_ENV === 'development' && { 
-                stack: error.stack
-            })
-        });
-    }
-});
-
-// Ruta para probar APIs específicas
-app.get('/api/test/:function', async (req, res) => {
-    try {
-        const { function: funcName } = req.params;
-        const { param } = req.query;
-        
-        let result = null;
-        
-        if (freeApisModule) {
-            switch(funcName) {
-                case 'quote':
-                    result = await freeApisModule.getRandomQuote?.();
-                    break;
-                case 'crypto':
-                    result = await freeApisModule.getCryptoPrice?.(param || 'bitcoin');
-                    break;
-                case 'fact':
-                    result = await freeApisModule.getRandomFact?.();
-                    break;
-                case 'translate':
-                    result = await freeApisModule.translate?.(param || 'Hello world', 'es');
-                    break;
-                case 'weather':
-                    // Usamos coordenadas de ejemplo (Madrid)
-                    result = await freeApisModule.getWeather?.(40.4168, -3.7038);
-                    break;
-                case 'wikipedia':
-                    result = await freeApisModule.searchWikipedia?.(param || 'artificial intelligence');
-                    break;
-                case 'country':
-                    result = await freeApisModule.getCountryInfo?.(param || 'es');
-                    break;
-                default:
-                    result = {
-                        success: false,
-                        error: `Función ${funcName} no encontrada`
-                    };
-            }
-        } else {
-            result = {
-                success: false,
-                error: 'Módulo free-apis.js no disponible'
-            };
-        }
-        
-        res.json({
-            success: result?.success || false,
-            function: funcName,
-            param: param || 'default',
-            result: result,
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error(`Error en /api/test/${req.params.function}:`, error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            function: req.params.function,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// Health check
-app.get('/api/health', (req, res) => {
     res.json({
-        status: 'OK',
+        service: 'Mancy Discord Bot API',
+        version: '1.0.0',
+        status: 'running',
+        endpoints: [
+            'GET /health',
+            'GET /api/status',
+            'GET /api/free-apis',
+            'POST /api/chat',
+            'GET /api/modules',
+            'GET /api/test/:function'
+        ],
+        documentation: 'Ver README.md para más información'
+    });
+});
+
+// 2. Health Check
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development',
-        nodeVersion: process.version,
-        platform: process.platform,
         uptime: process.uptime(),
-        hasFreeAPIs: !!freeApisModule,
+        memory: process.memoryUsage(),
+        node: process.version
+    });
+});
+
+// 3. API Status
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: 'operational',
+        serverTime: new Date().toISOString(),
+        modules: modulesLoaded,
+        environment: process.env.NODE_ENV || 'development',
+        port: PORT,
         hasGroqKey: !!process.env.GROQ_API_KEY,
         hasOpenAIKey: !!process.env.OPENAI_API_KEY
     });
 });
 
-// Config check
-app.get('/api/config-check', (req, res) => {
+// 4. List Free APIs
+app.get('/api/free-apis', async (req, res) => {
+    try {
+        const apis = await getFreeAPIsList();
+        res.json({
+            success: true,
+            data: apis,
+            modules: modulesLoaded,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 5. Chat Endpoint
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({
+                success: false,
+                error: 'El mensaje es requerido y debe ser texto'
+            });
+        }
+        
+        console.log(`💬 Chat request: "${message.substring(0, 100)}"`);
+        
+        // Paso 1: Analizar mensaje
+        let analysis = { topic: 'general', requiresKnowledge: false };
+        if (analyzeUserMessage) {
+            analysis = analyzeUserMessage(message);
+        }
+        
+        // Paso 2: Integrar conocimiento si es necesario
+        let knowledge = null;
+        if (analysis.requiresKnowledge && integrateKnowledge) {
+            knowledge = await integrateKnowledge(message, analysis);
+        }
+        
+        // Paso 3: Generar respuesta
+        let response = '';
+        if (getGroqChatCompletion) {
+            response = await getGroqChatCompletion(message, knowledge);
+        } else {
+            response = `Bot: "${message}"`;
+            
+            // Añadir información adicional si tenemos APIs
+            if (modulesLoaded.freeApis) {
+                response += '\n\n💡 También puedo ayudarte con: citas, clima, datos de países y más.';
+            }
+        }
+        
+        // Respuesta exitosa
+        res.json({
+            success: true,
+            response: response,
+            analysis: analysis,
+            knowledgeUsed: !!knowledge,
+            modulesUsed: modulesLoaded,
+            timestamp: new Date().toISOString(),
+            responseLength: response.length
+        });
+        
+    } catch (error) {
+        console.error('Error en /api/chat:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error interno del servidor',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 6. Test specific API functions
+app.get('/api/test/:function', async (req, res) => {
+    const { function: funcName } = req.params;
+    const { param } = req.query;
+    
+    try {
+        let result = null;
+        let moduleUsed = 'none';
+        
+        if (modulesLoaded.freeApis && freeApisModule[funcName]) {
+            moduleUsed = 'freeApis';
+            
+            switch(funcName) {
+                case 'getRandomQuote':
+                    result = await freeApisModule.getRandomQuote();
+                    break;
+                case 'getCryptoPrice':
+                    result = await freeApisModule.getCryptoPrice(param || 'bitcoin');
+                    break;
+                case 'getRandomFact':
+                    result = await freeApisModule.getRandomFact();
+                    break;
+                case 'translate':
+                    result = await freeApisModule.translate(param || 'Hello world', 'es');
+                    break;
+                case 'getWeather':
+                    result = await freeApisModule.getWeather(40.4168, -3.7038);
+                    break;
+                case 'searchWikipedia':
+                    result = await freeApisModule.searchWikipedia(param || 'artificial intelligence');
+                    break;
+                case 'getCountryInfo':
+                    result = await freeApisModule.getCountryInfo(param || 'es');
+                    break;
+                default:
+                    if (typeof freeApisModule[funcName] === 'function') {
+                        result = await freeApisModule[funcName](param);
+                    } else {
+                        result = { error: `Función ${funcName} no encontrada` };
+                    }
+            }
+        } else {
+            // Datos de demostración
+            result = {
+                success: true,
+                demo: true,
+                function: funcName,
+                message: `Función ${funcName} no disponible en este momento`,
+                sampleData: {
+                    quote: "La práctica hace al maestro.",
+                    weather: { temp: 22, condition: "soleado" },
+                    fact: "Los pingüinos pueden saltar hasta 6 pies en el aire.",
+                    translation: "Hola mundo"
+                }[funcName] || `Prueba ${funcName} con ?param=valor`
+            };
+        }
+        
+        res.json({
+            success: true,
+            function: funcName,
+            param: param || 'none',
+            module: moduleUsed,
+            result: result,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            function: funcName,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 7. Module Status
+app.get('/api/modules', (req, res) => {
     res.json({
-        groqKey: process.env.GROQ_API_KEY ? '✓ Configurada' : '✗ No configurada',
-        openaiKey: process.env.OPENAI_API_KEY ? '✓ Configurada' : '✗ No configurada',
-        port: PORT,
-        nodeEnv: process.env.NODE_ENV || 'development',
-        hasFreeAPIsModule: !!freeApisModule,
-        moduleFunctions: freeApisModule ? Object.keys(freeApisModule) : []
+        modules: modulesLoaded,
+        loadedCount: Object.values(modulesLoaded).filter(Boolean).length,
+        totalCount: Object.keys(modulesLoaded).length,
+        details: {
+            freeApis: modulesLoaded.freeApis ? 'Operativo' : 'No disponible',
+            knowledgeDetector: modulesLoaded.knowledgeDetector ? 'Operativo' : 'Usando fallback',
+            groqEnhanced: modulesLoaded.groqEnhanced ? 'Operativo' : 'Usando fallback',
+            knowledgeIntegration: modulesLoaded.knowledgeIntegration ? 'Operativo' : 'No disponible'
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
+// 8. Quick Demo
+app.get('/api/demo', async (req, res) => {
+    try {
+        // Probar diferentes funciones
+        const tests = [];
+        
+        // Test 1: Free APIs (si está disponible)
+        if (modulesLoaded.freeApis) {
+            try {
+                const quote = await freeApisModule.getRandomQuote?.();
+                if (quote) tests.push({ type: 'quote', data: quote });
+            } catch (e) {}
+        }
+        
+        // Test 2: Análisis de texto
+        if (analyzeUserMessage) {
+            const analysis = analyzeUserMessage("¿Qué es la inteligencia artificial?");
+            tests.push({ type: 'analysis', data: analysis });
+        }
+        
+        // Test 3: Chat simple
+        const chatResponse = getGroqChatCompletion ? 
+            await getGroqChatCompletion("Hola, ¿cómo estás?") : 
+            "Chat no disponible";
+        tests.push({ type: 'chat', data: chatResponse });
+        
+        res.json({
+            success: true,
+            demo: true,
+            tests: tests,
+            modules: modulesLoaded,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 9. Environment Check
+app.get('/api/env-check', (req, res) => {
+    // Lista segura de variables (sin valores sensibles)
+    const envVars = {
+        NODE_ENV: process.env.NODE_ENV,
+        PORT: process.env.PORT,
+        GROQ_API_KEY: process.env.GROQ_API_KEY ? '***SET***' : 'NOT SET',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY ? '***SET***' : 'NOT SET',
+        BOT_PREFIX: process.env.BOT_PREFIX,
+        ENABLE_MEMORY: process.env.ENABLE_MEMORY
+    };
+    
+    res.json({
+        environment: envVars,
+        hasRequiredKeys: !!process.env.GROQ_API_KEY,
+        timestamp: new Date().toISOString()
     });
 });
 
 // ===============================
-// 404 handler
+// Error Handlers
 // ===============================
+
+// 404 Handler
 app.use((req, res) => {
     res.status(404).json({
         success: false,
         error: 'Ruta no encontrada',
         path: req.path,
         method: req.method,
-        timestamp: new Date().toISOString(),
         availableRoutes: [
-            'GET /',
-            'GET /api/free-apis',
-            'GET /api/demo',
-            'GET /api/test/:function',
+            'GET  /',
+            'GET  /health',
+            'GET  /api/status',
+            'GET  /api/free-apis',
             'POST /api/chat',
-            'GET /api/health',
-            'GET /api/config-check'
-        ]
+            'GET  /api/modules',
+            'GET  /api/test/:function',
+            'GET  /api/demo',
+            'GET  /api/env-check'
+        ],
+        timestamp: new Date().toISOString()
     });
 });
 
-// ===============================
-// Global error handler
-// ===============================
+// Global Error Handler
 app.use((err, req, res, next) => {
     console.error('🔥 Error global:', {
-        message: err.message,
+        error: err.message,
         stack: err.stack,
         url: req.url,
-        method: req.method,
-        ip: req.ip
+        method: req.method
     });
     
-    const statusCode = err.status || 500;
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    res.status(statusCode).json({
+    res.status(err.status || 500).json({
         success: false,
-        error: isProduction ? 'Error interno del servidor' : err.message,
-        timestamp: new Date().toISOString(),
-        ...(!isProduction && { 
-            stack: err.stack
-        })
+        error: process.env.NODE_ENV === 'production' ? 
+            'Error interno del servidor' : err.message,
+        timestamp: new Date().toISOString()
     });
 });
 
 // ===============================
-// Start server
+// Inicialización y arranque
 // ===============================
-app.listen(PORT, () => {
-    console.log(`
-✅ Servidor corriendo en puerto ${PORT}
-📁 Directorio base: ${__dirname}
-🌍 URL local: http://localhost:${PORT}
+async function startServer() {
+    try {
+        // Cargar módulos
+        await loadAllModules();
+        
+        // Iniciar servidor
+        app.listen(PORT, () => {
+            console.log(`
+🚀 SERVIDOR INICIADO CORRECTAMENTE
+================================
+📡 Puerto: ${PORT}
+🌍 URL: http://localhost:${PORT}
+📁 Directorio: ${__dirname}
 🔧 Entorno: ${process.env.NODE_ENV || 'development'}
-📅 Iniciado: ${new Date().toLocaleString()}
-🔄 Uptime: ${process.uptime()} segundos
+⏰ Hora: ${new Date().toLocaleString()}
 
-📊 Módulos cargados:
-   • free-apis: ${freeApisModule ? '✅ Disponible' : '⚠️  No disponible'}
-   • Groq API: ${process.env.GROQ_API_KEY ? '✅ Configurada' : '⚠️  No configurada'}
-   • OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configurada' : '⚠️  No configurada'}
+📦 MÓDULOS CARGADOS:
+${Object.entries(modulesLoaded).map(([name, loaded]) => 
+    `   ${loaded ? '✅' : '⚠️ '} ${name}: ${loaded ? 'CARGADO' : 'NO DISPONIBLE'}`).join('\n')}
 
-🚀 Rutas disponibles:
-   • GET  /                       → Página principal
-   • GET  /api/free-apis          → Lista de APIs gratuitas
-   • GET  /api/demo               → Demo de APIs en acción
-   • GET  /api/test/:function     → Probar APIs específicas
-   • POST /api/chat               → Chatbot AI
-   • GET  /api/health             → Estado del servidor
-   • GET  /api/config-check       → Verificación de configuración
-  `);
-});
+🔍 ENDPOINTS DISPONIBLES:
+   • GET  /              → Información del servicio
+   • GET  /health        → Health check
+   • GET  /api/status    → Estado del sistema
+   • GET  /api/free-apis → Lista de APIs gratuitas
+   • POST /api/chat      → Chatbot AI
+   • GET  /api/modules   → Estado de módulos
+   • GET  /api/test/*    → Probar funciones
+   • GET  /api/demo      → Demo rápido
+   • GET  /api/env-check → Verificar variables de entorno
+
+💡 CONFIGURACIÓN:
+   • Groq API Key: ${process.env.GROQ_API_KEY ? 'PRESENTE' : 'NO CONFIGURADA'}
+   • OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'PRESENTE' : 'NO CONFIGURADA'}
+   • Bot Prefix: ${process.env.BOT_PREFIX || '! (default)'}
+            `);
+        });
+        
+    } catch (error) {
+        console.error('❌ Error al iniciar el servidor:', error);
+        process.exit(1);
+    }
+}
+
+// Iniciar servidor
+startServer();
 
 export default app;
