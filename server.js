@@ -8,7 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // utils - Importaciones seguras con manejo de errores
-import { analyzeUserMessage } from './utils/knowledge-detector.js';
+import { analyzeUserMessage } from './src/utils/knowledge-detector.js';
 
 // services
 import { getGroqChatCompletion } from './services/groq-enhanced.js';
