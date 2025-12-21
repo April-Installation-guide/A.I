@@ -4,8 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 
-// Importar APIs de conocimiento - CORREGIDO: eliminar src/ extra
+// Importar APIs de conocimiento
 import { knowledgeIntegration } from './services/knowledge-integration.js';
 import { freeAPIs } from './utils/free-apis.js';
 import { apiCommands } from './commands/api-commands.js';
@@ -15,7 +19,7 @@ import { knowledgeCommands } from './commands/knowledge-commands.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Constantes del sistema - CORREGIDO: eliminar src/ extra
+// Constantes del sistema
 import { SYSTEM_CONSTANTS } from './config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -462,6 +466,293 @@ class NativeAPIIntegration {
     }
 }
 
+// ========== SERVIDOR WEB PARA HTML ==========
+class WebServer {
+    constructor(port = 11000) {
+        this.port = port;
+        this.app = express();
+        this.server = createServer(this.app);
+        this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
+        this.clients = new Set();
+        
+        // Configurar middleware
+        this.app.use(cors({
+            origin: '*',
+            methods: ['GET', 'POST', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization']
+        }));
+        
+        this.app.use(express.json());
+        this.app.use(express.urlencoded({ extended: true }));
+        
+        // Servir archivos estáticos desde la carpeta public
+        this.app.use(express.static(path.join(__dirname, 'public')));
+        
+        // Configurar WebSocket
+        this.setupWebSocket();
+        
+        // Configurar rutas
+        this.setupRoutes();
+    }
+    
+    setupWebSocket() {
+        this.wss.on('connection', (ws) => {
+            this.clients.add(ws);
+            logger.info(`WebSocket client connected. Total: ${this.clients.size}`);
+            
+            // Enviar mensaje de bienvenida
+            ws.send(JSON.stringify({
+                type: 'welcome',
+                message: 'Conectado al panel de control Mancy AI',
+                timestamp: new Date().toISOString(),
+                version: SYSTEM_CONSTANTS.VERSION || '3.0.0'
+            }));
+            
+            ws.on('close', () => {
+                this.clients.delete(ws);
+                logger.info(`WebSocket client disconnected. Total: ${this.clients.size}`);
+            });
+            
+            ws.on('error', (error) => {
+                logger.error('WebSocket error:', error);
+            });
+        });
+    }
+    
+    setupRoutes() {
+        // Ruta principal
+        this.app.get('/', (req, res) => {
+            res.json({
+                service: '🤖 Mancy Discord Bot API',
+                version: SYSTEM_CONSTANTS.VERSION || '3.0.0',
+                status: 'operational',
+                description: 'API para el bot de Discord con integración de conocimiento e IA',
+                endpoints: [
+                    'GET  / → Esta página',
+                    'GET  /panel → Panel de Control HTML',
+                    'GET  /health → Estado del servidor',
+                    'GET  /api/status → Estado del bot',
+                    'GET  /api/stats → Estadísticas del bot',
+                    'POST /api/control → Controlar bot (start/stop/restart)',
+                    'GET  /api/users → Usuarios con memoria',
+                    'GET  /api/logs → Logs recientes',
+                    'WS   /ws → WebSocket para actualizaciones en tiempo real'
+                ],
+                panel_url: `http://${req.get('host')}/panel`,
+                timestamp: new Date().toISOString()
+            });
+        });
+        
+        // Panel de control HTML
+        this.app.get('/panel', (req, res) => {
+            const panelPath = path.join(__dirname, 'public', 'index.html');
+            if (fs.existsSync(panelPath)) {
+                res.sendFile(panelPath);
+            } else {
+                res.send(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Mancy AI Panel</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 20px; }
+                            .container { max-width: 800px; margin: 0 auto; }
+                            .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+                            .online { background: #d4edda; color: #155724; }
+                            .offline { background: #f8d7da; color: #721c24; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h1>Mancy AI Panel</h1>
+                            <p>Panel de control en desarrollo. Coloca tu HTML en public/index.html</p>
+                        </div>
+                    </body>
+                    </html>
+                `);
+            }
+        });
+        
+        // Health check
+        this.app.get('/health', (req, res) => {
+            res.json({
+                status: 'healthy',
+                timestamp: new Date().toISOString(),
+                uptime: process.uptime(),
+                memory: process.memoryUsage(),
+                platform: process.platform,
+                node: process.version
+            });
+        });
+        
+        // Estado del bot
+        this.app.get('/api/status', (req, res) => {
+            if (!global.discordBot) {
+                return res.json({ bot: false, message: 'Bot no inicializado' });
+            }
+            
+            res.json({
+                bot: true,
+                status: global.discordBot.isReady ? 'online' : 'offline',
+                guilds: global.discordBot.client.guilds.cache.size,
+                users: global.discordBot.client.users.cache.size,
+                messages: global.discordBot.messageCount,
+                commands: global.discordBot.commandCount,
+                memory: global.discordBot.userMemories.size,
+                uptime: Date.now() - global.discordBot.startTime,
+                version: SYSTEM_CONSTANTS.VERSION || '3.0.0',
+                timestamp: new Date().toISOString()
+            });
+        });
+        
+        // Estadísticas detalladas
+        this.app.get('/api/stats', (req, res) => {
+            if (!global.discordBot) {
+                return res.json({ error: 'Bot no disponible' });
+            }
+            
+            res.json(global.discordBot.getBotStatus());
+        });
+        
+        // Control del bot
+        this.app.post('/api/control', async (req, res) => {
+            const { action } = req.body;
+            
+            if (!['start', 'stop', 'restart'].includes(action)) {
+                return res.status(400).json({ error: 'Acción no válida' });
+            }
+            
+            try {
+                switch(action) {
+                    case 'start':
+                        if (global.discordBot && global.discordBot.isReady) {
+                            return res.json({ success: false, message: 'Bot ya está en línea' });
+                        }
+                        await global.discordBot.start();
+                        break;
+                        
+                    case 'stop':
+                        if (!global.discordBot || !global.discordBot.isReady) {
+                            return res.json({ success: false, message: 'Bot no está en línea' });
+                        }
+                        await global.discordBot.shutdown();
+                        break;
+                        
+                    case 'restart':
+                        if (global.discordBot && global.discordBot.isReady) {
+                            await global.discordBot.shutdown();
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        await global.discordBot.start();
+                        break;
+                }
+                
+                this.broadcast({
+                    type: 'bot_status',
+                    status: action === 'stop' ? 'stopped' : 'running',
+                    action: action,
+                    timestamp: new Date().toISOString()
+                });
+                
+                res.json({ 
+                    success: true, 
+                    message: `Bot ${action === 'start' ? 'iniciado' : action === 'stop' ? 'detenido' : 'reiniciado'}`,
+                    action: action 
+                });
+                
+            } catch (error) {
+                res.status(500).json({ 
+                    success: false, 
+                    error: error.message 
+                });
+            }
+        });
+        
+        // Obtener usuarios con memoria
+        this.app.get('/api/users', (req, res) => {
+            if (!global.discordBot) {
+                return res.json({ users: [] });
+            }
+            
+            const users = Array.from(global.discordBot.userMemories.entries()).map(([userId, memory]) => ({
+                userId,
+                messageCount: memory.length,
+                lastInteraction: memory.length > 0 ? memory[memory.length - 1].timestamp : null,
+                topics: global.discordBot.extractTopics(memory).slice(0, 5)
+            }));
+            
+            res.json({ 
+                total: users.length,
+                users: users.slice(0, 50) // Limitar a 50 usuarios
+            });
+        });
+        
+        // Obtener logs
+        this.app.get('/api/logs', (req, res) => {
+            // En una implementación real, deberías tener un sistema de logging
+            res.json({
+                logs: [
+                    { time: new Date().toISOString(), message: 'Servidor web funcionando', type: 'info' },
+                    { time: new Date(Date.now() - 60000).toISOString(), message: 'WebSocket conectado', type: 'success' },
+                    { time: new Date(Date.now() - 120000).toISOString(), message: 'API lista', type: 'info' }
+                ]
+            });
+        });
+        
+        // 404 Handler
+        this.app.use((req, res) => {
+            res.status(404).json({
+                error: 'Ruta no encontrada',
+                path: req.path,
+                available: ['/', '/panel', '/health', '/api/status', '/api/stats', '/api/control', '/api/users', '/api/logs']
+            });
+        });
+    }
+    
+    // Broadcast a todos los clientes WebSocket
+    broadcast(data) {
+        const message = JSON.stringify(data);
+        this.clients.forEach(client => {
+            if (client.readyState === 1) { // OPEN
+                try {
+                    client.send(message);
+                } catch (error) {
+                    logger.error('Error enviando mensaje WebSocket:', error);
+                }
+            }
+        });
+    }
+    
+    // Iniciar servidor
+    start() {
+        return new Promise((resolve, reject) => {
+            this.server.listen(this.port, () => {
+                logger.info(`🌐 Servidor web iniciado en http://localhost:${this.port}`);
+                logger.info(`📊 Panel de control: http://localhost:${this.port}/panel`);
+                logger.info(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
+                resolve();
+            });
+            
+            this.server.on('error', reject);
+        });
+    }
+    
+    // Detener servidor
+    stop() {
+        return new Promise((resolve) => {
+            // Cerrar todas las conexiones WebSocket
+            this.clients.forEach(client => client.close());
+            this.clients.clear();
+            
+            // Cerrar servidor
+            this.server.close(() => {
+                logger.info('Servidor web detenido');
+                resolve();
+            });
+        });
+    }
+}
+
 // Clase principal del bot
 class DiscordBot {
     constructor() {
@@ -472,7 +763,6 @@ class DiscordBot {
                 Intents.FLAGS.GUILD_MESSAGES,
                 Intents.FLAGS.MESSAGE_CONTENT
             ],
-            // MEJORA: Configuración adicional para estabilidad
             retryLimit: 3,
             failIfNotExists: false,
             presence: {
@@ -528,6 +818,12 @@ class DiscordBot {
         
         // Configurar health check
         this.setupHealthCheck();
+        
+        // NUEVO: Servidor web
+        this.webServer = new WebServer(11000);
+        
+        // Guardar referencia global para acceso desde el servidor web
+        global.discordBot = this;
     }
 
     // ========== CONFIGURACIÓN DE HEALTH CHECK ==========
@@ -552,6 +848,20 @@ class DiscordBot {
             });
             this.forceCleanup();
         }
+        
+        // Enviar actualización al panel web
+        this.sendWebUpdate();
+    }
+
+    // Enviar actualización al panel web
+    sendWebUpdate() {
+        if (this.webServer && this.webServer.clients.size > 0) {
+            this.webServer.broadcast({
+                type: 'stats_update',
+                data: this.getBotStatus(),
+                timestamp: new Date().toISOString()
+            });
+        }
     }
 
     // ========== SISTEMA DE RECONEXIÓN ==========
@@ -569,6 +879,14 @@ class DiscordBot {
             await this.client.login(process.env.DISCORD_BOT_TOKEN);
             this.reconnectAttempts = 0;
             logger.info('Reconnected successfully');
+            
+            // Notificar al panel web
+            this.webServer.broadcast({
+                type: 'bot_status',
+                status: 'online',
+                message: 'Bot reconectado',
+                timestamp: new Date().toISOString()
+            });
         } catch (error) {
             logger.error('Reconnection failed:', error);
             
@@ -597,6 +915,7 @@ class DiscordBot {
         console.log(`🔧 Prefijo: ${this.prefix}`);
         console.log(`👥 Servidores: ${this.client.guilds.cache.size}`);
         console.log(`🌐 APIs Nativas: Quotable & Wikipedia integradas`);
+        console.log(`🌍 Panel web: http://localhost:11000/panel`);
         
         // Establecer estado personalizado
         this.client.user.setPresence({
@@ -614,7 +933,17 @@ class DiscordBot {
             guilds: this.client.guilds.cache.size,
             prefix: this.prefix,
             memoryEnabled: this.enableMemory,
-            knowledgeEnabled: this.enableKnowledge
+            knowledgeEnabled: this.enableKnowledge,
+            webPanel: 'http://localhost:11000/panel'
+        });
+        
+        // Notificar al panel web
+        this.webServer.broadcast({
+            type: 'bot_status',
+            status: 'online',
+            guilds: this.client.guilds.cache.size,
+            users: this.client.users.cache.size,
+            timestamp: new Date().toISOString()
         });
     }
 
@@ -622,6 +951,14 @@ class DiscordBot {
     onDisconnect() {
         logger.warn('Disconnected from Discord');
         this.isReady = false;
+        
+        // Notificar al panel web
+        this.webServer.broadcast({
+            type: 'bot_status',
+            status: 'offline',
+            message: 'Desconectado de Discord',
+            timestamp: new Date().toISOString()
+        });
     }
 
     // ========== MANEJADOR DE MENSAJES ==========
@@ -665,6 +1002,9 @@ class DiscordBot {
         } else {
             await this.handleConversation(message);
         }
+        
+        // Enviar actualización al panel web
+        this.sendWebUpdate();
     }
 
     // ========== SANITIZACIÓN DE MENSAJES ==========
@@ -695,6 +1035,14 @@ class DiscordBot {
             userId: message.author.id, 
             username: message.author.tag,
             args: args.length > 0 ? args : 'none'
+        });
+        
+        // Enviar log al panel web
+        this.webServer.broadcast({
+            type: 'log',
+            level: 'info',
+            message: `Comando ejecutado: ${command} por ${message.author.tag}`,
+            timestamp: new Date().toISOString()
         });
 
         // ========== COMANDOS DE AYUDA ==========
@@ -740,10 +1088,36 @@ class DiscordBot {
                     '`conocimiento activar/desactivar` - Control\n' +
                     '`estadisticas` - Estadísticas del bot\n' +
                     '`ping` - Latencia del bot\n' +
-                    '`apinativo` - Control APIs nativas', false)
+                    '`apinativo` - Control APIs nativas\n' +
+                    '`panel` - Enlace al panel web', false)
                 .setFooter(`Versión ${SYSTEM_CONSTANTS.VERSION || '2.0.0'} • Habla naturalmente conmigo`)
                 .setTimestamp();
 
+            await message.channel.send({ embeds: [embed] });
+            return;
+        }
+
+        // ========== NUEVO: COMANDO PANEL WEB ==========
+        if (command === 'panel' || command === 'web') {
+            const embed = new MessageEmbed()
+                .setTitle('🌐 Panel de Control Web')
+                .setColor('#9B59B6')
+                .setDescription('Accede al panel de control completo desde tu navegador')
+                .addField('🔗 URL del Panel', `http://localhost:11000/panel`, false)
+                .addField('📊 Características', 
+                    '• Estado del bot en tiempo real\n' +
+                    '• Estadísticas detalladas\n' +
+                    '• Control completo (iniciar/detener/reiniciar)\n' +
+                    '• Visualización de memoria\n' +
+                    '• Logs del sistema\n' +
+                    '• Gestión de APIs', false)
+                .addField('💡 Acceso Rápido', 
+                    '`!panel` - Ver este mensaje\n' +
+                    '`!estadisticas` - Estadísticas del bot\n' +
+                    '`!apinativo` - Control de APIs', false)
+                .setFooter('Panel disponible en http://localhost:11000')
+                .setTimestamp();
+            
             await message.channel.send({ embeds: [embed] });
             return;
         }
@@ -1037,6 +1411,7 @@ class DiscordBot {
                 .addField('🌐 APIs Nativas', 
                     `Quotable: ${this.nativeAPICalls.quotes}\n` +
                     `Wikipedia: ${this.nativeAPICalls.wikipedia}`, true)
+                .addField('🌍 Panel Web', 'http://localhost:11000/panel', true)
                 .addField('🔧 Versión', SYSTEM_CONSTANTS.VERSION || '2.0.0', true);
             
             if (rateLimiterStats) {
@@ -1154,6 +1529,9 @@ class DiscordBot {
                 '• "Dime una frase motivadora"\n' +
                 '• "¿Qué es la inteligencia artificial?"\n' +
                 '• "Háblame sobre la historia de Roma"', false)
+            .addField('🌍 Panel de Control', 
+                'Accede a estadísticas detalladas y control en:\n' +
+                '**http://localhost:11000/panel**', false)
             .setFooter('Mancy • Sistema de conocimiento integrado')
             .setTimestamp();
         
@@ -1254,6 +1632,16 @@ class DiscordBot {
             // Enviar respuesta
             await thinkingMsg.edit(response);
             
+            // Enviar actualización al panel web
+            this.webServer.broadcast({
+                type: 'message',
+                user: message.author.tag,
+                userId: message.author.id,
+                content: message.content.substring(0, 200),
+                response: response.substring(0, 200),
+                timestamp: new Date().toISOString()
+            });
+            
             // Log estadístico
             if (nativeAPIData) {
                 logger.debug(`${nativeAPIData.type === 'quote' ? 'Quote' : 'Wiki'} native sent`, { 
@@ -1272,6 +1660,13 @@ class DiscordBot {
             
             // MEJORA: Enviar error al canal de logs si existe
             await this.sendToErrorChannel(error, message);
+            
+            // Enviar error al panel web
+            this.webServer.broadcast({
+                type: 'error',
+                message: `Error en conversación con ${message.author.tag}: ${error.message}`,
+                timestamp: new Date().toISOString()
+            });
             
             // Respuesta de error amigable
             const errorResponses = [
@@ -1561,6 +1956,13 @@ class DiscordBot {
     // ========== MANEJADORES DE ERRORES ==========
     onError(error) {
         logger.error('Discord client error:', error);
+        
+        // Enviar error al panel web
+        this.webServer.broadcast({
+            type: 'error',
+            message: `Error de Discord: ${error.message}`,
+            timestamp: new Date().toISOString()
+        });
     }
 
     onWarning(warning) {
@@ -1576,8 +1978,14 @@ class DiscordBot {
             console.log('💬 Modo conversacional: ACTIVADO (sin comandos necesarios)');
             console.log('🔒 Sistema de seguridad: ACTIVADO');
             console.log('📊 Sistema de logs: ACTIVADO');
+            console.log('🌍 Panel web: http://localhost:11000/panel');
             
+            // Iniciar servidor web primero
+            await this.webServer.start();
+            
+            // Luego iniciar el bot de Discord
             await this.client.login(process.env.DISCORD_BOT_TOKEN);
+            
         } catch (error) {
             logger.error('Error starting bot:', error);
             process.exit(1);
@@ -1599,8 +2007,21 @@ class DiscordBot {
         console.log('🔄 Guardando memorias antes de apagar...');
         this.saveMemories();
         
+        // Notificar al panel web
+        this.webServer.broadcast({
+            type: 'bot_status',
+            status: 'stopping',
+            message: 'Bot deteniéndose',
+            timestamp: new Date().toISOString()
+        });
+        
         console.log('👋 Desconectando del cliente Discord...');
-        this.client.destroy();
+        if (this.client.isReady()) {
+            this.client.destroy();
+        }
+        
+        // Detener servidor web
+        await this.webServer.stop();
         
         console.log('✅ Bot apagado correctamente');
         logger.info('Bot shutdown complete');
@@ -1630,7 +2051,12 @@ class DiscordBot {
                 heapTotal: Math.round(memoryInfo.heapTotal / 1024 / 1024) + 'MB',
                 rss: Math.round(memoryInfo.rss / 1024 / 1024) + 'MB'
             },
-            reconnectAttempts: this.reconnectAttempts
+            reconnectAttempts: this.reconnectAttempts,
+            webServer: {
+                port: 11000,
+                clients: this.webServer.clients.size,
+                panelUrl: 'http://localhost:11000/panel'
+            }
         };
     }
 
