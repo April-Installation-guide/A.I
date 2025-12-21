@@ -468,7 +468,7 @@ class NativeAPIIntegration {
 
 // ========== SERVIDOR WEB PARA HTML ==========
 class WebServer {
-    constructor(port = 11000) {
+    constructor(port = process.env.PORT || 11000) { // ✅ Usa el puerto de Render
         this.port = port;
         this.app = express();
         this.server = createServer(this.app);
@@ -485,8 +485,9 @@ class WebServer {
         this.app.use(express.json());
         this.app.use(express.urlencoded({ extended: true }));
         
-        // Servir archivos estáticos desde la carpeta public
+        // ✅ Servir archivos estáticos desde la carpeta public Y la raíz
         this.app.use(express.static(path.join(__dirname, 'public')));
+        this.app.use(express.static(__dirname)); // Para servir index.html si está en raíz
         
         // Configurar WebSocket
         this.setupWebSocket();
@@ -520,16 +521,76 @@ class WebServer {
     }
     
     setupRoutes() {
-        // Ruta principal
+        // ✅ Ruta principal: SIRVE EL HTML DESDE LA RAÍZ
         this.app.get('/', (req, res) => {
+            // Primero intenta servir index.html desde la raíz
+            const rootIndexPath = path.join(__dirname, 'index.html');
+            if (fs.existsSync(rootIndexPath)) {
+                res.sendFile(rootIndexPath);
+            }
+            // Si no existe en raíz, busca en public/
+            else {
+                const publicIndexPath = path.join(__dirname, 'public', 'index.html');
+                if (fs.existsSync(publicIndexPath)) {
+                    res.sendFile(publicIndexPath);
+                }
+                // Si no existe ningún index.html, muestra un mensaje
+                else {
+                    res.send(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Mancy Bot</title>
+                            <style>
+                                body { 
+                                    font-family: Arial, sans-serif; 
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    color: white;
+                                    display: flex;
+                                    justify-content: center;
+                                    align-items: center;
+                                    height: 100vh;
+                                    margin: 0;
+                                }
+                                .container { 
+                                    text-align: center;
+                                    padding: 2rem;
+                                    background: rgba(0,0,0,0.7);
+                                    border-radius: 15px;
+                                    max-width: 600px;
+                                }
+                                h1 { color: #4CAF50; margin-bottom: 1rem; }
+                                a { color: #4CAF50; text-decoration: none; font-weight: bold; }
+                                a:hover { text-decoration: underline; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <h1>🤖 Mancy Bot está funcionando!</h1>
+                                <p>El servidor está activo pero no se encontró el archivo index.html.</p>
+                                <p>📁 Coloca tu HTML en la raíz del proyecto o en la carpeta public/</p>
+                                <p>🔗 <a href="/panel">Ir al Panel de Control</a></p>
+                                <p>📊 <a href="/api/status">Ver Estado del Bot (API)</a></p>
+                                <p>⚡ <a href="/health">Health Check</a></p>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                }
+            }
+        });
+        
+        // ✅ Ruta de API (moved from root)
+        this.app.get('/api', (req, res) => {
             res.json({
                 service: '🤖 Mancy Discord Bot API',
                 version: SYSTEM_CONSTANTS.VERSION || '3.0.0',
                 status: 'operational',
                 description: 'API para el bot de Discord con integración de conocimiento e IA',
                 endpoints: [
-                    'GET  / → Esta página',
-                    'GET  /panel → Panel de Control HTML',
+                    'GET  / → Panel de Control HTML',
+                    'GET  /api → Esta página (API info)',
+                    'GET  /panel → Panel de Administración',
                     'GET  /health → Estado del servidor',
                     'GET  /api/status → Estado del bot',
                     'GET  /api/stats → Estadísticas del bot',
@@ -543,9 +604,9 @@ class WebServer {
             });
         });
         
-        // Panel de control HTML
+        // Panel de administración HTML
         this.app.get('/panel', (req, res) => {
-            const panelPath = path.join(__dirname, 'public', 'index.html');
+            const panelPath = path.join(__dirname, 'public', 'panel.html');
             if (fs.existsSync(panelPath)) {
                 res.sendFile(panelPath);
             } else {
@@ -555,17 +616,209 @@ class WebServer {
                     <head>
                         <title>Mancy AI Panel</title>
                         <style>
-                            body { font-family: Arial, sans-serif; padding: 20px; }
-                            .container { max-width: 800px; margin: 0 auto; }
-                            .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
-                            .online { background: #d4edda; color: #155724; }
-                            .offline { background: #f8d7da; color: #721c24; }
+                            body { 
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white;
+                                padding: 20px;
+                                margin: 0;
+                                min-height: 100vh;
+                            }
+                            .container { 
+                                max-width: 1200px; 
+                                margin: 0 auto;
+                                background: rgba(0, 0, 0, 0.7);
+                                border-radius: 15px;
+                                padding: 2rem;
+                                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                            }
+                            h1 { 
+                                color: #4CAF50; 
+                                text-align: center;
+                                margin-bottom: 2rem;
+                                font-size: 2.5rem;
+                            }
+                            .status { 
+                                padding: 15px; 
+                                border-radius: 10px; 
+                                margin: 10px 0;
+                                font-size: 1.1rem;
+                            }
+                            .online { 
+                                background: linear-gradient(135deg, #4CAF50, #45a049);
+                                color: white;
+                            }
+                            .offline { 
+                                background: linear-gradient(135deg, #f44336, #d32f2f);
+                                color: white;
+                            }
+                            .card {
+                                background: rgba(255, 255, 255, 0.1);
+                                border-radius: 10px;
+                                padding: 1.5rem;
+                                margin: 1rem 0;
+                                backdrop-filter: blur(10px);
+                            }
+                            .grid {
+                                display: grid;
+                                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                                gap: 1.5rem;
+                                margin-top: 2rem;
+                            }
+                            a {
+                                color: #4CAF50;
+                                text-decoration: none;
+                                font-weight: bold;
+                                display: inline-block;
+                                margin-top: 1rem;
+                                padding: 0.5rem 1rem;
+                                background: rgba(76, 175, 80, 0.2);
+                                border-radius: 5px;
+                                transition: all 0.3s;
+                            }
+                            a:hover {
+                                background: rgba(76, 175, 80, 0.4);
+                                transform: translateY(-2px);
+                            }
                         </style>
                     </head>
                     <body>
                         <div class="container">
-                            <h1>Mancy AI Panel</h1>
-                            <p>Panel de control en desarrollo. Coloca tu HTML en public/index.html</p>
+                            <h1>🤖 Panel de Administración - Mancy AI</h1>
+                            
+                            <div class="grid">
+                                <div class="card">
+                                    <h2>🔧 Estado del Bot</h2>
+                                    <div id="botStatus" class="status offline">Cargando...</div>
+                                    <p id="botDetails">Conectando al servidor...</p>
+                                </div>
+                                
+                                <div class="card">
+                                    <h2>📊 Estadísticas</h2>
+                                    <p id="stats">Cargando estadísticas...</p>
+                                </div>
+                                
+                                <div class="card">
+                                    <h2>🎮 Control</h2>
+                                    <button onclick="controlBot('start')" style="background:#4CAF50;color:white;border:none;padding:10px 20px;border-radius:5px;margin:5px;cursor:pointer;">▶ Iniciar</button>
+                                    <button onclick="controlBot('stop')" style="background:#f44336;color:white;border:none;padding:10px 20px;border-radius:5px;margin:5px;cursor:pointer;">⏹ Detener</button>
+                                    <button onclick="controlBot('restart')" style="background:#FF9800;color:white;border:none;padding:10px 20px;border-radius:5px;margin:5px;cursor:pointer;">🔄 Reiniciar</button>
+                                </div>
+                                
+                                <div class="card">
+                                    <h2>🔗 Enlaces Rápidos</h2>
+                                    <a href="/">🏠 Página Principal</a><br>
+                                    <a href="/api/status">📡 Estado API</a><br>
+                                    <a href="/health">⚡ Health Check</a><br>
+                                    <a href="/api/stats">📊 Estadísticas Avanzadas</a><br>
+                                    <a href="/api/users">👥 Usuarios</a>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <h2>📝 Logs en Tiempo Real</h2>
+                                <div id="logs" style="background:#000;color:#0f0;padding:10px;border-radius:5px;height:200px;overflow-y:auto;font-family:monospace;font-size:12px;"></div>
+                            </div>
+                            
+                            <script>
+                                // WebSocket para actualizaciones en tiempo real
+                                const ws = new WebSocket('ws://' + window.location.host + '/ws');
+                                
+                                ws.onmessage = function(event) {
+                                    const data = JSON.parse(event.data);
+                                    console.log('WebSocket message:', data);
+                                    
+                                    if (data.type === 'bot_status') {
+                                        updateBotStatus(data);
+                                    } else if (data.type === 'stats_update') {
+                                        updateStats(data.data);
+                                    } else if (data.type === 'log') {
+                                        addLog(data);
+                                    }
+                                };
+                                
+                                ws.onopen = function() {
+                                    console.log('WebSocket connected');
+                                    addLog({level: 'success', message: '✅ Conectado al servidor WebSocket'});
+                                };
+                                
+                                ws.onerror = function(error) {
+                                    console.error('WebSocket error:', error);
+                                };
+                                
+                                function updateBotStatus(data) {
+                                    const statusDiv = document.getElementById('botStatus');
+                                    const detailsDiv = document.getElementById('botDetails');
+                                    
+                                    if (data.status === 'online') {
+                                        statusDiv.className = 'status online';
+                                        statusDiv.innerHTML = '🟢 BOT EN LÍNEA';
+                                        detailsDiv.innerHTML = \`Servidores: \${data.guilds || 0}<br>Usuarios: \${data.users || 0}\`;
+                                    } else if (data.status === 'offline') {
+                                        statusDiv.className = 'status offline';
+                                        statusDiv.innerHTML = '🔴 BOT OFFLINE';
+                                        detailsDiv.innerHTML = 'Esperando conexión...';
+                                    } else {
+                                        statusDiv.className = 'status offline';
+                                        statusDiv.innerHTML = '🟡 ' + (data.message || 'Estado desconocido');
+                                    }
+                                }
+                                
+                                function updateStats(stats) {
+                                    const statsDiv = document.getElementById('stats');
+                                    statsDiv.innerHTML = \`
+                                        Mensajes: \${stats.messageCount || 0}<br>
+                                        Comandos: \${stats.commandCount || 0}<br>
+                                        Usuarios con memoria: \${stats.userMemories || 0}<br>
+                                        Tiempo activo: \${formatUptime(stats.uptime || 0)}
+                                    \`;
+                                }
+                                
+                                function addLog(log) {
+                                    const logsDiv = document.getElementById('logs');
+                                    const timestamp = new Date().toLocaleTimeString();
+                                    const color = log.level === 'error' ? '#f44336' : log.level === 'warn' ? '#ff9800' : '#4CAF50';
+                                    const entry = \`[\${timestamp}] <span style="color:\${color}">\${log.message}</span>\\n\`;
+                                    logsDiv.innerHTML = entry + logsDiv.innerHTML;
+                                }
+                                
+                                function formatUptime(ms) {
+                                    const seconds = Math.floor(ms / 1000);
+                                    const minutes = Math.floor(seconds / 60);
+                                    const hours = Math.floor(minutes / 60);
+                                    const days = Math.floor(hours / 24);
+                                    
+                                    if (days > 0) return \`\${days}d \${hours % 24}h\`;
+                                    if (hours > 0) return \`\${hours}h \${minutes % 60}m\`;
+                                    if (minutes > 0) return \`\${minutes}m \${seconds % 60}s\`;
+                                    return \`\${seconds}s\`;
+                                }
+                                
+                                async function controlBot(action) {
+                                    try {
+                                        const response = await fetch('/api/control', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ action })
+                                        });
+                                        const result = await response.json();
+                                        alert(result.message || 'Acción ejecutada');
+                                    } catch (error) {
+                                        alert('Error: ' + error.message);
+                                    }
+                                }
+                                
+                                // Cargar estado inicial
+                                fetch('/api/status')
+                                    .then(res => res.json())
+                                    .then(data => updateBotStatus(data))
+                                    .catch(err => console.error('Error loading status:', err));
+                                    
+                                fetch('/api/stats')
+                                    .then(res => res.json())
+                                    .then(data => updateStats(data))
+                                    .catch(err => console.error('Error loading stats:', err));
+                            </script>
                         </div>
                     </body>
                     </html>
@@ -704,7 +957,7 @@ class WebServer {
             res.status(404).json({
                 error: 'Ruta no encontrada',
                 path: req.path,
-                available: ['/', '/panel', '/health', '/api/status', '/api/stats', '/api/control', '/api/users', '/api/logs']
+                available: ['/', '/panel', '/health', '/api', '/api/status', '/api/stats', '/api/control', '/api/users', '/api/logs']
             });
         });
     }
@@ -728,7 +981,9 @@ class WebServer {
         return new Promise((resolve, reject) => {
             this.server.listen(this.port, () => {
                 logger.info(`🌐 Servidor web iniciado en http://localhost:${this.port}`);
+                logger.info(`🏠 Página principal: http://localhost:${this.port}/`);
                 logger.info(`📊 Panel de control: http://localhost:${this.port}/panel`);
+                logger.info(`📡 API: http://localhost:${this.port}/api`);
                 logger.info(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
                 resolve();
             });
@@ -820,7 +1075,7 @@ class DiscordBot {
         this.setupHealthCheck();
         
         // NUEVO: Servidor web
-        this.webServer = new WebServer(11000);
+        this.webServer = new WebServer(process.env.PORT || 11000); // ✅ Usa puerto de Render
         
         // Guardar referencia global para acceso desde el servidor web
         global.discordBot = this;
@@ -915,7 +1170,7 @@ class DiscordBot {
         console.log(`🔧 Prefijo: ${this.prefix}`);
         console.log(`👥 Servidores: ${this.client.guilds.cache.size}`);
         console.log(`🌐 APIs Nativas: Quotable & Wikipedia integradas`);
-        console.log(`🌍 Panel web: http://localhost:11000/panel`);
+        console.log(`🌍 Panel web: http://localhost:${this.webServer.port}/`);
         
         // Establecer estado personalizado
         this.client.user.setPresence({
@@ -934,7 +1189,7 @@ class DiscordBot {
             prefix: this.prefix,
             memoryEnabled: this.enableMemory,
             knowledgeEnabled: this.enableKnowledge,
-            webPanel: 'http://localhost:11000/panel'
+            webPanel: `http://localhost:${this.webServer.port}/`
         });
         
         // Notificar al panel web
@@ -1103,7 +1358,7 @@ class DiscordBot {
                 .setTitle('🌐 Panel de Control Web')
                 .setColor('#9B59B6')
                 .setDescription('Accede al panel de control completo desde tu navegador')
-                .addField('🔗 URL del Panel', `http://localhost:11000/panel`, false)
+                .addField('🔗 URL del Panel', `http://localhost:${this.webServer.port}/panel`, false)
                 .addField('📊 Características', 
                     '• Estado del bot en tiempo real\n' +
                     '• Estadísticas detalladas\n' +
@@ -1115,7 +1370,7 @@ class DiscordBot {
                     '`!panel` - Ver este mensaje\n' +
                     '`!estadisticas` - Estadísticas del bot\n' +
                     '`!apinativo` - Control de APIs', false)
-                .setFooter('Panel disponible en http://localhost:11000')
+                .setFooter(`Panel disponible en http://localhost:${this.webServer.port}/panel`)
                 .setTimestamp();
             
             await message.channel.send({ embeds: [embed] });
@@ -1411,7 +1666,7 @@ class DiscordBot {
                 .addField('🌐 APIs Nativas', 
                     `Quotable: ${this.nativeAPICalls.quotes}\n` +
                     `Wikipedia: ${this.nativeAPICalls.wikipedia}`, true)
-                .addField('🌍 Panel Web', 'http://localhost:11000/panel', true)
+                .addField('🌍 Panel Web', `http://localhost:${this.webServer.port}/panel`, true)
                 .addField('🔧 Versión', SYSTEM_CONSTANTS.VERSION || '2.0.0', true);
             
             if (rateLimiterStats) {
@@ -1530,8 +1785,8 @@ class DiscordBot {
                 '• "¿Qué es la inteligencia artificial?"\n' +
                 '• "Háblame sobre la historia de Roma"', false)
             .addField('🌍 Panel de Control', 
-                'Accede a estadísticas detalladas y control en:\n' +
-                '**http://localhost:11000/panel**', false)
+                `Accede a estadísticas detalladas y control en:\n` +
+                `**http://localhost:${this.webServer.port}/panel**`, false)
             .setFooter('Mancy • Sistema de conocimiento integrado')
             .setTimestamp();
         
@@ -1978,7 +2233,7 @@ class DiscordBot {
             console.log('💬 Modo conversacional: ACTIVADO (sin comandos necesarios)');
             console.log('🔒 Sistema de seguridad: ACTIVADO');
             console.log('📊 Sistema de logs: ACTIVADO');
-            console.log('🌍 Panel web: http://localhost:11000/panel');
+            console.log(`🌍 Panel web: http://localhost:${this.webServer.port}/`);
             
             // Iniciar servidor web primero
             await this.webServer.start();
@@ -2053,9 +2308,10 @@ class DiscordBot {
             },
             reconnectAttempts: this.reconnectAttempts,
             webServer: {
-                port: 11000,
+                port: this.webServer.port,
                 clients: this.webServer.clients.size,
-                panelUrl: 'http://localhost:11000/panel'
+                panelUrl: `http://localhost:${this.webServer.port}/panel`,
+                mainUrl: `http://localhost:${this.webServer.port}/`
             }
         };
     }
