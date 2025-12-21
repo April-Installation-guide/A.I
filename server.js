@@ -20,7 +20,7 @@ app.get('/panel', (req, res) => {
         <head><title>Mancy Panel</title></head>
         <body>
             <h1>Mancy Bot Panel</h1>
-            <p>Bot: ${process.env.DISCORD_TOKEN ? 'Token configurado' : 'Token NO configurado'}</p>
+            <p>Bot: ${process.env.DISCORD_BOT_TOKEN ? 'Token configurado' : 'Token NO configurado'}</p>
             <p>Groq: ${process.env.GROQ_API_KEY ? 'API Key configurada' : 'API Key NO configurada'}</p>
             <p>Puerto: ${PORT}</p>
         </body>
