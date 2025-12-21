@@ -1984,7 +1984,7 @@ class DiscordBot {
             await this.webServer.start();
             
             // Luego iniciar el bot de Discord
-            await this.client.login(process.env.DISCORD_BOT_TOKEN);
+            await this.client.login(process.env.DISCORD_TOKEN);
             
         } catch (error) {
             logger.error('Error starting bot:', error);
