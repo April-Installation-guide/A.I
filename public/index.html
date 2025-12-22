@@ -439,57 +439,82 @@
         }
 
         // Conectar WebSocket
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            console.log('Conectando a WebSocket:', wsUrl);
-            
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = function() {
-                console.log('✅ WebSocket conectado');
-                updateConnectionStatus(true);
-                addLog('Conectado al servidor WebSocket', 'success');
-                reconnectAttempts = 0;
-                
-                // Obtener estado inicial
-                fetchBotStatus();
-            };
-            
-            ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('📨 Mensaje WebSocket:', data);
-                    handleWebSocketMessage(data);
-                } catch (error) {
-                    console.error('Error procesando mensaje WebSocket:', error);
-                }
-            };
-            
-            ws.onclose = function(event) {
-                console.log('❌ WebSocket desconectado:', event.code, event.reason);
-                updateConnectionStatus(false);
-                
-                if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts - 1);
-                    addLog(`Reconectando en ${delay/1000} segundos... (intento ${reconnectAttempts}/${maxReconnectAttempts})`, 'warn');
-                    
-                    setTimeout(() => {
-                        addLog('Intentando reconectar...', 'info');
-                        connectWebSocket();
-                    }, delay);
-                } else if (reconnectAttempts >= maxReconnectAttempts) {
-                    addLog('Máximos intentos de reconexión alcanzados. Recarga la página.', 'error');
-                }
-            };
-            
-            ws.onerror = function(error) {
-                console.error('❌ Error WebSocket:', error);
-                addLog('Error en la conexión WebSocket', 'error');
-            };
+   function connectWebSocket() {
+    // ✅ DETECTAR PROTOCOLO CORRECTO para Render
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
+    
+    const wsProtocol = window.location.protocol === 'https:' || !isLocalhost ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    
+    console.log('🌐 Conectando WebSocket a:', wsUrl);
+    addLog(`Conectando a: ${wsUrl}`, 'info');
+    
+    ws = new WebSocket(wsUrl);
+    
+    // ✅ TIMEOUT de conexión
+    const connectionTimeout = setTimeout(() => {
+        if (ws.readyState === 0) { // CONNECTING
+            addLog('⏱️ Timeout de conexión WebSocket', 'warn');
+            ws.close();
         }
+    }, 10000); // 10 segundos máximo
+    
+    ws.onopen = function() {
+        clearTimeout(connectionTimeout);
+        console.log('✅ WebSocket conectado exitosamente');
+        updateConnectionStatus(true);
+        addLog('Conectado al servidor WebSocket', 'success');
+        reconnectAttempts = 0;
+        
+        // Obtener estado inicial
+        fetchBotStatus();
+        fetchStats();
+    };
+    
+    ws.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            console.log('📨 Mensaje WebSocket recibido:', data.type);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            console.error('Error procesando mensaje:', error);
+            addLog('Error procesando mensaje del servidor', 'error');
+        }
+    };
+    
+    ws.onclose = function(event) {
+        clearTimeout(connectionTimeout);
+        console.log('🔌 WebSocket cerrado:', event.code, event.reason);
+        updateConnectionStatus(false);
+        
+        // Códigos de cierre normales (no reintentar)
+        if (event.code === 1000 || event.code === 1001) {
+            addLog('Conexión WebSocket cerrada normalmente', 'info');
+            return;
+        }
+        
+        if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            // ✅ Backoff exponencial más agresivo
+            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts - 1), 30000);
+            addLog(`Reconectando en ${Math.round(delay/1000)}s... (${reconnectAttempts}/${maxReconnectAttempts})`, 'warn');
+            
+            setTimeout(() => {
+                addLog('Intentando reconectar...', 'info');
+                connectWebSocket();
+            }, delay);
+        } else {
+            addLog('Máximos intentos alcanzados. Recarga la página.', 'error');
+        }
+    };
+    
+    ws.onerror = function(error) {
+        clearTimeout(connectionTimeout);
+        console.error('❌ Error WebSocket:', error);
+        addLog('Error en la conexión', 'error');
+    };
+}
 
         // Manejar mensajes WebSocket
         function handleWebSocketMessage(data) {
