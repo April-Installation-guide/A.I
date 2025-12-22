@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Mancy Bot - Panel de Control</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --primary: #7289da;
+            --secondary: #5865f2;
+            --success: #43b581;
+            --danger: #f04747;
+            --warning: #faa61a;
+            --dark: #2c2f33;
+            --darker: #23272a;
+            --light: #99aab5;
+            --lighter: #f0f0f0;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--darker), var(--dark));
+            color: var(--lighter);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border-left: 5px solid var(--primary);
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--light);
+            font-size: 1.2rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(40, 40, 50, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(114, 137, 218, 0.3);
+            font-size: 1.4rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+        }
+
+        .online {
+            background: linear-gradient(45deg, var(--success), #2ecc71);
+            color: white;
+        }
+
+        .offline {
+            background: linear-gradient(45deg, var(--danger), #e74c3c);
+            color: white;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 12px 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            color: var(--light);
+        }
+
+        .stat-value {
+            color: var(--lighter);
+            font-weight: bold;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 140px;
+            justify-content: center;
+        }
+
+        .btn-start {
+            background: linear-gradient(45deg, var(--success), #27ae60);
+            color: white;
+        }
+
+        .btn-stop {
+            background: linear-gradient(45deg, var(--danger), #c0392b);
+            color: white;
+        }
+
+        .btn-restart {
+            background: linear-gradient(45deg, var(--warning), #e67e22);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .logs-container {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid var(--primary);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0 8px 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-info { border-color: #3498db; }
+        .log-success { border-color: var(--success); }
+        .log-error { border-color: var(--danger); }
+        .log-warn { border-color: var(--warning); }
+
+        .ws-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .connected { color: var(--success); }
+        .disconnected { color: var(--danger); }
+
+        .memory-usage {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .memory-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 5px;
+            transition: width 0.5s;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+
+        .connection-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+
+        .connection-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--danger);
+        }
+
+        .connection-dot.connected {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-robot"></i> Mancy Bot - Panel de Control</h1>
+            <p>Gestiona y monitorea tu bot de Discord desde la web</p>
+        </div>
+
+        <div class="grid">
+            <!-- Estado del Bot -->
+            <div class="card">
+                <h2><i class="fas fa-server"></i> Estado del Bot</h2>
+                <div id="botStatusBadge" class="status-badge offline">DESCONECTADO</div>
+                <div class="stat-item">
+                    <span class="stat-label">Mensajes Procesados:</span>
+                    <span id="messageCount" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Comandos Ejecutados:</span>
+                    <span id="commandCount" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Servidores:</span>
+                    <span id="guildCount" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Tiempo Activo:</span>
+                    <span id="uptime" class="stat-value">0s</span>
+                </div>
+            </div>
+
+            <!-- Estadísticas del Sistema -->
+            <div class="card">
+                <h2><i class="fas fa-chart-bar"></i> Estadísticas</h2>
+                <div class="stat-item">
+                    <span class="stat-label">Usuarios con Memoria:</span>
+                    <span id="memoryUsers" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">APIs Quotable:</span>
+                    <span id="quoteCalls" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">APIs Wikipedia:</span>
+                    <span id="wikiCalls" class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Uso de Memoria:</span>
+                    <span id="memoryPercent" class="stat-value">0%</span>
+                </div>
+                <div class="memory-usage">
+                    <div id="memoryBar" class="memory-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Control del Bot -->
+            <div class="card">
+                <h2><i class="fas fa-gamepad"></i> Control</h2>
+                <p>Gestiona el estado del bot de Discord</p>
+                <div class="control-buttons">
+                    <button id="startBtn" class="btn btn-start" onclick="controlBot('start')">
+                        <i class="fas fa-play"></i> Iniciar Bot
+                    </button>
+                    <button id="stopBtn" class="btn btn-stop" onclick="controlBot('stop')" disabled>
+                        <i class="fas fa-stop"></i> Detener Bot
+                    </button>
+                    <button id="restartBtn" class="btn btn-restart" onclick="controlBot('restart')">
+                        <i class="fas fa-redo"></i> Reiniciar
+                    </button>
+                </div>
+                <div class="connection-info">
+                    <div id="wsDot" class="connection-dot"></div>
+                    <span id="wsStatus">Desconectado del WebSocket</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs en Tiempo Real -->
+        <div class="card">
+            <h2><i class="fas fa-terminal"></i> Logs en Tiempo Real</h2>
+            <div id="logs" class="logs-container">
+                <div class="log-entry log-info">
+                    [<span id="currentTime"></span>] Sistema inicializado. Esperando conexión...
+                </div>
+            </div>
+        </div>
+
+        <!-- Enlaces Rápidos -->
+        <div class="card" style="text-align: center; margin-top: 20px;">
+            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <a href="/panel" style="color: var(--primary); text-decoration: none;">
+                    <i class="fas fa-tachometer-alt"></i> Panel Avanzado
+                </a>
+                <a href="/api" style="color: var(--primary); text-decoration: none;">
+                    <i class="fas fa-code"></i> Documentación API
+                </a>
+                <a href="/health" style="color: var(--primary); text-decoration: none;">
+                    <i class="fas fa-heartbeat"></i> Health Check
+                </a>
+                <a href="/api/websocket-info" style="color: var(--primary); text-decoration: none;">
+                    <i class="fas fa-plug"></i> WebSocket Info
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div id="wsStatusDisplay" class="ws-status disconnected">
+        <i class="fas fa-signal"></i> WebSocket: Desconectado
+    </div>
+
+    <script>
+        // Variables globales
+        let ws = null;
+        let botStatus = 'offline';
+        let statsData = {};
+
+        // Función para formatear tiempo
+        function formatUptime(ms) {
+            if (!ms) return '0s';
+            
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (days > 0) return `${days}d ${hours % 24}h`;
+            if (hours > 0) return `${hours}h ${minutes % 60}m`;
+            if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+            return `${seconds}s`;
+        }
+
+        // Función para actualizar la hora actual
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('es-ES', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('currentTime').textContent = timeString;
+        }
+
+        // Inicializar WebSocket
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log('🔄 Conectando a WebSocket:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                console.log('✅ WebSocket conectado');
+                updateWSStatus('connected');
+                addLog('✅ Conectado al servidor WebSocket', 'success');
+                
+                // Solicitar estado inicial
+                ws.send(JSON.stringify({ type: 'get_status' }));
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('📨 Mensaje recibido:', data.type);
+                    
+                    switch(data.type) {
+                        case 'welcome':
+                            addLog(data.message, 'success');
+                            break;
+                            
+                        case 'bot_status':
+                            updateBotStatus(data);
+                            break;
+                            
+                        case 'stats_update':
+                            updateStats(data.data);
+                            break;
+                            
+                        case 'log':
+                            addLog(data.message, data.level || 'info');
+                            break;
+                            
+                        case 'message':
+                            addLog(`💬 ${data.user}: ${data.content} → ${data.response}`, 'info');
+                            break;
+                            
+                        case 'error':
+                            addLog(`❌ Error: ${data.message}`, 'error');
+                            break;
+                            
+                        case 'pong':
+                            // Heartbeat recibido
+                            break;
+                            
+                        case 'heartbeat':
+                            // Actualizar última actividad
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Error procesando mensaje:', error);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('❌ Error en WebSocket:', error);
+                updateWSStatus('error');
+                addLog('❌ Error en conexión WebSocket', 'error');
+            };
+            
+            ws.onclose = function() {
+                console.log('🔌 WebSocket desconectado');
+                updateWSStatus('disconnected');
+                addLog('⚠️ Desconectado del servidor', 'warn');
+                
+                // Intentar reconectar después de 5 segundos
+                setTimeout(initWebSocket, 5000);
+            };
+        }
+
+        // Actualizar estado del WebSocket
+        function updateWSStatus(status) {
+            const wsDisplay = document.getElementById('wsStatusDisplay');
+            const wsDot = document.getElementById('wsDot');
+            const wsStatusText = document.getElementById('wsStatus');
+            
+            switch(status) {
+                case 'connected':
+                    wsDisplay.innerHTML = '<i class="fas fa-signal"></i> WebSocket: Conectado';
+                    wsDisplay.className = 'ws-status connected';
+                    wsDot.className = 'connection-dot connected';
+                    wsStatusText.textContent = 'Conectado al servidor WebSocket';
+                    break;
+                    
+                case 'disconnected':
+                    wsDisplay.innerHTML = '<i class="fas fa-signal-slash"></i> WebSocket: Desconectado';
+                    wsDisplay.className = 'ws-status disconnected';
+                    wsDot.className = 'connection-dot';
+                    wsStatusText.textContent = 'Desconectado del WebSocket';
+                    break;
+                    
+                case 'error':
+                    wsDisplay.innerHTML = '<i class="fas fa-exclamation-triangle"></i> WebSocket: Error';
+                    wsDisplay.className = 'ws-status disconnected';
+                    wsDot.className = 'connection-dot';
+                    wsStatusText.textContent = 'Error en conexión WebSocket';
+                    break;
+            }
+        }
+
+        // Actualizar estado del bot
+        function updateBotStatus(data) {
+            botStatus = data.status || 'offline';
+            const statusBadge = document.getElementById('botStatusBadge');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            if (botStatus === 'online') {
+                statusBadge.textContent = '🟢 EN LÍNEA';
+                statusBadge.className = 'status-badge online';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                addLog('🤖 Bot conectado a Discord', 'success');
+            } else if (botStatus === 'offline') {
+                statusBadge.textContent = '🔴 OFFLINE';
+                statusBadge.className = 'status-badge offline';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                addLog('🤖 Bot desconectado de Discord', 'warn');
+            } else {
+                statusBadge.textContent = `🟡 ${data.message || 'Estado desconocido'}`;
+                statusBadge.className = 'status-badge offline';
+            }
+        }
+
+        // Actualizar estadísticas
+        function updateStats(data) {
+            statsData = data;
+            
+            // Actualizar contadores
+            document.getElementById('messageCount').textContent = data.messageCount || 0;
+            document.getElementById('commandCount').textContent = data.commandCount || 0;
+            document.getElementById('guildCount').textContent = data.guildCount || 0;
+            document.getElementById('uptime').textContent = formatUptime(data.uptime || 0);
+            document.getElementById('memoryUsers').textContent = data.userMemories || 0;
+            document.getElementById('quoteCalls').textContent = data.nativeAPICalls?.quotes || 0;
+            document.getElementById('wikiCalls').textContent = data.nativeAPICalls?.wikipedia || 0;
+            
+            // Actualizar uso de memoria
+            if (data.systemMemory) {
+                const heapUsed = parseInt(data.systemMemory.heapUsed) || 0;
+                const heapTotal = parseInt(data.systemMemory.heapTotal) || 100;
+                const percent = Math.min(100, Math.round((heapUsed / heapTotal) * 100));
+                
+                document.getElementById('memoryPercent').textContent = `${percent}%`;
+                document.getElementById('memoryBar').style.width = `${percent}%`;
+            }
+        }
+
+        // Añadir entrada de log
+        function addLog(message, level = 'info') {
+            const logsContainer = document.getElementById('logs');
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('es-ES', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${level}`;
+            logEntry.innerHTML = `[${timeString}] ${message}`;
+            
+            logsContainer.appendChild(logEntry);
+            
+            // Mantener solo los últimos 50 logs
+            const logs = logsContainer.querySelectorAll('.log-entry');
+            if (logs.length > 50) {
+                logs[0].remove();
+            }
+            
+            // Auto-scroll al final
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Controlar el bot (iniciar/detener/reiniciar)
+        async function controlBot(action) {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            
+            // Deshabilitar botones temporalmente
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
+            restartBtn.disabled = true;
+            
+            addLog(`🔄 Enviando comando: ${action}...`, 'info');
+            
+            try {
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: action })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`✅ ${result.message}`, 'success');
+                    
+                    // Actualizar estado después de un momento
+                    setTimeout(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'get_status' }));
+                        }
+                    }, 2000);
+                } else {
+                    addLog(`❌ Error: ${result.error || result.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Error de conexión: ${error.message}`, 'error');
+                console.error('Error:', error);
+            } finally {
+                // Re-habilitar botones después de 3 segundos
+                setTimeout(() => {
+                    updateButtonStates();
+                }, 3000);
+            }
+        }
+
+        // Actualizar estados de los botones basado en el estado del bot
+        function updateButtonStates() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            
+            startBtn.disabled = (botStatus === 'online');
+            stopBtn.disabled = (botStatus === 'offline');
+            restartBtn.disabled = false;
+        }
+
+        // Cargar estado inicial desde la API REST
+        async function loadInitialStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.bot) {
+                    updateBotStatus(data);
+                    updateStats(data);
+                    addLog(`✅ Estado inicial cargado: Bot ${data.status}`, 'success');
+                } else {
+                    addLog('⚠️ Bot no inicializado', 'warn');
+                }
+            } catch (error) {
+                addLog('❌ No se pudo cargar el estado inicial', 'error');
+            }
+        }
+
+        // Función para enviar ping periódico
+        function startHeartbeat() {
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'ping',
+                        timestamp: Date.now()
+                    }));
+                }
+            }, 30000); // Cada 30 segundos
+        }
+
+        // Inicialización
+        window.onload = function() {
+            // Actualizar hora cada segundo
+            setInterval(updateCurrentTime, 1000);
+            updateCurrentTime();
+            
+            // Cargar estado inicial
+            loadInitialStatus();
+            
+            // Iniciar WebSocket
+            initWebSocket();
+            
+            // Iniciar heartbeat
+            startHeartbeat();
+            
+            addLog('🚀 Panel de control inicializado', 'success');
+        };
+
+        // Manejar recarga de página cuando se cierra
+        window.onbeforeunload = function() {
+            if (ws) {
+                ws.close();
+            }
+        };
+    </script>
+</body>
+</html>
