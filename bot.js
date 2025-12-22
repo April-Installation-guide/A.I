@@ -3,7 +3,7 @@ console.log('🚀 ===== INICIANDO MANCY BOT =====');
 console.log('📁 Directorio actual:', __dirname);
 console.log('🔧 Node.js:', process.version);
 console.log('🌍 Entorno:', process.env.NODE_ENV || 'development');
-console.log('🏗️  Puerto:', process.env.PORT || 11000);
+console.log('🏗️  Puerto:', process.env.PORT || 12100);
 console.log('🔑 Discord Token:', process.env.DISCORD_BOT_TOKEN ? '✅ PRESENTE' : '❌ FALTANTE');
 console.log('🧠 Groq API Key:', process.env.GROQ_API_KEY ? '✅ PRESENTE' : '❌ FALTANTE');
 console.log('==================================');
@@ -478,7 +478,7 @@ class NativeAPIIntegration {
 
 // ========== SERVIDOR WEB PARA HTML ==========
 class WebServer {
-    constructor(port = process.env.PORT || 11000) {
+    constructor(port = process.env.PORT || 12100) {
         this.port = port;
         this.app = express();
         this.server = createServer(this.app);
