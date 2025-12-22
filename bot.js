@@ -477,7 +477,6 @@ class NativeAPIIntegration {
 }
 
 // ========== SERVIDOR WEB PARA HTML ==========
-// ========== SERVIDOR WEB PARA HTML ==========
 class WebServer {
     constructor(port = process.env.PORT || 11000) {
         this.port = port;
@@ -498,7 +497,6 @@ class WebServer {
                 zlibInflateOptions: {
                     chunkSize: 10 * 1024
                 },
-                // Deshabilita compresión para clientes pequeños
                 threshold: 1024
             }
         });
@@ -578,6 +576,17 @@ class WebServer {
                             timestamp: Date.now(),
                             original: data.timestamp
                         }));
+                    } else if (data.type === 'get_status') {
+                        // Enviar estado actual del bot
+                        if (global.discordBot) {
+                            const status = global.discordBot.getBotStatus();
+                            ws.send(JSON.stringify({
+                                type: 'bot_status',
+                                status: status.status,
+                                data: status,
+                                timestamp: new Date().toISOString()
+                            }));
+                        }
                     }
                 } catch (error) {
                     console.error('Error parseando mensaje:', error);
@@ -661,7 +670,7 @@ class WebServer {
     }
     
     setupRoutes() {
-        // ✅ RUTA PRINCIPAL CORREGIDA
+        // ✅ RUTA PRINCIPAL - Sirve index.html desde la raíz
         this.app.get('/', (req, res) => {
             console.log('📄 Solicitud a / desde:', req.ip);
             
@@ -671,24 +680,53 @@ class WebServer {
                 console.log('✅ Sirviendo index.html desde raíz');
                 res.sendFile(rootIndexPath);
             } else {
-                // Si no existe, mostrar página simple
-                console.log('⚠️ index.html no encontrado en raíz, mostrando página alternativa');
-                res.send(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head><title>Mancy Bot</title></head>
-                    <body>
-                        <h1>🤖 Mancy Bot está funcionando!</h1>
-                        <p>Servidor activo en puerto ${this.port}</p>
-                        <p>WebSocket: <code id="wsStatus">Desconocido</code></p>
-                        <script>
-                            const ws = new WebSocket('wss://' + window.location.host + '/ws');
-                            ws.onopen = () => document.getElementById('wsStatus').textContent = '✅ Conectado';
-                            ws.onerror = () => document.getElementById('wsStatus').textContent = '❌ Error';
-                        </script>
-                    </body>
-                    </html>
-                `);
+                // Si no existe, crear uno básico automáticamente
+                console.log('⚠️ index.html no encontrado, creando básico');
+                const basicHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Mancy Bot Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1e1e2e; color: white; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 20px; border-radius: 10px; margin: 20px 0; }
+        .online { background: #4CAF50; }
+        .offline { background: #f44336; }
+        button { padding: 12px 24px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        #startBtn { background: #4CAF50; color: white; }
+        #stopBtn { background: #f44336; color: white; }
+        #logs { background: #000; color: #0f0; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Mancy Bot - Panel de Control</h1>
+        <div id="botStatus" class="status offline">🔴 OFFLINE</div>
+        <div>
+            <button id="startBtn" onclick="controlBot('start')">▶ Iniciar Bot</button>
+            <button id="stopBtn" onclick="controlBot('stop')" disabled>⏹ Detener Bot</button>
+        </div>
+        <div id="logs"></div>
+    </div>
+    <script>
+        const ws = new WebSocket('ws://' + window.location.host + '/ws');
+        ws.onmessage = (e) => console.log('WS:', JSON.parse(e.data));
+        ws.onopen = () => document.getElementById('logs').innerHTML += '✅ WebSocket conectado\\n';
+        async function controlBot(action) {
+            const res = await fetch('/api/control', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({action})
+            });
+            alert((await res.json()).message);
+        }
+    </script>
+</body>
+</html>`;
+                res.send(basicHTML);
             }
         });
         
@@ -720,101 +758,6 @@ class WebServer {
             });
         });
         
-        // Mantén las demás rutas que ya tienes (/panel, /health, /api/status, etc.)
-        // ... [tu código existente de rutas] ...
-    }
-    
-    // ✅ MÉTODO PARA BROADCAST CORREGIDO
-    broadcast(data, excludeClientId = null) {
-        const message = JSON.stringify(data);
-        let sent = 0;
-        let failed = 0;
-        
-        for (const [clientId, clientData] of this.clients.entries()) {
-            if (excludeClientId && clientId === excludeClientId) {
-                continue;
-            }
-            
-            if (clientData.ws.readyState === 1) { // OPEN
-                try {
-                    clientData.ws.send(message);
-                    sent++;
-                } catch (error) {
-                    console.error(`Error enviando a ${clientId}:`, error);
-                    failed++;
-                    // Eliminar cliente problemático
-                    this.clients.delete(clientId);
-                }
-            } else {
-                // Eliminar cliente si no está abierto
-                this.clients.delete(clientId);
-            }
-        }
-        
-        if (failed > 0) {
-            console.log(`📊 Broadcast: ${sent} enviados, ${failed} fallidos`);
-        }
-        
-        return { sent, failed };
-    }
-    
-    // Iniciar servidor
-    start() {
-        return new Promise((resolve, reject) => {
-            this.server.listen(this.port, () => {
-                console.log(`✅ Servidor web iniciado en puerto ${this.port}`);
-                console.log(`🌐 URL principal: http://localhost:${this.port}/`);
-                console.log(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
-                console.log(`📊 Panel: http://localhost:${this.port}/panel`);
-                console.log(`🏥 Health: http://localhost:${this.port}/health`);
-                console.log(`🔍 WebSocket Info: http://localhost:${this.port}/api/websocket-info`);
-                
-                // En producción (Render), mostrar URL real
-                if (process.env.NODE_ENV === 'production') {
-                    console.log(`🚀 Desplegado en: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'tu-app.onrender.com'}`);
-                }
-                
-                resolve();
-            });
-            
-            this.server.on('error', (error) => {
-                console.error('❌ Error iniciando servidor:', error);
-                reject(error);
-            });
-        });
-    }
-    
-    // Detener servidor
-    stop() {
-        return new Promise((resolve) => {
-            // Cerrar todos los WebSockets
-            for (const [clientId, clientData] of this.clients.entries()) {
-                try {
-                    clientData.ws.close(1001, 'Servidor deteniéndose');
-                } catch (error) {
-                    // Ignorar errores al cerrar
-                }
-            }
-            this.clients.clear();
-            
-            // Limpiar intervalo de heartbeat
-            if (this.heartbeatInterval) {
-                clearInterval(this.heartbeatInterval);
-            }
-            
-            // Cerrar servidor WebSocket
-            this.wss.close(() => {
-                console.log('WebSocket Server cerrado');
-            });
-            
-            // Cerrar servidor HTTP
-            this.server.close(() => {
-                console.log('Servidor HTTP cerrado');
-                resolve();
-            });
-        });
-    }
-}
         // ✅ Ruta de API (moved from root)
         this.app.get('/api', (req, res) => {
             res.json({
@@ -920,6 +863,7 @@ class WebServer {
                     <body>
                         <div class="container">
                             <h1>🤖 Panel de Administración - Mancy AI</h1>
+                            <p><a href="/">← Volver al Panel Principal</a></p>
                             
                             <div class="grid">
                                 <div class="card">
@@ -956,7 +900,6 @@ class WebServer {
                             </div>
                             
                             <script>
-                                // WebSocket para actualizaciones en tiempo real
                                 const ws = new WebSocket('ws://' + window.location.host + '/ws');
                                 
                                 ws.onmessage = function(event) {
@@ -988,7 +931,7 @@ class WebServer {
                                     if (data.status === 'online') {
                                         statusDiv.className = 'status online';
                                         statusDiv.innerHTML = '🟢 BOT EN LÍNEA';
-                                        detailsDiv.innerHTML = \`Servidores: \${data.guilds || 0}<br>Usuarios: \${data.users || 0}\`;
+                                        detailsDiv.innerHTML = \`Servidores: \${data.data?.guildCount || 0}<br>Usuarios: \${data.data?.userCount || 0}\`;
                                     } else if (data.status === 'offline') {
                                         statusDiv.className = 'status offline';
                                         statusDiv.innerHTML = '🔴 BOT OFFLINE';
@@ -1046,7 +989,7 @@ class WebServer {
                                 // Cargar estado inicial
                                 fetch('/api/status')
                                     .then(res => res.json())
-                                    .then(data => updateBotStatus(data))
+                                    .then(data => updateBotStatus({status: data.status, data: data}))
                                     .catch(err => console.error('Error loading status:', err));
                                     
                                 fetch('/api/stats')
@@ -1137,8 +1080,8 @@ class WebServer {
                 
                 this.broadcast({
                     type: 'bot_status',
-                    status: action === 'stop' ? 'stopped' : 'running',
-                    action: action,
+                    status: action === 'stop' ? 'offline' : 'online',
+                    message: `Bot ${action === 'start' ? 'iniciado' : action === 'stop' ? 'detenido' : 'reiniciado'}`,
                     timestamp: new Date().toISOString()
                 });
                 
@@ -1197,46 +1140,92 @@ class WebServer {
         });
     }
     
-    // Broadcast a todos los clientes WebSocket
-    broadcast(data) {
+    // ✅ MÉTODO PARA BROADCAST CORREGIDO
+    broadcast(data, excludeClientId = null) {
         const message = JSON.stringify(data);
-        this.clients.forEach(client => {
-            if (client.readyState === 1) { // OPEN
-                try {
-                    client.send(message);
-                } catch (error) {
-                    logger.error('Error enviando mensaje WebSocket:', error);
-                }
+        let sent = 0;
+        let failed = 0;
+        
+        for (const [clientId, clientData] of this.clients.entries()) {
+            if (excludeClientId && clientId === excludeClientId) {
+                continue;
             }
-        });
+            
+            if (clientData.ws.readyState === 1) { // OPEN
+                try {
+                    clientData.ws.send(message);
+                    sent++;
+                } catch (error) {
+                    console.error(`Error enviando a ${clientId}:`, error);
+                    failed++;
+                    // Eliminar cliente problemático
+                    this.clients.delete(clientId);
+                }
+            } else {
+                // Eliminar cliente si no está abierto
+                this.clients.delete(clientId);
+            }
+        }
+        
+        if (failed > 0) {
+            console.log(`📊 Broadcast: ${sent} enviados, ${failed} fallidos`);
+        }
+        
+        return { sent, failed };
     }
     
     // Iniciar servidor
     start() {
         return new Promise((resolve, reject) => {
             this.server.listen(this.port, () => {
-                logger.info(`🌐 Servidor web iniciado en http://localhost:${this.port}`);
-                logger.info(`🏠 Página principal: http://localhost:${this.port}/`);
-                logger.info(`📊 Panel de control: http://localhost:${this.port}/panel`);
-                logger.info(`📡 API: http://localhost:${this.port}/api`);
-                logger.info(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
+                console.log(`✅ Servidor web iniciado en puerto ${this.port}`);
+                console.log(`🌐 URL principal: http://localhost:${this.port}/`);
+                console.log(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
+                console.log(`📊 Panel: http://localhost:${this.port}/panel`);
+                console.log(`🏥 Health: http://localhost:${this.port}/health`);
+                console.log(`🔍 WebSocket Info: http://localhost:${this.port}/api/websocket-info`);
+                
+                // En producción (Render), mostrar URL real
+                if (process.env.NODE_ENV === 'production') {
+                    console.log(`🚀 Desplegado en: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'tu-app.onrender.com'}`);
+                }
+                
                 resolve();
             });
             
-            this.server.on('error', reject);
+            this.server.on('error', (error) => {
+                console.error('❌ Error iniciando servidor:', error);
+                reject(error);
+            });
         });
     }
     
     // Detener servidor
     stop() {
         return new Promise((resolve) => {
-            // Cerrar todas las conexiones WebSocket
-            this.clients.forEach(client => client.close());
+            // Cerrar todos los WebSockets
+            for (const [clientId, clientData] of this.clients.entries()) {
+                try {
+                    clientData.ws.close(1001, 'Servidor deteniéndose');
+                } catch (error) {
+                    // Ignorar errores al cerrar
+                }
+            }
             this.clients.clear();
             
-            // Cerrar servidor
+            // Limpiar intervalo de heartbeat
+            if (this.heartbeatInterval) {
+                clearInterval(this.heartbeatInterval);
+            }
+            
+            // Cerrar servidor WebSocket
+            this.wss.close(() => {
+                console.log('WebSocket Server cerrado');
+            });
+            
+            // Cerrar servidor HTTP
             this.server.close(() => {
-                logger.info('Servidor web detenido');
+                console.log('Servidor HTTP cerrado');
                 resolve();
             });
         });
@@ -1435,6 +1424,14 @@ class DiscordBot {
             users: this.client.users.cache.size,
             timestamp: new Date().toISOString()
         });
+        
+        // Enviar log al panel web
+        this.webServer.broadcast({
+            type: 'log',
+            level: 'success',
+            message: `🤖 Bot ${this.client.user.tag} conectado a Discord`,
+            timestamp: new Date().toISOString()
+        });
     }
 
     // ========== MANEJADOR DE DESCONEXIÓN ==========
@@ -1447,6 +1444,13 @@ class DiscordBot {
             type: 'bot_status',
             status: 'offline',
             message: 'Desconectado de Discord',
+            timestamp: new Date().toISOString()
+        });
+        
+        this.webServer.broadcast({
+            type: 'log',
+            level: 'warn',
+            message: '🔌 Desconectado de Discord',
             timestamp: new Date().toISOString()
         });
     }
@@ -1531,7 +1535,7 @@ class DiscordBot {
         this.webServer.broadcast({
             type: 'log',
             level: 'info',
-            message: `Comando ejecutado: ${command} por ${message.author.tag}`,
+            message: `📝 Comando: ${command} por ${message.author.tag}`,
             timestamp: new Date().toISOString()
         });
 
@@ -1587,7 +1591,7 @@ class DiscordBot {
             return;
         }
 
-        // ========== NUEVO: COMANDO PANEL WEB ==========
+        // ========== COMANDO PANEL WEB ==========
         if (command === 'panel' || command === 'web') {
             const embed = new MessageEmbed()
                 .setTitle('🌐 Panel de Control Web')
@@ -1612,7 +1616,7 @@ class DiscordBot {
             return;
         }
 
-        // ========== NUEVO: COMANDO CONTROL APIS NATIVAS ==========
+        // ========== COMANDO CONTROL APIS NATIVAS ==========
         if (command === 'apinativo' || command === 'nativo') {
             if (!args[0]) {
                 const stats = this.nativeAPIs.getStats();
@@ -2050,11 +2054,27 @@ class DiscordBot {
                                 user: message.author.tag,
                                 author: apiResult.data.author 
                             });
+                            
+                            // Enviar log al panel web
+                            this.webServer.broadcast({
+                                type: 'log',
+                                level: 'info',
+                                message: `📖 Frase solicitada por ${message.author.tag}: ${apiResult.data.author}`,
+                                timestamp: new Date().toISOString()
+                            });
                         } else if (apiResult.type === 'wikipedia') {
                             this.nativeAPICalls.wikipedia++;
                             logger.info(`Wikipedia detected`, { 
                                 user: message.author.tag,
                                 topic: apiResult.topic 
+                            });
+                            
+                            // Enviar log al panel web
+                            this.webServer.broadcast({
+                                type: 'log',
+                                level: 'info',
+                                message: `🌐 Wikipedia buscado por ${message.author.tag}: ${apiResult.topic}`,
+                                timestamp: new Date().toISOString()
                             });
                         }
                     }
@@ -2154,7 +2174,7 @@ class DiscordBot {
             // Enviar error al panel web
             this.webServer.broadcast({
                 type: 'error',
-                message: `Error en conversación con ${message.author.tag}: ${error.message}`,
+                message: `Error en conversación con ${message.author.tag}: ${error.message.substring(0, 100)}`,
                 timestamp: new Date().toISOString()
             });
             
@@ -2259,7 +2279,7 @@ class DiscordBot {
         try {
             const completion = await this.groq.chat.completions.create({
                 messages: messages,
-                model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
+                model: process.env.GROq_MODEL || 'mixtral-8x7b-32768',
                 temperature: 0.7,
                 max_tokens: 1024,
                 stream: false,
@@ -2450,7 +2470,7 @@ class DiscordBot {
         // Enviar error al panel web
         this.webServer.broadcast({
             type: 'error',
-            message: `Error de Discord: ${error.message}`,
+            message: `Error de Discord: ${error.message.substring(0, 100)}`,
             timestamp: new Date().toISOString()
         });
     }
@@ -2476,8 +2496,24 @@ class DiscordBot {
             // Luego iniciar el bot de Discord
             await this.client.login(process.env.DISCORD_BOT_TOKEN);
             
+            // Enviar log al panel web
+            this.webServer.broadcast({
+                type: 'log',
+                level: 'success',
+                message: '🚀 Bot Mancy iniciado correctamente',
+                timestamp: new Date().toISOString()
+            });
+            
         } catch (error) {
             logger.error('Error starting bot:', error);
+            
+            // Enviar error al panel web
+            this.webServer.broadcast({
+                type: 'error',
+                message: `Error iniciando bot: ${error.message}`,
+                timestamp: new Date().toISOString()
+            });
+            
             process.exit(1);
         }
     }
@@ -2502,6 +2538,13 @@ class DiscordBot {
             type: 'bot_status',
             status: 'stopping',
             message: 'Bot deteniéndose',
+            timestamp: new Date().toISOString()
+        });
+        
+        this.webServer.broadcast({
+            type: 'log',
+            level: 'warn',
+            message: '⏹️ Bot deteniéndose...',
             timestamp: new Date().toISOString()
         });
         
