@@ -268,12 +268,25 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+
+        .environment-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-left: 10px;
+            background: rgba(88, 101, 242, 0.3);
+            color: var(--secondary);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-robot"></i> Mancy Bot - Panel de Control</h1>
+            <h1>
+                <i class="fas fa-robot"></i> Mancy Bot - Panel de Control
+                <span id="envBadge" class="environment-badge">🌐 Producción</span>
+            </h1>
             <p>Gestiona y monitorea tu bot de Discord desde la web</p>
         </div>
 
@@ -341,7 +354,7 @@
                 </div>
                 <div class="connection-info">
                     <div id="wsDot" class="connection-dot"></div>
-                    <span id="wsStatus">Desconectado del WebSocket</span>
+                    <span id="wsStatus">Conectando...</span>
                 </div>
             </div>
         </div>
@@ -376,7 +389,7 @@
     </div>
 
     <div id="wsStatusDisplay" class="ws-status disconnected">
-        <i class="fas fa-signal"></i> WebSocket: Desconectado
+        <i class="fas fa-signal"></i> WebSocket: Conectando...
     </div>
 
     <script>
@@ -384,6 +397,25 @@
         let ws = null;
         let botStatus = 'offline';
         let statsData = {};
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+
+        // 🌐 DETECCIÓN AUTOMÁTICA DE ENTORNO
+        function getWebSocketURL() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            return `${protocol}//${host}/ws`;
+        }
+
+        // Detectar entorno
+        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        if (isProduction) {
+            document.getElementById('envBadge').innerHTML = '🌐 Render.com';
+            document.getElementById('envBadge').style.background = 'rgba(67, 181, 129, 0.3)';
+            document.getElementById('envBadge').style.color = 'var(--success)';
+        } else {
+            document.getElementById('envBadge').innerHTML = '💻 Local';
+        }
 
         // Función para formatear tiempo
         function formatUptime(ms) {
@@ -412,19 +444,20 @@
             document.getElementById('currentTime').textContent = timeString;
         }
 
-        // Inicializar WebSocket
+        // Inicializar WebSocket con reconexión inteligente
         function initWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            const wsUrl = getWebSocketURL();
             
-            console.log('🔄 Conectando a WebSocket:', wsUrl);
+            console.log(`🔄 Conectando a WebSocket (intento ${reconnectAttempts + 1}/${maxReconnectAttempts}):`, wsUrl);
+            addLog(`🔄 Intentando conexión WebSocket... (${reconnectAttempts + 1}/${maxReconnectAttempts})`, 'info');
             
             ws = new WebSocket(wsUrl);
             
             ws.onopen = function() {
-                console.log('✅ WebSocket conectado');
+                console.log('✅ WebSocket conectado exitosamente');
+                reconnectAttempts = 0;
                 updateWSStatus('connected');
-                addLog('✅ Conectado al servidor WebSocket', 'success');
+                addLog('✅ Conectado al servidor WebSocket en ' + (isProduction ? 'Render.com' : 'localhost'), 'success');
                 
                 // Solicitar estado inicial
                 ws.send(JSON.stringify({ type: 'get_status' }));
@@ -433,11 +466,10 @@
             ws.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('📨 Mensaje recibido:', data.type);
                     
                     switch(data.type) {
                         case 'welcome':
-                            addLog(data.message, 'success');
+                            addLog(data.message || '✅ Bienvenido al panel', 'success');
                             break;
                             
                         case 'bot_status':
@@ -453,19 +485,16 @@
                             break;
                             
                         case 'message':
-                            addLog(`💬 ${data.user}: ${data.content} → ${data.response}`, 'info');
+                            addLog(`💬 ${data.user}: ${data.content.substring(0, 50)}...`, 'info');
                             break;
                             
                         case 'error':
-                            addLog(`❌ Error: ${data.message}`, 'error');
+                            addLog(`❌ ${data.message}`, 'error');
                             break;
                             
                         case 'pong':
-                            // Heartbeat recibido
-                            break;
-                            
                         case 'heartbeat':
-                            // Actualizar última actividad
+                            // Silencioso
                             break;
                     }
                 } catch (error) {
@@ -476,16 +505,22 @@
             ws.onerror = function(error) {
                 console.error('❌ Error en WebSocket:', error);
                 updateWSStatus('error');
-                addLog('❌ Error en conexión WebSocket', 'error');
             };
             
-            ws.onclose = function() {
-                console.log('🔌 WebSocket desconectado');
+            ws.onclose = function(event) {
+                console.log('🔌 WebSocket cerrado:', event.code, event.reason);
                 updateWSStatus('disconnected');
-                addLog('⚠️ Desconectado del servidor', 'warn');
                 
-                // Intentar reconectar después de 5 segundos
-                setTimeout(initWebSocket, 5000);
+                // Reconexión inteligente con backoff exponencial
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
+                    
+                    addLog(`⚠️ Desconectado. Reintentando en ${Math.round(delay/1000)}s...`, 'warn');
+                    setTimeout(initWebSocket, delay);
+                } else {
+                    addLog('❌ Máximo de reintentos alcanzado. Recarga la página.', 'error');
+                }
             };
         }
 
@@ -500,21 +535,21 @@
                     wsDisplay.innerHTML = '<i class="fas fa-signal"></i> WebSocket: Conectado';
                     wsDisplay.className = 'ws-status connected';
                     wsDot.className = 'connection-dot connected';
-                    wsStatusText.textContent = 'Conectado al servidor WebSocket';
+                    wsStatusText.textContent = `Conectado al servidor (${isProduction ? 'Render' : 'Local'})`;
                     break;
                     
                 case 'disconnected':
                     wsDisplay.innerHTML = '<i class="fas fa-signal-slash"></i> WebSocket: Desconectado';
                     wsDisplay.className = 'ws-status disconnected';
                     wsDot.className = 'connection-dot';
-                    wsStatusText.textContent = 'Desconectado del WebSocket';
+                    wsStatusText.textContent = 'Desconectado - Reintentando...';
                     break;
                     
                 case 'error':
                     wsDisplay.innerHTML = '<i class="fas fa-exclamation-triangle"></i> WebSocket: Error';
                     wsDisplay.className = 'ws-status disconnected';
                     wsDot.className = 'connection-dot';
-                    wsStatusText.textContent = 'Error en conexión WebSocket';
+                    wsStatusText.textContent = 'Error en conexión';
                     break;
             }
         }
@@ -531,15 +566,13 @@
                 statusBadge.className = 'status-badge online';
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
-                addLog('🤖 Bot conectado a Discord', 'success');
             } else if (botStatus === 'offline') {
                 statusBadge.textContent = '🔴 OFFLINE';
                 statusBadge.className = 'status-badge offline';
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
-                addLog('🤖 Bot desconectado de Discord', 'warn');
             } else {
-                statusBadge.textContent = `🟡 ${data.message || 'Estado desconocido'}`;
+                statusBadge.textContent = `🟡 ${data.message || 'Desconocido'}`;
                 statusBadge.className = 'status-badge offline';
             }
         }
@@ -548,7 +581,6 @@
         function updateStats(data) {
             statsData = data;
             
-            // Actualizar contadores
             document.getElementById('messageCount').textContent = data.messageCount || 0;
             document.getElementById('commandCount').textContent = data.commandCount || 0;
             document.getElementById('guildCount').textContent = data.guildCount || 0;
@@ -557,7 +589,6 @@
             document.getElementById('quoteCalls').textContent = data.nativeAPICalls?.quotes || 0;
             document.getElementById('wikiCalls').textContent = data.nativeAPICalls?.wikipedia || 0;
             
-            // Actualizar uso de memoria
             if (data.systemMemory) {
                 const heapUsed = parseInt(data.systemMemory.heapUsed) || 0;
                 const heapTotal = parseInt(data.systemMemory.heapTotal) || 100;
@@ -585,23 +616,20 @@
             
             logsContainer.appendChild(logEntry);
             
-            // Mantener solo los últimos 50 logs
             const logs = logsContainer.querySelectorAll('.log-entry');
             if (logs.length > 50) {
                 logs[0].remove();
             }
             
-            // Auto-scroll al final
             logsContainer.scrollTop = logsContainer.scrollHeight;
         }
 
-        // Controlar el bot (iniciar/detener/reiniciar)
+        // Controlar el bot
         async function controlBot(action) {
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
             const restartBtn = document.getElementById('restartBtn');
             
-            // Deshabilitar botones temporalmente
             startBtn.disabled = true;
             stopBtn.disabled = true;
             restartBtn.disabled = true;
@@ -611,9 +639,7 @@
             try {
                 const response = await fetch('/api/control', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: action })
                 });
                 
@@ -621,39 +647,28 @@
                 
                 if (result.success) {
                     addLog(`✅ ${result.message}`, 'success');
-                    
-                    // Actualizar estado después de un momento
                     setTimeout(() => {
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({ type: 'get_status' }));
                         }
                     }, 2000);
                 } else {
-                    addLog(`❌ Error: ${result.error || result.message}`, 'error');
+                    addLog(`❌ ${result.error || result.message}`, 'error');
                 }
             } catch (error) {
-                addLog(`❌ Error de conexión: ${error.message}`, 'error');
-                console.error('Error:', error);
+                addLog(`❌ Error: ${error.message}`, 'error');
             } finally {
-                // Re-habilitar botones después de 3 segundos
-                setTimeout(() => {
-                    updateButtonStates();
-                }, 3000);
+                setTimeout(updateButtonStates, 3000);
             }
         }
 
-        // Actualizar estados de los botones basado en el estado del bot
         function updateButtonStates() {
-            const startBtn = document.getElementById('startBtn');
-            const stopBtn = document.getElementById('stopBtn');
-            const restartBtn = document.getElementById('restartBtn');
-            
-            startBtn.disabled = (botStatus === 'online');
-            stopBtn.disabled = (botStatus === 'offline');
-            restartBtn.disabled = false;
+            document.getElementById('startBtn').disabled = (botStatus === 'online');
+            document.getElementById('stopBtn').disabled = (botStatus === 'offline');
+            document.getElementById('restartBtn').disabled = false;
         }
 
-        // Cargar estado inicial desde la API REST
+        // Cargar estado inicial
         async function loadInitialStatus() {
             try {
                 const response = await fetch('/api/status');
@@ -662,50 +677,39 @@
                 if (data.bot) {
                     updateBotStatus(data);
                     updateStats(data);
-                    addLog(`✅ Estado inicial cargado: Bot ${data.status}`, 'success');
+                    addLog(`✅ Estado cargado: Bot ${data.status}`, 'success');
                 } else {
                     addLog('⚠️ Bot no inicializado', 'warn');
                 }
             } catch (error) {
-                addLog('❌ No se pudo cargar el estado inicial', 'error');
+                addLog('❌ Error cargando estado', 'error');
             }
         }
 
-        // Función para enviar ping periódico
+        // Heartbeat
         function startHeartbeat() {
             setInterval(() => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: 'ping',
-                        timestamp: Date.now()
-                    }));
+                    ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
                 }
-            }, 30000); // Cada 30 segundos
+            }, 30000);
         }
 
         // Inicialización
         window.onload = function() {
-            // Actualizar hora cada segundo
             setInterval(updateCurrentTime, 1000);
             updateCurrentTime();
             
-            // Cargar estado inicial
+            addLog(`🚀 Panel inicializado en ${isProduction ? 'Render.com (Producción)' : 'Localhost (Desarrollo)'}`, 'success');
+            addLog(`🌐 URL: ${window.location.href}`, 'info');
+            
             loadInitialStatus();
-            
-            // Iniciar WebSocket
             initWebSocket();
-            
-            // Iniciar heartbeat
             startHeartbeat();
-            
-            addLog('🚀 Panel de control inicializado', 'success');
         };
 
-        // Manejar recarga de página cuando se cierra
         window.onbeforeunload = function() {
-            if (ws) {
-                ws.close();
-            }
+            if (ws) ws.close();
         };
     </script>
 </body>
