@@ -477,13 +477,34 @@ class NativeAPIIntegration {
 }
 
 // ========== SERVIDOR WEB PARA HTML ==========
+// ========== SERVIDOR WEB PARA HTML ==========
 class WebServer {
-    constructor(port = process.env.PORT || 11000) { // ✅ Usa el puerto de Render
+    constructor(port = process.env.PORT || 11000) {
         this.port = port;
         this.app = express();
         this.server = createServer(this.app);
-        this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
-        this.clients = new Set();
+        
+        // ✅ CONFIGURACIÓN CORRECTA PARA RENDER
+        this.wss = new WebSocketServer({ 
+            server: this.server,
+            path: '/ws',
+            clientTracking: true,
+            perMessageDeflate: {
+                zlibDeflateOptions: {
+                    chunkSize: 1024,
+                    memLevel: 7,
+                    level: 3
+                },
+                zlibInflateOptions: {
+                    chunkSize: 10 * 1024
+                },
+                // Deshabilita compresión para clientes pequeños
+                threshold: 1024
+            }
+        });
+        
+        this.clients = new Map(); // Usar Map para mejor control
+        this.heartbeatInterval = null;
         
         // Configurar middleware
         this.app.use(cors({
@@ -495,101 +516,305 @@ class WebServer {
         this.app.use(express.json());
         this.app.use(express.urlencoded({ extended: true }));
         
-        // ✅ Servir archivos estáticos desde la carpeta public Y la raíz
-        this.app.use(express.static(path.join(__dirname, 'public')));
-        this.app.use(express.static(__dirname)); // Para servir index.html si está en raíz
+        // ✅ SERVIR ARCHIVOS ESTÁTICOS CORRECTAMENTE
+        this.app.use(express.static(path.join(__dirname)));
+        
+        // Si tienes carpeta public, también sirvela
+        if (fs.existsSync(path.join(__dirname, 'public'))) {
+            this.app.use('/public', express.static(path.join(__dirname, 'public')));
+        }
         
         // Configurar WebSocket
         this.setupWebSocket();
         
         // Configurar rutas
         this.setupRoutes();
+        
+        // Configurar heartbeat
+        this.setupHeartbeat();
     }
     
     setupWebSocket() {
-        this.wss.on('connection', (ws) => {
-            this.clients.add(ws);
+        this.wss.on('connection', (ws, req) => {
+            const clientId = Date.now() + Math.random().toString(36).substr(2, 9);
+            const clientIp = req.socket.remoteAddress;
+            
+            console.log(`✅ WebSocket conectado - ID: ${clientId} desde IP: ${clientIp}`);
+            
+            // Guardar cliente con metadata
+            this.clients.set(clientId, {
+                ws: ws,
+                connectedAt: new Date(),
+                ip: clientIp,
+                lastHeartbeat: Date.now()
+            });
+            
             logger.info(`WebSocket client connected. Total: ${this.clients.size}`);
             
-            // Enviar mensaje de bienvenida
-            ws.send(JSON.stringify({
-                type: 'welcome',
-                message: 'Conectado al panel de control Mancy AI',
-                timestamp: new Date().toISOString(),
-                version: SYSTEM_CONSTANTS.VERSION || '3.0.0'
-            }));
+            // ✅ ENVIAR MENSAJE DE BIENVENIDA INMEDIATAMENTE
+            try {
+                ws.send(JSON.stringify({
+                    type: 'welcome',
+                    message: '✅ Conectado al panel de control Mancy AI',
+                    timestamp: new Date().toISOString(),
+                    version: SYSTEM_CONSTANTS.VERSION || '3.0.0',
+                    clientId: clientId,
+                    serverTime: Date.now()
+                }));
+            } catch (error) {
+                console.error('Error enviando welcome:', error);
+            }
             
-            ws.on('close', () => {
-                this.clients.delete(ws);
+            // Manejar mensajes del cliente
+            ws.on('message', (message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    console.log(`📨 Mensaje de ${clientId}:`, data.type || 'sin tipo');
+                    
+                    // Responder a pings
+                    if (data.type === 'ping') {
+                        ws.send(JSON.stringify({
+                            type: 'pong',
+                            timestamp: Date.now(),
+                            original: data.timestamp
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Error parseando mensaje:', error);
+                }
+            });
+            
+            ws.on('close', (code, reason) => {
+                this.clients.delete(clientId);
+                console.log(`🔌 WebSocket desconectado - ID: ${clientId}, Código: ${code}, Razón: ${reason}`);
                 logger.info(`WebSocket client disconnected. Total: ${this.clients.size}`);
             });
             
             ws.on('error', (error) => {
+                console.error(`❌ WebSocket error - ID: ${clientId}:`, error.message);
                 logger.error('WebSocket error:', error);
+                this.clients.delete(clientId);
+            });
+            
+            // Configurar timeout para conexiones inactivas
+            const inactivityTimeout = setTimeout(() => {
+                if (this.clients.has(clientId)) {
+                    const clientData = this.clients.get(clientId);
+                    if (Date.now() - clientData.lastHeartbeat > 120000) { // 2 minutos
+                        console.log(`⏰ Desconectando cliente inactivo: ${clientId}`);
+                        ws.close(1001, 'Inactividad');
+                    }
+                }
+            }, 120000);
+            
+            // Limpiar timeout al cerrar
+            ws.on('close', () => {
+                clearTimeout(inactivityTimeout);
+            });
+        });
+        
+        // Manejar errores del servidor WebSocket
+        this.wss.on('error', (error) => {
+            console.error('❌ WebSocket Server error:', error);
+            logger.error('WebSocket Server error:', error);
+        });
+    }
+    
+    setupHeartbeat() {
+        // Enviar heartbeat a todos los clientes cada 30 segundos
+        this.heartbeatInterval = setInterval(() => {
+            const now = Date.now();
+            const message = JSON.stringify({
+                type: 'heartbeat',
+                timestamp: now,
+                clients: this.clients.size
+            });
+            
+            for (const [clientId, clientData] of this.clients.entries()) {
+                try {
+                    if (clientData.ws.readyState === 1) { // OPEN
+                        clientData.ws.send(message);
+                        // Actualizar último heartbeat
+                        clientData.lastHeartbeat = now;
+                        this.clients.set(clientId, clientData);
+                    } else {
+                        // Eliminar cliente si no está abierto
+                        this.clients.delete(clientId);
+                    }
+                } catch (error) {
+                    console.error(`Error enviando heartbeat a ${clientId}:`, error);
+                    this.clients.delete(clientId);
+                }
+            }
+            
+            // Limpiar clientes muertos
+            for (const [clientId, clientData] of this.clients.entries()) {
+                if (now - clientData.lastHeartbeat > 90000) { // 1.5 minutos sin heartbeat
+                    console.log(`🧹 Limpiando cliente muerto: ${clientId}`);
+                    try {
+                        clientData.ws.close(1001, 'Timeout');
+                    } catch (e) {}
+                    this.clients.delete(clientId);
+                }
+            }
+        }, 30000); // Cada 30 segundos
+    }
+    
+    setupRoutes() {
+        // ✅ RUTA PRINCIPAL CORREGIDA
+        this.app.get('/', (req, res) => {
+            console.log('📄 Solicitud a / desde:', req.ip);
+            
+            // Primero intenta servir index.html desde la raíz
+            const rootIndexPath = path.join(__dirname, 'index.html');
+            if (fs.existsSync(rootIndexPath)) {
+                console.log('✅ Sirviendo index.html desde raíz');
+                res.sendFile(rootIndexPath);
+            } else {
+                // Si no existe, mostrar página simple
+                console.log('⚠️ index.html no encontrado en raíz, mostrando página alternativa');
+                res.send(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Mancy Bot</title></head>
+                    <body>
+                        <h1>🤖 Mancy Bot está funcionando!</h1>
+                        <p>Servidor activo en puerto ${this.port}</p>
+                        <p>WebSocket: <code id="wsStatus">Desconocido</code></p>
+                        <script>
+                            const ws = new WebSocket('wss://' + window.location.host + '/ws');
+                            ws.onopen = () => document.getElementById('wsStatus').textContent = '✅ Conectado';
+                            ws.onerror = () => document.getElementById('wsStatus').textContent = '❌ Error';
+                        </script>
+                    </body>
+                    </html>
+                `);
+            }
+        });
+        
+        // ✅ ENDPOINT DE DIAGNÓSTICO DE WEBSOCKET
+        this.app.get('/api/websocket-info', (req, res) => {
+            res.json({
+                status: 'operational',
+                websocket: {
+                    enabled: true,
+                    path: '/ws',
+                    clients: this.clients.size,
+                    protocol: 'wss',
+                    supportsHeartbeat: true
+                },
+                server: {
+                    time: new Date().toISOString(),
+                    uptime: process.uptime(),
+                    port: this.port,
+                    nodeVersion: process.version,
+                    memory: process.memoryUsage()
+                },
+                endpoints: [
+                    'GET  / → Página principal',
+                    'GET  /health → Estado del servidor',
+                    'GET  /api/status → Estado del bot',
+                    'GET  /api/websocket-info → Esta página',
+                    'WS   /ws → WebSocket para panel de control'
+                ]
+            });
+        });
+        
+        // Mantén las demás rutas que ya tienes (/panel, /health, /api/status, etc.)
+        // ... [tu código existente de rutas] ...
+    }
+    
+    // ✅ MÉTODO PARA BROADCAST CORREGIDO
+    broadcast(data, excludeClientId = null) {
+        const message = JSON.stringify(data);
+        let sent = 0;
+        let failed = 0;
+        
+        for (const [clientId, clientData] of this.clients.entries()) {
+            if (excludeClientId && clientId === excludeClientId) {
+                continue;
+            }
+            
+            if (clientData.ws.readyState === 1) { // OPEN
+                try {
+                    clientData.ws.send(message);
+                    sent++;
+                } catch (error) {
+                    console.error(`Error enviando a ${clientId}:`, error);
+                    failed++;
+                    // Eliminar cliente problemático
+                    this.clients.delete(clientId);
+                }
+            } else {
+                // Eliminar cliente si no está abierto
+                this.clients.delete(clientId);
+            }
+        }
+        
+        if (failed > 0) {
+            console.log(`📊 Broadcast: ${sent} enviados, ${failed} fallidos`);
+        }
+        
+        return { sent, failed };
+    }
+    
+    // Iniciar servidor
+    start() {
+        return new Promise((resolve, reject) => {
+            this.server.listen(this.port, () => {
+                console.log(`✅ Servidor web iniciado en puerto ${this.port}`);
+                console.log(`🌐 URL principal: http://localhost:${this.port}/`);
+                console.log(`🔌 WebSocket: ws://localhost:${this.port}/ws`);
+                console.log(`📊 Panel: http://localhost:${this.port}/panel`);
+                console.log(`🏥 Health: http://localhost:${this.port}/health`);
+                console.log(`🔍 WebSocket Info: http://localhost:${this.port}/api/websocket-info`);
+                
+                // En producción (Render), mostrar URL real
+                if (process.env.NODE_ENV === 'production') {
+                    console.log(`🚀 Desplegado en: https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'tu-app.onrender.com'}`);
+                }
+                
+                resolve();
+            });
+            
+            this.server.on('error', (error) => {
+                console.error('❌ Error iniciando servidor:', error);
+                reject(error);
             });
         });
     }
     
-    setupRoutes() {
-        // ✅ Ruta principal: SIRVE EL HTML DESDE LA RAÍZ
-        this.app.get('/', (req, res) => {
-            // Primero intenta servir index.html desde la raíz
-            const rootIndexPath = path.join(__dirname, 'index.html');
-            if (fs.existsSync(rootIndexPath)) {
-                res.sendFile(rootIndexPath);
-            }
-            // Si no existe en raíz, busca en public/
-            else {
-                const publicIndexPath = path.join(__dirname, 'public', 'index.html');
-                if (fs.existsSync(publicIndexPath)) {
-                    res.sendFile(publicIndexPath);
-                }
-                // Si no existe ningún index.html, muestra un mensaje
-                else {
-                    res.send(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>Mancy Bot</title>
-                            <style>
-                                body { 
-                                    font-family: Arial, sans-serif; 
-                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                    color: white;
-                                    display: flex;
-                                    justify-content: center;
-                                    align-items: center;
-                                    height: 100vh;
-                                    margin: 0;
-                                }
-                                .container { 
-                                    text-align: center;
-                                    padding: 2rem;
-                                    background: rgba(0,0,0,0.7);
-                                    border-radius: 15px;
-                                    max-width: 600px;
-                                }
-                                h1 { color: #4CAF50; margin-bottom: 1rem; }
-                                a { color: #4CAF50; text-decoration: none; font-weight: bold; }
-                                a:hover { text-decoration: underline; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="container">
-                                <h1>🤖 Mancy Bot está funcionando!</h1>
-                                <p>El servidor está activo pero no se encontró el archivo index.html.</p>
-                                <p>📁 Coloca tu HTML en la raíz del proyecto o en la carpeta public/</p>
-                                <p>🔗 <a href="/panel">Ir al Panel de Control</a></p>
-                                <p>📊 <a href="/api/status">Ver Estado del Bot (API)</a></p>
-                                <p>⚡ <a href="/health">Health Check</a></p>
-                            </div>
-                        </body>
-                        </html>
-                    `);
+    // Detener servidor
+    stop() {
+        return new Promise((resolve) => {
+            // Cerrar todos los WebSockets
+            for (const [clientId, clientData] of this.clients.entries()) {
+                try {
+                    clientData.ws.close(1001, 'Servidor deteniéndose');
+                } catch (error) {
+                    // Ignorar errores al cerrar
                 }
             }
+            this.clients.clear();
+            
+            // Limpiar intervalo de heartbeat
+            if (this.heartbeatInterval) {
+                clearInterval(this.heartbeatInterval);
+            }
+            
+            // Cerrar servidor WebSocket
+            this.wss.close(() => {
+                console.log('WebSocket Server cerrado');
+            });
+            
+            // Cerrar servidor HTTP
+            this.server.close(() => {
+                console.log('Servidor HTTP cerrado');
+                resolve();
+            });
         });
-        
+    }
+}
         // ✅ Ruta de API (moved from root)
         this.app.get('/api', (req, res) => {
             res.json({
