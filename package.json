@@ -3,11 +3,11 @@
   "version": "3.0.0",
   "description": "Bot de Discord con IA (Groq), memoria persistente, búsqueda de conocimiento, API REST y panel web",
   "type": "module",
-  "main": "bot.js",  // ✅ Cambiado a bot.js
+  "main": "bot.js",
   "scripts": {
-    "start": "node bot.js",  // ✅ Cambiado a bot.js
-    "dev": "nodemon bot.js",  // ✅ Usa nodemon para desarrollo
-    "prod": "node bot.js",    // ✅ Script explícito para producción
+    "start": "node bot.js",
+    "dev": "nodemon bot.js",
+    "prod": "node bot.js",
     "dev:debug": "node --inspect bot.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "lint": "eslint .",
@@ -21,7 +21,7 @@
     "dotenv": "^16.4.5",
     "groq-sdk": "^0.7.0",
     "cors": "^2.8.5",
-    "ws": "^8.17.1",  // ✅ Añadido para WebSocket
+    "ws": "^8.17.1",
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
@@ -33,17 +33,6 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": [
-    "bot.js",
-    "public/",
-    "services/",
-    "config/",
-    "utils/",
-    "commands/",
-    "data/",
-    ".env.example",
-    "README.md"
-  ],
   "keywords": [
     "discord",
     "bot",
@@ -57,5 +46,6 @@
     "artificial-intelligence"
   ],
   "author": "Tu Nombre",
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }
